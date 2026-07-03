@@ -1,0 +1,119 @@
+# Single-File AI Chess — Product Requirements Document (PRD)
+
+**Document type:** PRD (SDD Layer 2 — user-facing behavior, flows, UX)
+**Derived from:** `chess-app-spec.md`
+**Status:** Draft v1.0
+
+---
+
+## 1. Product goals
+
+- **Primary goal — entertain.** The app should be fun to play against and fun to watch, regardless of skill level. A beginner should be able to have an enjoyable, winnable game; a strong player should be able to get a genuine challenge.
+- **Secondary goal — evaluate AI "intelligence."** The app is also a lens for comparing the two AI tiers: how strong is Normal at each difficulty, how strong is Grandmaster, and — concretely — how do they actually think and differ move to move? This shapes several requirements below that a pure "just let me play chess" app wouldn't need (transparency into engine thinking, move-quality feedback, AI-vs-AI spectating).
+
+These two goals are complementary, not competing: transparency features that satisfy the evaluation goal (eval bar, move-quality tags, thinking stats) also make the game more engaging to watch, which serves entertainment.
+
+## 2. Primary user flows
+
+### 2.1 Setup flow
+1. User lands on a **Setup screen**: two side-by-side controller pickers, one per color (White / Black).
+2. Each picker offers: Human, Normal AI (→ reveals a Difficulty sub-picker, 1–5 per spec FR-3.2), Grandmaster AI.
+3. A short one-line description accompanies each option so a non-technical user understands what they're choosing (see §5.1 copy).
+4. "Start Game" begins play; the board screen loads with both sides' controllers locked for that game (spec FR-2.3).
+
+### 2.2 Gameplay flow (Human involved)
+1. On a human turn: legal-move highlighting on piece selection, click-to-move (drag-and-drop optional stretch), illegal attempts bounce back with a subtle shake — no modal, no dead end.
+2. On an AI turn: board is read-only, a **thinking indicator** appears (see §5.3) — this is not just a spinner, it's part of the "evaluate the AI" experience.
+3. After every ply: move appended to history panel in SAN, last-move highlighted, check indicator if applicable.
+4. Game end: a summary panel appears (see §2.4).
+
+### 2.3 Spectator flow (AI vs AI)
+This flow exists specifically to serve the secondary goal — watching two AIs (or two difficulty levels of the same AI) play each other is the most direct way to "evaluate how smart each one is."
+1. User configures both sides as AI (any tier/difficulty combination, including Normal vs Normal at different difficulties, or Normal vs Grandmaster).
+2. A **playback speed control** (Normal / Fast / Instant) governs how long the app pauses between moves purely for watchability — the AI still computes at its real budget; this only affects the pacing of what's shown.
+3. Pause/Resume and Stop controls are always visible (spec FR-6.4).
+4. The eval bar and move-quality tags (§5.4) are especially prominent in this mode, since there's no human move to focus on.
+
+### 2.4 Game-end / summary flow
+1. Result banner: winner + reason (checkmate, resignation, stalemate, draw — with the specific draw reason per spec FR-1.3).
+2. **Game summary panel**, addressing the secondary goal directly:
+   - Move-quality breakdown per side (count of Best / Good / Inaccuracy / Mistake / Blunder — see §5.4 for definition).
+   - For AI vs AI games specifically: a plain-language one-line takeaway, e.g. "White (Grandmaster) outplayed Black (Normal, Level 3) — 0 mistakes vs 4."
+   - "Rematch" (same config) and "New setup" actions.
+
+## 3. Feature requirements (mapped to spec)
+
+| PRD feature | Spec ref | Notes |
+|---|---|---|
+| Controller picker (per side) | FR-2 | Human / Normal(+difficulty) / Grandmaster |
+| Board + move input | FR-1, FR-5 | Click-to-move required; drag-and-drop stretch |
+| Move history (SAN) | FR-5.4 | Scrollable, always visible |
+| Thinking indicator | NFR-3 | Must reflect worker activity, never fake/static |
+| Eval bar | new — see §5.4 | Not in spec v1; added here to serve secondary goal |
+| Move-quality tags | new — see §5.4 | Same |
+| AI vs AI spectator controls | FR-6.4 | Speed control is new, added here |
+| Game summary panel | FR-7 | Extended beyond spec's minimum result line |
+| Resign / Flip / New Game | FR-6 | |
+| Graceful Stockfish-load failure | FR-4.3 | Must not silently fail — see §5.5 |
+
+## 4. Non-goals for this PRD
+
+Per spec §3, and additionally for this PRD specifically:
+- No onboarding tutorial or rules explainer — the audience is assumed to already know how to play chess (the AI-comparison angle implies a somewhat engaged, curious user).
+- No persistent cross-session stats (spec NG2). Within a single browser session, a lightweight running tally of AI-vs-AI results may be kept in memory purely for the spectator flow, but resets on reload — this is explicitly transient, not a database.
+- No user accounts, sharing, or export (e.g. exporting a PGN) in v1 — flagged as a good v1.1 candidate given the evaluation goal, but not required now.
+
+## 5. UX requirements by component
+
+### 5.1 Setup screen copy
+Each controller option needs a plain-language strength cue so the "evaluate intelligence" goal starts before the game even begins:
+- Normal — Beginner: *"Makes mistakes on purpose. Good for learning."*
+- Normal — Easy: *"Plays casually — will punish obvious blunders but gives chances."*
+- Normal — Medium: *"A solid club-level challenge."*
+- Normal — Hard: *"A strong club player. Few free gifts."*
+- Normal — Expert: *"The strongest this hand-built engine can play."*
+- Grandmaster: *"Stockfish. Full strength. This one doesn't lose on purpose."*
+
+### 5.2 Board & interaction
+- Standard 8×8 board, light/dark square theme, coordinate labels on the edge.
+- Selected piece highlighted; legal destinations marked distinctly from captures (capture squares visually different from empty destination squares).
+- Check: king square gets a distinct warning highlight (not just a text notice — should be readable at a glance while watching a fast AI-vs-AI game).
+
+### 5.3 Thinking indicator (entertainment + evaluation)
+While an AI is searching, show, live if possible:
+- Which engine is thinking (Normal L3 / Grandmaster).
+- A lightweight progress cue tied to iterative deepening — e.g. current depth reached — for the Normal engine, and elapsed think time for Grandmaster. This is a direct, low-effort window into "how the AI thinks," serving the secondary goal without requiring a dedicated analysis screen.
+- This must never block or lag the UI (NFR-3) — it's a display of worker progress messages, not a computation on the main thread.
+
+### 5.4 Evaluation bar & move-quality tags (new feature, serving secondary goal)
+- A slim vertical or horizontal bar showing the current position's evaluation (from White's perspective), sourced from whichever engine most recently searched the position. If only a human just moved and no engine has evaluated the resulting position yet, the bar shows the last known value with a subtle "pending" state until an engine (even a quick background Normal-engine call) scores it.
+- After each AI move, classify it by comparing the played move's resulting eval to the best available move's eval (both numbers already produced by search, so this is cheap):
+  - **Best** — matches or ties the top move.
+  - **Good** — small eval loss.
+  - **Inaccuracy / Mistake / Blunder** — increasing eval loss thresholds.
+- Tags render as small badges next to the relevant move in the history panel. This is the single most direct product mechanism for "how smart was that move" — it turns an abstract engine-strength question into a readable, per-move label.
+- Exact centipawn thresholds for each tag are a tuning detail for the TDD/implementation, not fixed here.
+
+### 5.5 Error & edge states
+- Grandmaster selection when Stockfish fails to load: the option is disabled with an inline explanation ("Grandmaster mode needs an internet connection to load Stockfish") rather than allowed-then-failing mid-game (spec FR-4.3).
+- Worker crash mid-game: non-blocking toast/banner ("The AI ran into a problem — start a new game to continue") plus a New Game shortcut; the board freezes in place rather than corrupting (spec NFR-7.1).
+
+## 6. Visual & tonal direction
+
+Since the primary goal is entertainment, the app should not read as a bare technical demo:
+- Warm, inviting board theme by default (not sterile gray/white); should still meet contrast requirements (spec NFR-6.2).
+- Small delight touches are encouraged and left to design exploration: move animations (piece sliding, not teleporting), a subtle capture effect, a distinct and satisfying checkmate moment (e.g. brief highlight/animation on the mating position).
+- Sound effects (move, capture, check, game-end) — optional, user-toggleable, off by default is a reasonable safe choice pending design input.
+- The evaluation features (§5.4) should feel like a natural, integrated part of the experience — closer to a broadcast-style eval bar than a debugging panel.
+
+## 7. Success signals (qualitative, v1 has no analytics/backend to measure these quantitatively)
+
+- A user can explain, after one AI-vs-AI game, roughly how the two engines differed in strength — this is the core signal that the secondary goal is met.
+- A beginner can complete and enjoy a game against Normal/Beginner without feeling like they need to read documentation first.
+- Nothing in the flow requires leaving the page (aside from the one-time Stockfish asset fetch) or reading this PRD.
+
+## 8. Open questions for design/implementation
+
+- Exact move-quality thresholds (§5.4) and difficulty-to-ELO mapping (spec A11.1) — needs playtesting, not a UX decision.
+- Whether the in-session AI-vs-AI tally (§4) is worth building for v1 or deferred — low cost, but confirm it's wanted before implementing.
+- Sound on/off default and asset choice — design call, not blocking.
