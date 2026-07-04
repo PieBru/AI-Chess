@@ -163,10 +163,12 @@ engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 - **Offline-first.** Human-vs-Human and Human-vs-Normal must work with no
   network. Only Grandmaster (Stockfish fetch) and LLM-Assisted (endpoint
   fetch) need the network.
-- **Security at trust boundaries stays.** LLM API keys are held in memory only
-  (never `localStorage`, never written into the file) and are sent directly
-  from the browser to the endpoint — acceptable for local use, not for
-  sharing the file with a real key typed in.
+- **Security at trust boundaries stays.** LLM API keys are sent directly
+  from the browser to the endpoint. Per FR-9.4 the setup config (including
+  the key) is persisted to `localStorage` so a restart proposes the last-used
+  options as defaults on the same computer — so the key is readable by anyone
+  with this browser profile; acceptable for local use, not for sharing the
+  file with a real key in it. Keys are never written into the HTML file itself.
 
 ---
 

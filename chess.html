@@ -1371,28 +1371,58 @@ function requestMove(fen, difficulty) {
   }
 
   // ---- Setup screen wiring ----
+  // Setup selections persist on this computer so a restart proposes the
+  // last-used config as defaults. ponytail: localStorage is the stdlib
+  // answer. Note this *does* store the LLM API key locally — acceptable for a
+  // single-user local tool, but it means anyone with browser access to this
+  // profile can read it. Wrapped in try/catch: storage may be disabled or
+  // blocked under file://, in which case persistence silently no-ops.
+  const SETUP_KEY = 'onefile-chess-setup-v1';
+  function saveSetup(config) {
+    try { localStorage.setItem(SETUP_KEY, JSON.stringify(config)); } catch (e) {}
+  }
+  function loadSetup() {
+    try { return JSON.parse(localStorage.getItem(SETUP_KEY)) || null; } catch (e) { return null; }
+  }
+
+  const SIDE_HINTS = {
+    human: 'Makes moves via the board UI.',
+    normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
+    grandmaster: 'Stockfish. Full strength. Requires an internet connection to load.',
+    llm: 'Calls an OpenAI-compatible chat endpoint and plays whichever legal move it picks.',
+  };
+  // Shared by click handling and restore-from-storage so both take the same path.
+  function selectSideType(cfgEl, type) {
+    cfgEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+    const btn = cfgEl.querySelector('.opt-btn[data-type="' + type + '"]');
+    if (btn) btn.classList.add('selected');
+    cfgEl.querySelector('.difficulty-picker').hidden = type !== 'normal';
+    cfgEl.querySelector('.llm-config').hidden = type !== 'llm';
+    cfgEl.querySelector('.side-hint').textContent = SIDE_HINTS[type] || '';
+  }
+
   document.querySelectorAll('.side-config').forEach(cfgEl => {
-    const side = cfgEl.dataset.side;
-    const diffPicker = cfgEl.querySelector('.difficulty-picker');
-    const llmConfig = cfgEl.querySelector('.llm-config');
-    const hintEl = cfgEl.querySelector('.side-hint');
-    const HINTS = {
-      human: 'Makes moves via the board UI.',
-      normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
-      grandmaster: 'Stockfish. Full strength. Requires an internet connection to load.',
-      llm: 'Calls an OpenAI-compatible chat endpoint and plays whichever legal move it picks.',
-    };
     cfgEl.querySelectorAll('.opt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        cfgEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        const type = btn.dataset.type;
-        diffPicker.hidden = type !== 'normal';
-        llmConfig.hidden = type !== 'llm';
-        hintEl.textContent = HINTS[type];
+        selectSideType(cfgEl, btn.dataset.type);
       });
     });
   });
+
+  // Propose last-used setup as defaults on load.
+  (function restoreSetup() {
+    const saved = loadSetup();
+    if (!saved) return;
+    document.querySelectorAll('.side-config').forEach(cfgEl => {
+      const entry = saved[cfgEl.dataset.side];
+      if (!entry) return;
+      selectSideType(cfgEl, entry.type || 'human');
+      if (entry.difficulty != null) cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
+      if (entry.apiBase != null) cfgEl.querySelector('.llm-api-base').value = entry.apiBase;
+      if (entry.apiKey != null) cfgEl.querySelector('.llm-api-key').value = entry.apiKey;
+      if (entry.model != null) cfgEl.querySelector('.llm-model').value = entry.model;
+    });
+  })();
 
   document.getElementById('start-btn').addEventListener('click', () => {
     const config = {};
@@ -1422,6 +1452,7 @@ function requestMove(fen, difficulty) {
     }
     errorEl.hidden = true;
     matchConfig = config;
+    saveSetup(config);
     startGame();
   });
 
