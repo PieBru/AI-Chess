@@ -33,16 +33,19 @@ endpoint, ideally a local server.
 ## 2. Repository layout
 
 ```
-chess.html                  # The app. Single file. This is the deliverable.
-chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
-chess-app-prd.md            # SDD Layer 2 — PRD (UX, flows, behavior)
-chess-app-tdd.md            # SDD Layer 3 — TDD (architecture, design, schemas)
-onefile-chess-*.html        # User-facing pages (blog / guide / kids, EN + IT)
-AGENTS.md                   # This file
+chess.html                    # The app. Single file. This is the deliverable.
+specs/                        # Project / governing documentation (SDD layers)
+  chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
+  chess-app-prd.md            # SDD Layer 2 — PRD (UX, flows, behavior)
+  chess-app-tdd.md            # SDD Layer 3 — TDD (architecture, design, schemas)
+  AGENTS.md                   # This file (operating manual)
+docs/                         # User-facing pages (blog / guide / kids, EN + IT)
+  onefile-chess-*.html
 ```
 
-No `package.json`, no build tooling, no test runner, no `.gitignore` — by
-design. See §6 and §8.
+No `package.json`, no build tooling, no test runner — by design. The only
+non-app file at the repo root is `.gitignore`, which keeps the GPLv3 Stockfish
+runtime binaries out of the tree (NG3 / §12.4). See §6 and §8.
 
 ---
 
