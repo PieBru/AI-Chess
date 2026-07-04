@@ -74,8 +74,11 @@ interface Move {
 }
 
 interface ControllerConfig {
-  type: 'human' | 'normal' | 'grandmaster';
+  type: 'human' | 'normal' | 'grandmaster' | 'llm';
   difficulty?: 1|2|3|4|5;       // required iff type === 'normal'
+  endpoint?: string;            // required iff type === 'llm' (OpenAI-compatible base URL)
+  apiKey?: string;              // optional iff type === 'llm'
+  model?: string;               // required iff type === 'llm'
 }
 
 interface MatchConfig {
@@ -153,6 +156,16 @@ Consequence: Grandmaster strength is bounded by single-thread NPS. This is still
 - Parse `bestmove <uci-move> [ponder <move>]` as the terminal response.
 - UCI move strings (e.g. `e2e4`, `e7e8q`) are converted to the internal `Move` shape via the rules engine's own move generator (find the legal move matching that from/to/promotion) rather than trusted blindly — this reuses the legality filter as a safety net against any parser edge case.
 
+### 5.4 LLM-Assisted engine (main-thread fetch, implements spec FR-9)
+Unlike the Normal and Grandmaster engines, the LLM-Assisted controller is **not a worker** — it issues a direct `fetch()` from the main thread to the user-supplied OpenAI-compatible endpoint. It still satisfies the engine-manager `requestMove()` contract, returning the normalized `{ move, evalCp, bestEvalCp }` shape so the game loop stays agnostic (spec §7.1).
+
+- **Request:** `POST {endpoint}/chat/completions` with `Authorization: Bearer {apiKey}` when a key is supplied; body is `{ model, messages, temperature: 0, max_tokens: 8 }`. The system message constrains the model to reply with exactly one legal UCI move; the user message supplies the FEN and the full legal UCI move list.
+- **Parse:** extract the first `[a-h][1-8][a-h][1-8][qrbn]?` match from `choices[0].message.content`.
+- **Legality:** the parsed move must appear in the legal list; an illegal/unparseable reply is retried **once** (same request, no state change), then rejected as an engine error (spec FR-9.3). The chosen move is re-validated through the rules engine on the game-loop side like every other AI move (§9, NFR-7.2).
+- **Evals:** the chat endpoint returns no eval, so `bestEvalCp` is derived from a Normal-engine search of the current position (difficulty 4) and `evalCp` from a Normal-engine search of the child position after the LLM's move (negated) — reusing the existing worker, no new eval path. This keeps the eval bar (PRD §5.4) and move-quality tags working in LLM mode.
+- **Failure handling:** a non-2xx response, network/CORS error, or exhausted retry is surfaced through the same `§5.5` worker-crash path (toast, freeze board, New Game) — the game loop's `try/catch` already covers it since `requestMove` rejects.
+- **CORS / security (ponytail):** the endpoint must serve permissive CORS itself; no app-side proxy or CORS handling. API keys are held only in memory for the session (no `localStorage`) — re-entered per FR-9.4. This is acceptable for a local demo-grade tool; revisit if exposed publicly.
+
 ## 6. Worker communication protocol (concrete schema, implements spec §9)
 
 ```ts
@@ -212,6 +225,7 @@ All applied moves — human or AI — pass through the same rules-engine validat
 | Worker throws / crashes | `onerror` handler on the Worker object | Emit `{type:'error'}` equivalent to state manager → PRD §5.5 toast, freeze board, offer New Game |
 | Stockfish asset fails to load | Load promise rejects / timeout | Disable Grandmaster option for session, inline message (PRD §5.5) |
 | Engine returns an illegal/unparseable move | Rules-engine validation fails | Reject result, surface as worker error (do not retry silently in a loop) |
+| LLM endpoint non-2xx / network or CORS error / exhausted retry | `fetch` rejects or reply unparseable/illegal after one retry | Surface via the same §5.5 worker-crash path (toast, freeze board, New Game) — `requestMove` rejection |
 | Search exceeds time budget significantly | Worker-side watchdog timer | Force-return best move found so far rather than hang the request |
 
 ## 11. Testing strategy (traces to spec §10 acceptance criteria)
@@ -219,7 +233,7 @@ All applied moves — human or AI — pass through the same rules-engine validat
 - **Rules engine**: unit tests against known FEN/perft positions (standard perft node-count test suite) to validate move generation correctness independent of any AI.
 - **Normal engine**: regression tests on fixed positions with known best moves/tactics at each difficulty tier; confirm time/depth budgets are respected (§4.3 table).
 - **Grandmaster integration**: smoke test that UCI handshake completes, a `position`+`go` round-trip returns a legal move, and load-failure handling triggers correctly when the asset URL is deliberately broken in a test.
-- **End-to-end**: scripted playthroughs covering all four controller combinations (spec AC-4), a full AI-vs-AI game to completion (AC-3), and an offline-mode check confirming Human vs Human / Human vs Normal works with network disabled (AC-6).
+- **End-to-end**: scripted playthroughs covering all Human/AI controller combinations including LLM-Assisted (spec AC-4, AC-8), a full AI-vs-AI game to completion (AC-3), and an offline-mode check confirming Human vs Human / Human vs Normal works with network disabled (AC-6).
 
 ## 12. Open technical risks
 

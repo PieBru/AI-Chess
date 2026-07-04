@@ -35,7 +35,7 @@ Both engines run inside a **Web Worker** so the UI thread never blocks during se
 ## 2. Goals
 
 - **G1.** Provide a fully playable, rules-correct chess game in one HTML file.
-- **G2.** Let the user independently assign White and Black to Human, Normal AI (with a difficulty), or Grandmaster AI.
+- **G2.** Let the user independently assign White and Black to Human, Normal AI (with a difficulty), Grandmaster AI, or LLM-Assisted (with its own endpoint/model config).
 - **G3.** Keep the UI responsive at all times, including during deep AI search.
 - **G4.** Offer a genuinely wide strength range: from a beatable beginner AI up to super-human (Stockfish-class) play.
 - **G5.** Keep the codebase understandable and self-contained enough that the Normal engine's logic is inspectable, not a black box.
@@ -57,8 +57,9 @@ There is a single user-facing configuration surface: **for each color (White, Bl
 | Human | Moves are entered via the board UI (click or drag) |
 | Normal AI | Local custom engine; requires a **Difficulty** sub-selection |
 | Grandmaster AI | Stockfish WASM; no difficulty selection (max strength) |
+| LLM-Assisted | Calls a user-configured OpenAI-compatible chat endpoint per move; requires **Endpoint / API key (optional) / Model** sub-selection |
 
-All four combinations must be supported without special-casing in the rules engine:
+All Human/AI combinations must be supported without special-casing in the rules engine (LLM-Assisted counts as an AI tier):
 
 - Human vs Human
 - Human vs AI (either tier, either color)
@@ -120,6 +121,13 @@ All four combinations must be supported without special-casing in the rules engi
 ### FR-8. Persistence
 - FR-8.1 No persistence requirement in v1: refreshing the page resets to the setup screen. (Explicitly listed here, not left implicit, since "save game" is a common assumption to challenge in the PRD.)
 
+### FR-9. AI — LLM-Assisted mode
+- FR-9.1 On selecting LLM-Assisted for a side, the user supplies, per side: an **Endpoint** (OpenAI-compatible base URL), an optional **API key**, and a **Model** name. The two sides may use different endpoints/models.
+- FR-9.2 Each move is requested via `POST {endpoint}/chat/completions` (Authorization: Bearer {apiKey} when a key is supplied), sending the current FEN and the full list of legal UCI moves and asking the model to return exactly one legal UCI move.
+- FR-9.3 The reply is parsed for one UCI move and **re-validated through the rules engine** like every other AI move (NFR-7.2); an illegal/unparseable reply is retried once, then treated as an engine error.
+- FR-9.4 Config is **session-only** (no persistence — consistent with FR-8.1 / NG2); it must be re-entered after a page reload.
+- FR-9.5 The eval bar and move-quality tags (PRD §5.4) remain functional in LLM-Assisted mode by deriving evals from the Normal engine, since the chat endpoint returns no eval.
+
 ## 6. Non-functional requirements
 
 ### NFR-1. Single-file architecture
@@ -137,9 +145,10 @@ The deliverable is one `.html` file containing all CSS and JS inline. Exception:
 - NFR-4.1 Must run in current versions of Chrome, Firefox, Safari, and Edge without polyfills for standard Web Worker / WebAssembly APIs.
 - NFR-4.2 Must be usable on both desktop and mobile viewport widths (responsive layout).
 
-### NFR-5. Network dependency (Grandmaster mode only)
+### NFR-5. Network dependency (Grandmaster and LLM-Assisted modes)
 - NFR-5.1 Human vs Human and Human vs Normal AI must work fully offline once the page is loaded.
 - NFR-5.2 Grandmaster mode requires network access on first use (to fetch the Stockfish WASM asset). This is an explicit, documented exception to "single file" — see NG3.
+- NFR-5.4 LLM-Assisted mode requires network access to a user-supplied OpenAI-compatible endpoint on every move. The endpoint must itself serve permissive CORS headers (the browser makes the call directly); local servers such as LM Studio, llama.cpp, vLLM, and LocalAI do, while OpenAI's hosted API does not from a browser — a CORS-friendly proxy is the user's responsibility. No CORS handling is implemented app-side.
 - NFR-5.3 **Threading caveat to carry into the TDD:** multi-threaded Stockfish WASM builds require `SharedArrayBuffer`, which requires cross-origin isolation (COOP/COEP response headers). A file opened directly via `file://` or served without those headers will not get multi-threading. The TDD must decide between (a) using a single-threaded WASM build for maximum compatibility at somewhat reduced NPS, or (b) requiring the file be served with the correct headers to unlock multi-threading. This materially affects Grandmaster-mode strength and must not be left ambiguous downstream.
 
 ### NFR-6. Accessibility
@@ -180,7 +189,7 @@ This abstraction is what allows FR-2's "any controller on any side" requirement 
 
 - **GameState**: board position, side to move, castling rights, en passant target, halfmove clock, fullmove number, move history (SAN + FEN per ply), result.
 - **Move**: from-square, to-square, piece, capture flag, promotion piece (if any), special-move flag (castle/en passant).
-- **MatchConfig**: `{ white: ControllerConfig, black: ControllerConfig }` where `ControllerConfig` is `{ type: 'human' | 'normal' | 'grandmaster', difficulty?: 1-5 }`.
+- **MatchConfig**: `{ white: ControllerConfig, black: ControllerConfig }` where `ControllerConfig` is `{ type: 'human' | 'normal' | 'grandmaster' | 'llm', difficulty?: 1-5, endpoint?: string, apiKey?: string, model?: string }` (the LLM fields apply iff `type === 'llm`).
 
 ## 9. Cross-thread communication protocol (spec-level)
 
@@ -200,6 +209,7 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - AC-5: The UI remains interactive during AI thinking at every difficulty and both tiers.
 - AC-6: The app loads and is fully playable (Human vs Human, Human vs Normal AI) with no network connection.
 - AC-7: A Stockfish load failure is handled gracefully and does not break the rest of the app.
+- AC-8: LLM-Assisted mode produces legal moves from a configured OpenAI-compatible endpoint, and an endpoint error or illegal reply is surfaced without freezing the UI.
 
 ## 11. Assumptions & open questions (to be resolved in PRD/TDD)
 
@@ -208,6 +218,7 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - A11.3 ~~Whether multi-threaded WASM (requiring specific server headers) is a hard requirement or a "best effort if headers present"~~ — **Resolved (see §13):** use a single-threaded Stockfish WASM build for v1. Recommended package: `nmrugg/stockfish.js` single-threaded flavor (`stockfish` on npm). Multi-threading is a v1.1 upgrade gated on confirming the deployment host can serve COOP/COEP headers. See §13 and TDD §5.2.
 - A11.4 Drag-and-drop move input is explicitly deferred to "nice to have" — confirm before PRD locks UX flows.
 - A11.5 Sound effects, animations, and visual theme are UX decisions left entirely to the PRD.
+- A11.6 LLM-Assisted prompt robustness — the single-hard-move prompt + one-retry policy (FR-9.3) is a baseline; real-world move legality/parse rates depend on the chosen model and may need a richer prompt or constrained decoding later. Not blocking v1.
 
 ## 12. Dependencies, references & licensing
 

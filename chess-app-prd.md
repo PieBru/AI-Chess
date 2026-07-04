@@ -17,7 +17,7 @@ These two goals are complementary, not competing: transparency features that sat
 
 ### 2.1 Setup flow
 1. User lands on a **Setup screen**: two side-by-side controller pickers, one per color (White / Black).
-2. Each picker offers: Human, Normal AI (→ reveals a Difficulty sub-picker, 1–5 per spec FR-3.2), Grandmaster AI.
+2. Each picker offers: Human, Normal AI (→ reveals a Difficulty sub-picker, 1–5 per spec FR-3.2), Grandmaster AI, LLM-Assisted (→ reveals Endpoint / API key (optional) / Model fields per spec FR-9.1, independent per side).
 3. A short one-line description accompanies each option so a non-technical user understands what they're choosing (see §5.1 copy).
 4. "Start Game" begins play; the board screen loads with both sides' controllers locked for that game (spec FR-2.3).
 
@@ -75,6 +75,7 @@ Each controller option needs a plain-language strength cue so the "evaluate inte
 - Normal — Hard: *"A strong club player. Few free gifts."*
 - Normal — Expert: *"The strongest this hand-built engine can play."*
 - Grandmaster: *"Stockfish. Full strength. This one doesn't lose on purpose."*
+- LLM-Assisted: *"A chat model picks each move from the legal options. Point it at any OpenAI-compatible endpoint — fun for seeing how badly an LLM plays chess.""
 
 ### 5.2 Board & interaction
 - Standard 8×8 board, light/dark square theme, coordinate labels on the edge.
