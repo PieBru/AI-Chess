@@ -90,12 +90,12 @@ While an AI is searching, show, live if possible:
 
 ### 5.4 Evaluation bar & move-quality tags (new feature, serving secondary goal)
 - A slim vertical or horizontal bar showing the current position's evaluation (from White's perspective), sourced from whichever engine most recently searched the position. If only a human just moved and no engine has evaluated the resulting position yet, the bar shows the last known value with a subtle "pending" state until an engine (even a quick background Normal-engine call) scores it.
-- After each AI move, classify it by comparing the played move's resulting eval to the best available move's eval (both numbers already produced by search, so this is cheap):
+- After each move, classify it by comparing the played move's resulting eval to the best available move's eval (both numbers already produced by search, so this is cheap):
   - **Best** — matches or ties the top move.
   - **Good** — small eval loss.
   - **Inaccuracy / Mistake / Blunder** — increasing eval loss thresholds.
 - Tags render as small badges next to the relevant move in the history panel. This is the single most direct product mechanism for "how smart was that move" — it turns an abstract engine-strength question into a readable, per-move label.
-- Exact centipawn thresholds for each tag are a tuning detail for the TDD/implementation, not fixed here.
+- Centipawn thresholds for each tag are recorded as a tunable baseline in TDD §4.5 (≤5 best, ≤30 good, ≤90 inaccuracy, ≤200 mistake, >200 blunder, mover-perspective loss); expect a calibration pass against real games (spec A11.1, §8.1 register).
 
 ### 5.5 Error & edge states
 - Grandmaster selection when Stockfish fails to load: the option is disabled with an inline explanation ("Grandmaster mode needs an internet connection to load Stockfish") rather than allowed-then-failing mid-game (spec FR-4.3).

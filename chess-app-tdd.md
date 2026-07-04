@@ -137,6 +137,24 @@ Exact constants are implementation-tunable; this table is the contract the diffi
 - Returns final `{ type: 'result', move, evalCp, bestEvalCp }` — `bestEvalCp` is the same as `evalCp` except at Difficulty 1–3 where move-selection noise/randomization may pick a move other than the top-scored one; the engine manager needs both values for the PRD §5.4 quality-tagging feature to work even at low difficulties.
 - Also handles an `{ type: 'analyze', fen, uciMove }` message (§6): grades an arbitrary played move against a quick local search at a fixed analysis difficulty (~4), returning `{ type: 'analysis', evalCp, bestEvalCp }`. `evalCp` is the played move's eval (child-position search, negated into the mover's perspective), `bestEvalCp` the best line's. This lets quality tagging (PRD §5.4) apply to **any** move source — LLM-Assisted and human, not just the Normal engine's own moves — using one local yardstick.
 
+### 4.5 Move-quality tag thresholds (implements PRD §5.4)
+
+Every played move — any source (Normal, Grandmaster, LLM-Assisted, or human) — is classified by the centipawn **loss** it gives up relative to the best available move, measured in the mover's own perspective:
+
+> `loss = bestEvalCp − evalCp`  (White to move);  `loss = evalCp − bestEvalCp`  (Black to move)
+
+where `bestEvalCp` is the top line's eval and `evalCp` is the eval after the actually-played move (both from the Normal engine — its own search for Normal moves, the `analyze` message for every other source per §4.4).
+
+| Tag | Loss (centipawns, mover perspective) |
+|---|---|
+| `best` | ≤ 5 |
+| `good` | ≤ 30 |
+| `inaccuracy` | ≤ 90 |
+| `mistake` | ≤ 200 |
+| `blunder` | > 200 |
+
+These five strings render verbatim as the colored badge next to the move in the history panel (PRD §5.4) and aggregate into the per-side summary breakdown (PRD §2.4). The buckets are deliberately coarser than the flashier "brilliant/excellent/book" labels some UIs use — five eval-loss buckets only. Thresholds are a **tunable baseline, not a contract** (spec A11.1 / PRD §8.1): expect a calibration pass against real games before they feel right.
+
 ## 5. Grandmaster engine design (Stockfish WASM, Web Worker)
 
 ### 5.1 Asset loading
