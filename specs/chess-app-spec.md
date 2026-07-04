@@ -261,9 +261,10 @@ The Normal engine is authored in-house (FR-3). Reference implementations to stud
 ### 12.4 License policy
 Most strong options here are **GPL-3.0**: Stockfish and its WASM ports, `shakmaty`, `chessops`. Implications:
 
-- **v1 of this app is distributed as a single HTML file fetching the Stockfish WASM asset from a CDN at runtime (NFR-1, NFR-5).** The Stockfish worker is a separate runtime process communicating over the UCI text protocol (spec §7.3, TDD §5.3) — it is not statically linked or bundled into our own source. This keeps GPL copyleft on the Stockfish asset without reaching into the app's own JavaScript.
-- If a future revision wants the whole project under a permissive license, the constraints are: use `chess.js` or Pleco's MIT library crate for the rules/algorithm side, and keep Stockfish strictly at arm's length (spawned worker over UCI, never vendored into the tree). This is recorded now so the choice is not accidentally foreclosed.
-- The `stockfish` npm package is GPL-3.0; consuming it via CDN `importScripts` (TDD §5.1) is consistent with the above rather than bundling.
+- **The project's own source is licensed under the Apache License 2.0** (see `LICENSE` at the repo root). This is a permissive license; the constraints below are what make that compatible with using a GPL-3.0 engine.
+- **The app is distributed as a single HTML file; the Stockfish runtime is loaded at runtime (local bundle first, then CDN — NFR-5.2) and is never bundled into the repo.** The Stockfish worker is a separate runtime process communicating over the UCI text protocol (§7.3, TDD §5.3) — it is not statically linked or vendored into our own source. This keeps GPL copyleft on the Stockfish asset without reaching into the app's own (Apache-2.0) JavaScript.
+- The permissive license is sustainable because the rules engine is hand-rolled 0x88 (FR-1, no GPL `chessops`/`shakmaty` linkage) and Stockfish is kept strictly at arm's length (spawned worker over UCI, never vendored into the tree — enforced by `.gitignore` on the Stockfish binaries).
+- The `stockfish` npm package is GPL-3.0; loading it as a runtime worker (TDD §5.1) is consistent with the above rather than bundling.
 
 ### 12.5 Summary decisions
 | Concern | Decision |
@@ -271,7 +272,7 @@ Most strong options here are **GPL-3.0**: Stockfish and its WASM ports, `shakmat
 | Grandmaster engine | `nmrugg/stockfish.js`, single-threaded flavor, loaded from CDN via worker `importScripts` |
 | Rules engine | Hand-rolled 0x88 (FR-1); `chess.js` fallback; `shakmaty` as design reference |
 | Normal engine | In-house (FR-3); Sunfish/Pleco as study references |
-| License posture | Stockfish isolated as a UCI-over-worker runtime dependency; project not blocked from a later permissive relicense |
+| License posture | Project source Apache-2.0; Stockfish isolated as a UCI-over-worker runtime dependency (local-first load, never vendored) so its GPL-3.0 copyleft does not reach the app |
 
 ## 13. Glossary
 

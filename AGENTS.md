@@ -34,6 +34,8 @@ endpoint, ideally a local server.
 
 ```
 chess.html                    # The app. Single file. This is the deliverable.
+README.md                     # Project README
+LICENSE                       # Apache License 2.0 (project source)
 AGENTS.md                     # This file (operating manual) — at root for agent tooling
 specs/                        # Project / governing documentation (SDD layers)
   chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
@@ -43,9 +45,9 @@ docs/                         # User-facing pages (blog / guide / kids, EN + IT)
   onefile-chess-*.html
 ```
 
-No `package.json`, no build tooling, no test runner — by design. The only
-non-app file at the repo root is `.gitignore`, which keeps the GPLv3 Stockfish
-runtime binaries out of the tree (NG3 / §12.4). See §6 and §8.
+No `package.json`, no build tooling, no test runner — by design. The `.gitignore`
+at the repo root keeps the GPLv3 Stockfish runtime binaries out of the tree
+(NG3 / §12.4). See §6 and §8.
 
 ---
 
