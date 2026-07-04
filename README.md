@@ -42,6 +42,10 @@ Full design documentation (Spec-Driven Development):
 
 User-facing pages (blog, player's guide, kids): see [`docs/`](docs/).
 
+## Development environment
+
+This project was developed fully locally on **Arch Linux**, driven by the [**pi** coding agent](https://pi.dev) backed by a self-hosted **llama.cpp** server running **Qwen-3.6-27B_UD-Q8 by Unsloth** — no cloud APIs involved. (Part of the point: an empirical benchmark for self-hosted LLM inferencing and agentic software engineering.)
+
 ## License
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
