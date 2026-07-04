@@ -89,12 +89,16 @@ Zobrist hashing table (for the Normal engine's transposition table) is generated
 
 ## 3. Rules engine design
 
+> **Design references (study, don't depend on):** `shakmaty` (Rust, Lichess backend) for bitboard + Zobrist + FEN/SAN/UCI correctness patterns; **`chess.js`** is the documented fallback (spec §12.2) — if perft tests (§11) fail or FR-1 schedule slips, drop it in via CDN rather than ship a buggy rules core. We implement the 0x88 approach below in-house to keep FR-1 owned and the engine inspectable (spec G5).
+
 - **Move generation**: pseudo-legal generation per piece type using precomputed offset tables (knight/king jump deltas, sliding-piece direction deltas for bishop/rook/queen), then a legality filter that simulates each move and checks whether the mover's king is attacked afterward.
 - **Attack detection**: a single `isSquareAttacked(board, square, byColor)` function reused for legality filtering, check detection, and castling-through-check validation — one implementation, multiple call sites, to avoid divergent logic (a common source of chess-engine rules bugs).
 - **Game-end detection**: after generating legal moves for the side to move, zero legal moves + king in check = checkmate; zero legal moves + king not in check = stalemate. Threefold repetition tracked via a `Map<fenPositionKey, count>` keyed on the position-relevant subset of FEN (board + side + castling + ep, excluding clocks). Insufficient material checked via a simple material-count table (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color bishops).
 - **FEN/SAN**: FEN generation is a direct serialization of `GameState`. SAN generation requires disambiguation logic (checking whether other same-type pieces could also reach the destination square), promotion suffixes (`=Q`/`=R`/`=B`/`=N`), castling notation (`O-O`/`O-O-O`), and `+`/`#` check/checkmate suffixes — implemented once, used both for the move-history UI and internally if useful for debugging.
 
 ## 4. Normal engine design (custom JS, Web Worker)
+
+> **Primary design reference: Sunfish** (Python, ~111 lines). Its MTD-bi search loop, piece-square-table eval, and null-move pruning are close in spirit to §4.1–§4.2, and its README's "how to make it stronger" list maps almost 1:1 onto the §4.3 difficulty ladder (mutable board → bitboards, dedicated capture gen + check detection, MVV-LVA + SEE move ordering). Also reference **Pleco** (Rust, Stockfish-algorithm port; MIT library crate) for bitboard data-structure patterns. Neither is a dependency — the engine is authored in-house (spec FR-3).
 
 ### 4.1 Search
 - **Algorithm**: negamax with alpha-beta pruning.
@@ -132,12 +136,14 @@ Exact constants are implementation-tunable; this table is the contract the diffi
 ## 5. Grandmaster engine design (Stockfish WASM, Web Worker)
 
 ### 5.1 Asset loading
-- Stockfish WASM build loaded from a CDN via `importScripts()` inside the worker (or `fetch` + `WebAssembly.instantiate`, depending on the specific build's loader). Loaded lazily — only when a Grandmaster-controlled game actually starts (PRD/spec FR-4.4, NG3).
-- Load failure (network error, blocked resource) triggers a worker message `{ type: 'error', code: 'load_failed' }`; the engine manager surfaces this to the UI per PRD §5.5 and disables the Grandmaster option for the current session rather than retrying silently on every move.
+- **Chosen build: `nmrugg/stockfish.js`, single-threaded flavor** (`npm i stockfish`, GPL-3.0) — full NNUE evaluation, single core, no `SharedArrayBuffer`/COOP/COEP requirement (spec §12.1, §12.4). This directly resolves the open question flagged in spec NFR-5.3 / A11.3.
+- Loaded from a CDN via `importScripts()` inside the worker (or `fetch` + `WebAssembly.instantiate`, depending on the build's loader). Loaded lazily — only when a Grandmaster-controlled game actually starts (PRD/spec FR-4.4, NG3).
+- **License posture:** the Stockfish worker is a separate runtime process speaking UCI over the post (spec §7.3), not statically linked into our source — keeps GPL-3.0 copyleft on the asset, off our JavaScript (spec §12.4).
+- Load failure (network error, blocked resource) triggers a worker message `{ type: 'error', code: 'load_failed' }`; the engine manager surfaces this to the UI per PRD §5.5 and disables the Grandmaster option for the current session rather than retrying silently on every move. The single-threaded build removes the COOP/COEP failure mode entirely (the one deployment header class that previously could make Grandmaster silently degrade).
 
 ### 5.2 Threading decision (resolves spec open question A11.3 / NFR-5.3)
-**Decision: use the single-threaded Stockfish WASM build for v1.**
-Rationale: the single-file app must work when simply opened as a local file or served from an arbitrary static host without guaranteed COOP/COEP headers. A multi-threaded build would silently degrade to single-threaded anyway in that common case, or fail outright depending on the build — better to design for the guaranteed-available path and treat multi-threading as a v1.1 upgrade gated on confirming the deployment target can set the required headers.
+**Decision: use the single-threaded `nmrugg/stockfish.js` build for v1.**
+Rationale: the single-file app must work when simply opened as a local file or served from an arbitrary static host without guaranteed COOP/COEP headers. A multi-threaded build (`SharedArrayBuffer`) silently degrades to single-threaded or fails outright in that common case. The single-threaded `nmrugg` build is designed for exactly this constraint (spec §12.1). Treat multi-threading as a v1.1 upgrade gated on confirming the deployment target can serve the required `Cross-Origin-Embedder-Policy`/`Cross-Origin-Opener-Policy` headers — at which point swapping in `nmrugg`'s multi-threaded flavor (or `lichess-org/stockfish.wasm`) is a worker-asset swap, not an architecture change.
 Consequence: Grandmaster strength is bounded by single-thread NPS. This is still far beyond the Normal engine and beyond human-Kasparov-level play at reasonable think times (spec context), so it does not compromise the product goal — flagged here so it isn't silently forgotten.
 
 ### 5.3 UCI protocol wrapper
@@ -220,3 +226,17 @@ All applied moves — human or AI — pass through the same rules-engine validat
 - Timing consistency of `go movetime` across browsers/devices for Stockfish — may need a depth-based fallback if movetime proves unreliable (noted in §5.3).
 - Whether centipawn-based move-quality thresholds (PRD §5.4) feel right in practice — likely needs a tuning pass after initial playtesting, not purely a code-review concern.
 - Memory/GC behavior of the Normal engine's transposition table across long AI-vs-AI spectator sessions (PRD §2.3) — worth a soak test.
+- **License drift:** if a contributor later vendors the `nmrugg/stockfish.js` GPL asset into the repo (instead of CDN `importScripts`), or links `chessops`/`shakmaty` into the rules engine, the project becomes GPL-3.0 effectively. The §5.1 worker-over-UCI isolation is the guardrail; review it before any dependency add (spec §12.4).
+
+## 13. Dependencies & references
+
+Concrete picks binding spec §12 to implementation:
+
+| Concern | Pick | License | Loaded how |
+|---|---|---|---|
+| Grandmaster engine | `nmrugg/stockfish.js`, single-threaded flavor (`npm i stockfish`) | GPL-3.0 | CDN `importScripts` in the GM worker, lazy (§5.1) |
+| Rules engine | In-house 0x88 (FR-1, §3) | n/a | Inline in the single HTML file |
+| Rules fallback | `chess.js` | permissive (verify in-repo) | CDN, only if §11 perft tests fail |
+| Normal engine | In-house (FR-3, §4) | n/a | Inline |
+
+Study references (read, don't import): **Sunfish** (§4 search/eval + difficulty-ladder roadmap), **Pleco** (bitboard data structures, MIT lib crate), **shakmaty** (bitboard/Zobrist/FEN-SAN-UCI correctness patterns), **chessops** (typed rules). License policy and the full option table live in spec §12; this TDD section only names the binding choices.

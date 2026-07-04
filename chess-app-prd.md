@@ -46,6 +46,8 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 | PRD feature | Spec ref | Notes |
 |---|---|---|
 | Controller picker (per side) | FR-2 | Human / Normal(+difficulty) / Grandmaster |
+| Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
+| Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
 | Board + move input | FR-1, FR-5 | Click-to-move required; drag-and-drop stretch |
 | Move history (SAN) | FR-5.4 | Scrollable, always visible |
 | Thinking indicator | NFR-3 | Must reflect worker activity, never fake/static |
@@ -115,5 +117,6 @@ Since the primary goal is entertainment, the app should not read as a bare techn
 ## 8. Open questions for design/implementation
 
 - Exact move-quality thresholds (§5.4) and difficulty-to-ELO mapping (spec A11.1) — needs playtesting, not a UX decision.
+- Dependency choices (Stockfish build, rules-engine build-vs-buy) are now settled in spec §12 — no longer UX-open; the only UX-facing artifact is the §5.5 Stockfish-load-failure copy, which the chosen single-threaded build makes *more* robust (no COOP/COEP prerequisite to fail on).
 - Whether the in-session AI-vs-AI tally (§4) is worth building for v1 or deferred — low cost, but confirm it's wanted before implementing.
 - Sound on/off default and asset choice — design call, not blocking.

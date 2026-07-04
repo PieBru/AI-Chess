@@ -205,11 +205,64 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 
 - A11.1 Exact ELO targets per Normal difficulty level — needs tuning/benchmarking, not specified here.
 - A11.2 Whether Grandmaster mode exposes a "thinking time" or strength setting to the user, or is fixed — currently spec'd as fixed max strength.
-- A11.3 Whether multi-threaded WASM (requiring specific server headers) is a hard requirement or a "best effort if headers present" — see NFR-5.3.
+- A11.3 ~~Whether multi-threaded WASM (requiring specific server headers) is a hard requirement or a "best effort if headers present"~~ — **Resolved (see §13):** use a single-threaded Stockfish WASM build for v1. Recommended package: `nmrugg/stockfish.js` single-threaded flavor (`stockfish` on npm). Multi-threading is a v1.1 upgrade gated on confirming the deployment host can serve COOP/COEP headers. See §13 and TDD §5.2.
 - A11.4 Drag-and-drop move input is explicitly deferred to "nice to have" — confirm before PRD locks UX flows.
 - A11.5 Sound effects, animations, and visual theme are UX decisions left entirely to the PRD.
 
-## 12. Glossary
+## 12. Dependencies, references & licensing
+
+This section records the third-party options surveyed for this project and the decisions taken. It is the authoritative dependency policy; the TDD (§5, §13) binds concrete packages to it.
+
+### 12.1 Grandmaster engine — Stockfish WASM (used directly)
+Surveyed ready-to-use in-browser Stockfish builds:
+
+| Build | Strength / size | Threading / headers | License | Status |
+|---|---|---|---|---|
+| **`nmrugg/stockfish.js`** (`npm i stockfish`) — single-threaded flavor | Full NNUE eval, single core | None required (no SharedArrayBuffer) | GPL-3.0 | **Chosen for v1** (resolves A11.3) |
+| `nmrugg/stockfish.js` — multi-threaded flavor | Full NNUE, multi-core | Requires COOP/COEP (`SharedArrayBuffer`) | GPL-3.0 | v1.1 candidate, header-gated |
+| `nmrugg/stockfish.js` — lite (~7MB) | Weaker, no full NNUE | Single-threaded, none | GPL-3.0 | Fallback if bundle size matters |
+| `lichess-org/stockfish.wasm` | Classical eval, no NNUE, no Syzygy | Multi-threaded, requires COOP/COEP | GPL-3.0 | Not chosen (older eval, header-bound) |
+| `lichess-org/stockfish.js` | Classical eval, ~250KB gzipped | Single-threaded, none | GPL-3.0 | Not chosen (smallest, but non-NNUE) |
+| `hi-ogawa/Stockfish` | NNUE WASM port | Varies | Check in-repo | Reference only |
+
+**Decision:** `nmrugg/stockfish.js` single-threaded. It carries full NNUE evaluation (so strength is unbounded relative to the Normal engine and well beyond human-Kasparov level) while running without COOP/COEP — directly satisfying NFR-5.3's "single-file app must work via `file://` or any static host" constraint. NPS is capped to one core, an accepted trade-off (TDD §5.2).
+
+### 12.2 Rules engine — hand-rolled, with a de-risk fallback
+The spec requires a self-authored rules engine (FR-1) so the Normal engine owns its own move generation and the codebase stays inspectable (G5). Surveyed libraries:
+
+| Library | Lang | Coverage of FR-1 | License | Role here |
+|---|---|---|---|---|
+| **chess.js** | JS/TS | Full (FR-1 minus AI) | Check in-repo (historically permissive) | **Fallback**: drop in via CDN to de-risk FR-1 correctness if hand-rolled perft tests fail or schedule slips |
+| **chessops** | TS | Full + variants | GPL-3.0 | Reference only |
+| **shakmaty** | Rust | Full, bitboard/Zobrist, Lichess backend | GPL-3.0 | **Design reference** for bitboards, Zobrist hashing, FEN/SAN/UCI — study even though we implement 0x88 in JS (TDD §2, §3) |
+
+**Decision:** implement the 0x88 rules engine per FR-1 (TDD §3); keep `chess.js` as the documented fallback, and study `shakmaty`'s design rather than reinvent it. This keeps FR-1 ownership while not betting correctness on a hand-rolled first pass.
+
+### 12.3 Normal engine — design references
+The Normal engine is authored in-house (FR-3). Reference implementations to study, not depend on:
+
+| Project | Lang | Why study it |
+|---|---|---|
+| **Sunfish** | Python, ~111 lines | Canonical small engine; MTD-bi search, piece-square tables, null-move pruning; plays >2000 Lichess. Its README's "how to make it stronger" list maps ~1:1 onto TDD §4.3's difficulty ladder. Read end-to-end. |
+| **Pleco** | Rust | Deliberate Stockfish-algorithm port; bitboard board rep + move gen under MIT (library crate). Reference for data structures. |
+| **tmttn/chess** | Rust | Crate layout (core / engine / wasm-bindings) — reference if the Normal tier ever moves to WASM for speed (TDD §9). |
+
+### 12.4 License policy
+Most strong options here are **GPL-3.0**: Stockfish and its WASM ports, `shakmaty`, `chessops`. Implications:
+
+- **v1 of this app is distributed as a single HTML file fetching the Stockfish WASM asset from a CDN at runtime (NFR-1, NFR-5).** The Stockfish worker is a separate runtime process communicating over the UCI text protocol (spec §7.3, TDD §5.3) — it is not statically linked or bundled into our own source. This keeps GPL copyleft on the Stockfish asset without reaching into the app's own JavaScript.
+- If a future revision wants the whole project under a permissive license, the constraints are: use `chess.js` or Pleco's MIT library crate for the rules/algorithm side, and keep Stockfish strictly at arm's length (spawned worker over UCI, never vendored into the tree). This is recorded now so the choice is not accidentally foreclosed.
+- The `stockfish` npm package is GPL-3.0; consuming it via CDN `importScripts` (TDD §5.1) is consistent with the above rather than bundling.
+
+### 12.5 Summary decisions
+| Concern | Decision |
+|---|---|
+| Grandmaster engine | `nmrugg/stockfish.js`, single-threaded flavor, loaded from CDN via worker `importScripts` |
+| Rules engine | Hand-rolled 0x88 (FR-1); `chess.js` fallback; `shakmaty` as design reference |
+| Normal engine | In-house (FR-3); Sunfish/Pleco as study references |
+| License posture | Stockfish isolated as a UCI-over-worker runtime dependency; project not blocked from a later permissive relicense |
+
+## 13. Glossary
 
 - **SDD** — Spec-Driven Development.
 - **PRD** — Product Requirements Document (derived from this spec; defines user-facing flows and UX).
