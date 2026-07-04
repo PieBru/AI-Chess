@@ -76,9 +76,9 @@ interface Move {
 interface ControllerConfig {
   type: 'human' | 'normal' | 'grandmaster' | 'llm';
   difficulty?: 1|2|3|4|5;       // required iff type === 'normal'
-  endpoint?: string;            // required iff type === 'llm' (OpenAI-compatible base URL)
-  apiKey?: string;              // optional iff type === 'llm'
-  model?: string;               // required iff type === 'llm'
+  apiBase?: string;            // required iff type === 'llm' (OpenAI-compatible base URL)
+  apiKey?: string;             // optional iff type === 'llm' (blank for local servers)
+  model?: string;              // required iff type === 'llm'
 }
 
 interface MatchConfig {
@@ -135,6 +135,7 @@ Exact constants are implementation-tunable; this table is the contract the diffi
 - Owns board state reconstruction from a FEN string per request (stateless between calls — simplest correctness story, avoids state-drift bugs between main thread and worker).
 - Reports intermediate progress messages during iterative deepening (`{ type: 'progress', depth, evalCp }`) so the main thread can drive the PRD §5.3 thinking indicator without polling.
 - Returns final `{ type: 'result', move, evalCp, bestEvalCp }` — `bestEvalCp` is the same as `evalCp` except at Difficulty 1–3 where move-selection noise/randomization may pick a move other than the top-scored one; the engine manager needs both values for the PRD §5.4 quality-tagging feature to work even at low difficulties.
+- Also handles an `{ type: 'analyze', fen, uciMove }` message (§6): grades an arbitrary played move against a quick local search at a fixed analysis difficulty (~4), returning `{ type: 'analysis', evalCp, bestEvalCp }`. `evalCp` is the played move's eval (child-position search, negated into the mover's perspective), `bestEvalCp` the best line's. This lets quality tagging (PRD §5.4) apply to **any** move source — LLM-Assisted and human, not just the Normal engine's own moves — using one local yardstick.
 
 ## 5. Grandmaster engine design (Stockfish WASM, Web Worker)
 
@@ -159,12 +160,12 @@ Consequence: Grandmaster strength is bounded by single-thread NPS. This is still
 ### 5.4 LLM-Assisted engine (main-thread fetch, implements spec FR-9)
 Unlike the Normal and Grandmaster engines, the LLM-Assisted controller is **not a worker** — it issues a direct `fetch()` from the main thread to the user-supplied OpenAI-compatible endpoint. It still satisfies the engine-manager `requestMove()` contract, returning the normalized `{ move, evalCp, bestEvalCp }` shape so the game loop stays agnostic (spec §7.1).
 
-- **Request:** `POST {endpoint}/chat/completions` with `Authorization: Bearer {apiKey}` when a key is supplied; body is `{ model, messages, temperature: 0, max_tokens: 8 }`. The system message constrains the model to reply with exactly one legal UCI move; the user message supplies the FEN and the full legal UCI move list.
-- **Parse:** extract the first `[a-h][1-8][a-h][1-8][qrbn]?` match from `choices[0].message.content`.
-- **Legality:** the parsed move must appear in the legal list; an illegal/unparseable reply is retried **once** (same request, no state change), then rejected as an engine error (spec FR-9.3). The chosen move is re-validated through the rules engine on the game-loop side like every other AI move (§9, NFR-7.2).
-- **Evals:** the chat endpoint returns no eval, so `bestEvalCp` is derived from a Normal-engine search of the current position (difficulty 4) and `evalCp` from a Normal-engine search of the child position after the LLM's move (negated) — reusing the existing worker, no new eval path. This keeps the eval bar (PRD §5.4) and move-quality tags working in LLM mode.
-- **Failure handling:** a non-2xx response, network/CORS error, or exhausted retry is surfaced through the same `§5.5` worker-crash path (toast, freeze board, New Game) — the game loop's `try/catch` already covers it since `requestMove` rejects.
-- **CORS / security (ponytail):** the endpoint must serve permissive CORS itself; no app-side proxy or CORS handling. API keys are held only in memory for the session (no `localStorage`) — re-entered per FR-9.4. This is acceptable for a local demo-grade tool; revisit if exposed publicly.
+- **Request:** `POST {apiBase}/chat/completions` with `Authorization: Bearer {apiKey}` when a key is supplied; body is `{ model, messages, temperature }`. The system message constrains the model to reply with exactly one legal UCI move; the user message supplies the FEN, the side to move, recent SAN history, and the full legal UCI move list (constrained choice — the main reliability lever).
+- **Parse / retry:** extract the first UCI token from `choices[0].message.content`, preferring an exact legal-move token. A non-matching reply triggers up to one corrective retry: the model's bad reply is appended as an `assistant` message and a `user` message says "that wasn't legal, pick from: …". After a failed retry the function throws.
+- **Legality:** the chosen move is re-validated through the rules engine on the game-loop side like every other AI move (§9, NFR-7.2).
+- **Evals:** the chat endpoint returns no eval, so the game loop calls the Normal engine's `analyze` message (§4.4 / §6) to grade the LLM's played move — `bestEvalCp` from a quick local search, `evalCp` from a search of the child position. The local engine is purely a judge, never a mover, giving one yardstick to compare LLM moves against Normal and Grandmaster.
+- **Failure handling (intentional, diverges from the Normal/Grandmaster path):** a non-2xx response, network/CORS error, or exhausted retry causes `requestLLMMove` to reject — but the game loop catches it and **falls back to a quick local Normal-engine move (difficulty 3)** so play continues, with a toast ("LLM move failed … — used a fallback move instead"). Only if the fallback itself throws does the game end via the §5.5 path. Rationale: LLM APIs fail transiently far more often than a local engine; per the primary goal (entertain) a flaky API must not kill the game, and the fallback event is itself useful "how reliable is this AI" signal for the secondary goal.
+- **CORS / security (ponytail):** the endpoint must serve permissive CORS itself; no app-side proxy or CORS handling. API keys are held only in memory for the session (no `localStorage`) — re-entered per FR-9.4, and never written into the file. Acceptable for a local demo-grade tool; revisit if exposed publicly.
 
 ## 6. Worker communication protocol (concrete schema, implements spec §9)
 
@@ -173,6 +174,7 @@ Unlike the Normal and Grandmaster engines, the LLM-Assisted controller is **not 
 type WorkerRequest =
   | { type: 'init' }
   | { type: 'search'; fen: string; startFen: string; uciMoves: string[]; budget: { depth?: number; timeMs?: number }; difficulty?: number }   // `fen` = current position (Normal engine uses it directly); `startFen`+`uciMoves` = full move line for Stockfish repetition context (spec §7.3)
+  | { type: 'analyze'; fen: string; uciMove: string }   // Normal engine only: grade an arbitrary played move (LLM/human) for quality tagging (FR-9.5 / PRD §5.4)
   | { type: 'stop' };   // abort the current search (FR-6.4); Normal engine returns best-so-far, Grandmaster sends UCI `stop`
 
 // Worker → Main
@@ -180,6 +182,7 @@ type WorkerResponse =
   | { type: 'ready' }
   | { type: 'progress'; depth: number; evalCp: number }
   | { type: 'result'; move: Move; evalCp: number; bestEvalCp: number }
+  | { type: 'analysis'; evalCp: number; bestEvalCp: number }   // reply to `analyze`
   | { type: 'error'; code: string; message: string };
 ```
 
@@ -225,7 +228,7 @@ All applied moves — human or AI — pass through the same rules-engine validat
 | Worker throws / crashes | `onerror` handler on the Worker object | Emit `{type:'error'}` equivalent to state manager → PRD §5.5 toast, freeze board, offer New Game |
 | Stockfish asset fails to load | Load promise rejects / timeout | Disable Grandmaster option for session, inline message (PRD §5.5) |
 | Engine returns an illegal/unparseable move | Rules-engine validation fails | Reject result, surface as worker error (do not retry silently in a loop) |
-| LLM endpoint non-2xx / network or CORS error / exhausted retry | `fetch` rejects or reply unparseable/illegal after one retry | Surface via the same §5.5 worker-crash path (toast, freeze board, New Game) — `requestMove` rejection |
+| LLM endpoint non-2xx / network or CORS error / exhausted retry | `fetch` rejects or reply unparseable/illegal after one corrective retry | **Game loop catches and falls back to a quick local Normal move (difficulty 3)** so play continues; toast: "LLM move failed … — used a fallback move instead". Only a fallback failure ends the game via the §5.5 path. (Intentional divergence from the worker-crash path — LLM APIs are transiently flaky.) |
 | Search exceeds time budget significantly | Worker-side watchdog timer | Force-return best move found so far rather than hang the request |
 
 ## 11. Testing strategy (traces to spec §10 acceptance criteria)

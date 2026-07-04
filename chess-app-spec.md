@@ -122,11 +122,11 @@ All Human/AI combinations must be supported without special-casing in the rules 
 - FR-8.1 No persistence requirement in v1: refreshing the page resets to the setup screen. (Explicitly listed here, not left implicit, since "save game" is a common assumption to challenge in the PRD.)
 
 ### FR-9. AI — LLM-Assisted mode
-- FR-9.1 On selecting LLM-Assisted for a side, the user supplies, per side: an **Endpoint** (OpenAI-compatible base URL), an optional **API key**, and a **Model** name. The two sides may use different endpoints/models.
-- FR-9.2 Each move is requested via `POST {endpoint}/chat/completions` (Authorization: Bearer {apiKey} when a key is supplied), sending the current FEN and the full list of legal UCI moves and asking the model to return exactly one legal UCI move.
-- FR-9.3 The reply is parsed for one UCI move and **re-validated through the rules engine** like every other AI move (NFR-7.2); an illegal/unparseable reply is retried once, then treated as an engine error.
+- FR-9.1 On selecting LLM-Assisted for a side, the user supplies, per side: an **API base URL** (OpenAI-compatible, stored as `apiBase`), an optional **API key** (blank works for local servers like Ollama / LM Studio), and a **Model** name. Both `apiBase` and `model` are required to start. The two sides may use different endpoints/models.
+- FR-9.2 Each move is requested via `POST {apiBase}/chat/completions` (Authorization: Bearer {apiKey} when a key is supplied), sending the current FEN, the side to move, recent SAN move history, and the full list of legal UCI moves, and asking the model to return exactly one move from that list (constrained choice — the main reliability lever for legal LLM chess).
+- FR-9.3 The reply is parsed for one UCI move (preferring an exact legal-move token) and **re-validated through the rules engine** like every other AI move (NFR-7.2). An illegal/unparseable reply is retried **up to once** with a corrective message that feeds the bad reply back into the conversation. If it still fails, or the network call itself fails, the side **falls back to a quick local Normal-engine move (difficulty 3) so play continues**, with a toast — LLM APIs fail transiently far more often than a local engine, and per the primary goal (entertain) a flaky API must not kill the game. Only if the fallback itself errors does the game end.
 - FR-9.4 Config is **session-only** (no persistence — consistent with FR-8.1 / NG2); it must be re-entered after a page reload.
-- FR-9.5 The eval bar and move-quality tags (PRD §5.4) remain functional in LLM-Assisted mode by deriving evals from the Normal engine, since the chat endpoint returns no eval.
+- FR-9.5 The eval bar and move-quality tags (PRD §5.4) remain functional in LLM-Assisted mode: the Normal engine exposes an `analyze` message (spec §9) that grades *any* played move — LLM or human — against a quick local search, returning `evalCp` (the played move's eval) and `bestEvalCp` (the best line's eval). The chat endpoint returns no eval, so the local engine acts purely as a judge, never as a mover — giving one yardstick to compare LLM moves against Normal and Grandmaster.
 
 ## 6. Non-functional requirements
 
@@ -189,14 +189,14 @@ This abstraction is what allows FR-2's "any controller on any side" requirement 
 
 - **GameState**: board position, side to move, castling rights, en passant target, halfmove clock, fullmove number, move history (SAN + FEN per ply), result.
 - **Move**: from-square, to-square, piece, capture flag, promotion piece (if any), special-move flag (castle/en passant).
-- **MatchConfig**: `{ white: ControllerConfig, black: ControllerConfig }` where `ControllerConfig` is `{ type: 'human' | 'normal' | 'grandmaster' | 'llm', difficulty?: 1-5, endpoint?: string, apiKey?: string, model?: string }` (the LLM fields apply iff `type === 'llm`).
+- **MatchConfig**: `{ white: ControllerConfig, black: ControllerConfig }` where `ControllerConfig` is `{ type: 'human' | 'normal' | 'grandmaster' | 'llm', difficulty?: 1-5, apiBase?: string, apiKey?: string, model?: string }` (the LLM fields apply iff `type === 'llm'`).
 
 ## 9. Cross-thread communication protocol (spec-level)
 
 Both workers must accept/emit a normalized message shape so the main thread's game loop is engine-agnostic:
 
-- **Main → Worker:** `{ type: 'search', fen, startFen, uciMoves, budget }` (plus `{ type: 'stop' }` to abort an in-flight search, for FR-6.4)
-- **Worker → Main:** `{ type: 'result', move, evalCp?, bestEvalCp? }` or `{ type: 'error', message }`
+- **Main → Worker:** `{ type: 'search', fen, startFen, uciMoves, budget }` (plus `{ type: 'stop' }` to abort an in-flight search, for FR-6.4). The Normal engine also accepts `{ type: 'analyze', fen, uciMove }` to grade an arbitrary played move for PRD §5.4 quality tagging (used for LLM and human moves).
+- **Worker → Main:** `{ type: 'result', move, evalCp?, bestEvalCp? }`, `{ type: 'analysis', evalCp, bestEvalCp }` (in reply to `analyze`), or `{ type: 'error', message }`
 
 Exact message schema, versioning, and error codes are defined in the TDD.
 
@@ -209,7 +209,7 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - AC-5: The UI remains interactive during AI thinking at every difficulty and both tiers.
 - AC-6: The app loads and is fully playable (Human vs Human, Human vs Normal AI) with no network connection.
 - AC-7: A Stockfish load failure is handled gracefully and does not break the rest of the app.
-- AC-8: LLM-Assisted mode produces legal moves from a configured OpenAI-compatible endpoint, and an endpoint error or illegal reply is surfaced without freezing the UI.
+- AC-8: LLM-Assisted mode produces legal moves from a configured OpenAI-compatible endpoint; an endpoint error or illegal reply (after retry) triggers a local fallback move rather than ending the game, and only a fallback failure freezes the UI gracefully.
 
 ## 11. Assumptions & open questions (to be resolved in PRD/TDD)
 
