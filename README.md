@@ -27,11 +27,10 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 
 Open `chess.html` in any modern browser (or `firefox chess.html`). It works via `file://` — no server required.
 
-For **offline Grandmaster** strength, drop the two-file Stockfish bundle next to `chess.html`:
-- `stockfish-18-lite-single.js` (~20 KB loader)
-- `stockfish-18-lite-single.wasm` (~7 MB; NNUE compiled in)
-
-Download them from the [`nmrugg/stockfish.js`](https://github.com/nmrugg/stockfish.js) GitHub release (v18.0.0). They are GPLv3 and intentionally **not** committed to this repo.
+For **offline Grandmaster** strength, the two-file Stockfish bundle is shipped
+with the repo (next to `chess.html`) under the project's GPL-3.0 license, so
+Grandmaster works out of the box — including on the live site — with no
+extra download.
 
 ## Specs
 
@@ -45,6 +44,6 @@ User-facing pages (blog, player's guide, kids): see [`docs/`](docs/).
 
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
+Licensed under the [GNU General Public License v3.0](LICENSE).
 
-The **Stockfish** runtime used optionally by Grandmaster mode is **GPL-3.0**. It is loaded strictly at arm's length as a separate Web Worker speaking the UCI text protocol and is never bundled or vendored into this repository, so its copyleft does not reach into the app's own (Apache-2.0) source.
+This project vendors the **Stockfish** runtime (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0) directly in the repository, so the whole project is GPL-3.0 — consistent copyleft across the app and the bundled engine.

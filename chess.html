@@ -1180,17 +1180,18 @@ function requestMove(fen, difficulty) {
   // paths in a future release, update STOCKFISH_URL accordingly — the
   // load-failure handling below will surface that clearly rather than
   // failing silently either way.
-  // Stockfish asset: try local first (fully offline, no CORS), then a CDN.
-  // The local bundle is TWO sibling files dropped next to chess.html:
+  // Stockfish asset: the two-file local bundle is COMMITTED to the repo next
+  // to chess.html (the project is GPL-3.0; vendoring the GPL Stockfish binary
+  // is consistent with that — spec §12.4):
   //   stockfish-18-lite-single.js   (~20KB loader)
   //   stockfish-18-lite-single.wasm  (~7MB; NNUE compiled in, fetched as sibling)
-  // Download both from the nmrugg/stockfish.js GitHub release (v18.0.0) —
-  // jsDelivr REFUSES the npm package (it exceeds jsDelivr's 150MB limit and
-  // returns HTTP 403), so as of writing the local bundle is the only reliable
-  // way Grandmaster loads. Append a working CORS-enabled mirror if one appears.
+  // Try the local bundle first (fully offline, no CORS), then a CDN fallback.
+  // The CDN is a backstop only — jsDelivr refuses the npm package (it exceeds
+  // jsDelivr's 150MB limit, returns HTTP 403), so the committed local bundle
+  // is the reliable source.
   const STOCKFISH_URLS = [
     './stockfish-18-lite-single.js',                                                  // local bundle (preferred; offline)
-    'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js', // CDN (currently 403; kept in case policy changes)
+    'https://cdn.jsdelivr.net/npm/stockfish@18.0.0/src/stockfish-18-lite-single.js', // CDN backstop (currently 403; the vendored local bundle is the source)
   ];
 
   let gmWorker = null;

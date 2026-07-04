@@ -44,7 +44,7 @@ Both engines run inside a **Web Worker** so the UI thread never blocks during se
 
 - **NG1.** Online multiplayer / networked play between two browsers.
 - **NG2.** User accounts, persistent rating, or game history across sessions.
-- **NG3.** Vendoring the Stockfish binaries into the repo or the shipped HTML. Offline Grandmaster play *is* supported (NFR-5.2) via a local two-file asset bundle dropped next to `chess.html` at runtime — but those GPLv3 binaries are never committed to the tree (they would make the project effectively GPL-3.0; see §12.4).
+- **NG3.** Inlining Stockfish into the single HTML file itself (as base64/inlined WASM). The Stockfish runtime ships as **sibling files committed to the repo** (NFR-5.2), not inlined into `chess.html` — keeps the HTML editable and small.
 - **NG4.** Mobile-native app packaging (the deliverable is a web page; responsive layout is in scope, native app is not).
 - **NG5.** Voice control, puzzles, tutorials, or opening-explorer features.
 
@@ -147,7 +147,7 @@ The deliverable is one `.html` file containing all CSS and JS inline. Exception:
 
 ### NFR-5. Network dependency (Grandmaster and LLM-Assisted modes)
 - NFR-5.1 Human vs Human and Human vs Normal AI must work fully offline once the page is loaded.
-- NFR-5.2 Grandmaster can run **fully offline** if the local two-file asset bundle (`stockfish-18-lite-single.js` + `stockfish-18-lite-single.wasm`) sits next to `chess.html`. The loader tries the local bundle first, then falls back to a CDN; the local bundle is also the only currently-working source, since jsDelivr refuses the >150 MB npm package with HTTP 403. The binaries are a runtime-only asset (never committed — NG3).
+- NFR-5.2 Grandmaster runs **fully offline and out of the box**: the two-file Stockfish asset bundle (`stockfish-18-lite-single.js` + `stockfish-18-lite-single.wasm`) is **committed to the repo** next to `chess.html` (GPL-3.0 — §12.4). The loader tries the local bundle first, then falls back to a CDN; the CDN is currently non-functional anyway (jsDelivr refuses the >150 MB npm package with HTTP 403), but the committed bundle makes that irrelevant.
 - NFR-5.4 LLM-Assisted mode requires network access to a user-supplied OpenAI-compatible endpoint on every move. The endpoint must itself serve permissive CORS headers (the browser makes the call directly); local servers such as LM Studio, llama.cpp, vLLM, and LocalAI do, while OpenAI's hosted API does not from a browser — a CORS-friendly proxy is the user's responsibility. No CORS handling is implemented app-side.
 - NFR-5.3 **Threading caveat to carry into the TDD:** multi-threaded Stockfish WASM builds require `SharedArrayBuffer`, which requires cross-origin isolation (COOP/COEP response headers). A file opened directly via `file://` or served without those headers will not get multi-threading. The TDD must decide between (a) using a single-threaded WASM build for maximum compatibility at somewhat reduced NPS, or (b) requiring the file be served with the correct headers to unlock multi-threading. This materially affects Grandmaster-mode strength and must not be left ambiguous downstream.
 
@@ -229,7 +229,7 @@ Surveyed ready-to-use in-browser Stockfish builds:
 
 | Build | Strength / size | Threading / headers | License | Status |
 |---|---|---|---|---|
-| **`nmrugg/stockfish.js`** (`npm i stockfish`) — single-threaded flavor | Full NNUE eval, single core | None required (no SharedArrayBuffer) | GPL-3.0 | **Chosen for v1** (resolves A11.3) |
+| **`nmrugg/stockfish.js`** (`stockfish@18.0.0`) — single-threaded flavor | Full NNUE eval, single core | None required (no SharedArrayBuffer) | GPL-3.0 | **Chosen for v1** (resolves A11.3) |
 | `nmrugg/stockfish.js` — multi-threaded flavor | Full NNUE, multi-core | Requires COOP/COEP (`SharedArrayBuffer`) | GPL-3.0 | v1.1 candidate, header-gated |
 | `nmrugg/stockfish.js` — lite (~7MB) | Weaker, no full NNUE | Single-threaded, none | GPL-3.0 | Fallback if bundle size matters |
 | `lichess-org/stockfish.wasm` | Classical eval, no NNUE, no Syzygy | Multi-threaded, requires COOP/COEP | GPL-3.0 | Not chosen (older eval, header-bound) |
@@ -259,12 +259,12 @@ The Normal engine is authored in-house (FR-3). Reference implementations to stud
 | **tmttn/chess** | Rust | Crate layout (core / engine / wasm-bindings) — reference if the Normal tier ever moves to WASM for speed (TDD §9). |
 
 ### 12.4 License policy
-Most strong options here are **GPL-3.0**: Stockfish and its WASM ports, `shakmaty`, `chessops`. Implications:
+The project's own source and the Stockfish runtime it vendors are both **GPL-3.0**, so the whole repository is GPL-3.0 — consistent copyleft across the app and the bundled engine.
 
-- **The project's own source is licensed under the Apache License 2.0** (see `LICENSE` at the repo root). This is a permissive license; the constraints below are what make that compatible with using a GPL-3.0 engine.
-- **The app is distributed as a single HTML file; the Stockfish runtime is loaded at runtime (local bundle first, then CDN — NFR-5.2) and is never bundled into the repo.** The Stockfish worker is a separate runtime process communicating over the UCI text protocol (§7.3, TDD §5.3) — it is not statically linked or vendored into our own source. This keeps GPL copyleft on the Stockfish asset without reaching into the app's own (Apache-2.0) JavaScript.
-- The permissive license is sustainable because the rules engine is hand-rolled 0x88 (FR-1, no GPL `chessops`/`shakmaty` linkage) and Stockfish is kept strictly at arm's length (spawned worker over UCI, never vendored into the tree — enforced by `.gitignore` on the Stockfish binaries).
-- The `stockfish` npm package is GPL-3.0; loading it as a runtime worker (TDD §5.1) is consistent with the above rather than bundling.
+- **The project is licensed under the GNU GPL v3.0** (`LICENSE` at the repo root).
+- **The Stockfish runtime is vendored into the repo** as two sibling files (`stockfish-18-lite-single.{js,wasm}`) next to `chess.html`, so Grandmaster works out of the box — offline and on the live site. This is a deliberate licensing choice: because Stockfish (GPL-3.0) is a derivative/combined-work component, the project embraces GPL-3.0 copyleft rather than trying to keep it at arm's length.
+- Most other strong chess libs (`shakmaty`, `chessops`) are also GPL-3.0 but remain **design references only** (the rules engine is hand-rolled 0x88 — FR-1, no GPL `chessops`/`shakmaty` linkage). They could be vendored later without further license impact; today they are not.
+- The prior (Apache-2.0) posture kept Stockfish as a UCI-over-worker runtime dependency and forbade vendoring it; that constraint is **lifted** by this relicense.
 
 ### 12.5 Summary decisions
 | Concern | Decision |
@@ -272,7 +272,7 @@ Most strong options here are **GPL-3.0**: Stockfish and its WASM ports, `shakmat
 | Grandmaster engine | `nmrugg/stockfish.js`, single-threaded flavor, loaded from CDN via worker `importScripts` |
 | Rules engine | Hand-rolled 0x88 (FR-1); `chess.js` fallback; `shakmaty` as design reference |
 | Normal engine | In-house (FR-3); Sunfish/Pleco as study references |
-| License posture | Project source Apache-2.0; Stockfish isolated as a UCI-over-worker runtime dependency (local-first load, never vendored) so its GPL-3.0 copyleft does not reach the app |
+| License posture | Whole project GPL-3.0; Stockfish runtime vendored into the repo (`stockfish-18-lite-single.{js,wasm}`) so Grandmaster works out of the box |
 
 ## 13. Glossary
 

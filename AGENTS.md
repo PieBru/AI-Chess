@@ -34,8 +34,10 @@ endpoint, ideally a local server.
 
 ```
 chess.html                    # The app. Single file. This is the deliverable.
+stockfish-18-lite-single.js   # Stockfish loader (vendored, GPL-3.0)
+stockfish-18-lite-single.wasm # Stockfish NNUE WASM (vendored, GPL-3.0)
 README.md                     # Project README
-LICENSE                       # Apache License 2.0 (project source)
+LICENSE                       # GNU GPL v3.0 (whole project, incl. vendored Stockfish)
 AGENTS.md                     # This file (operating manual) — at root for agent tooling
 specs/                        # Project / governing documentation (SDD layers)
   chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
@@ -45,9 +47,10 @@ docs/                         # User-facing pages (blog / guide / kids, EN + IT)
   onefile-chess-*.html
 ```
 
-No `package.json`, no build tooling, no test runner — by design. The `.gitignore`
-at the repo root keeps the GPLv3 Stockfish runtime binaries out of the tree
-(NG3 / §12.4). See §6 and §8.
+No `package.json`, no build tooling, no test runner — by design. The project
+is **GPL-3.0** and **vendors** the Stockfish runtime (the two sibling files
+above) so Grandmaster works out of the box, offline, including on the live
+site (spec §12.4). See §6 and §8.
 
 ---
 
@@ -62,7 +65,9 @@ at the repo root keeps the GPLv3 Stockfish runtime binaries out of the tree
   into a `Blob` URL — keeps the engine source in the same file, versionable,
   no separate `.js` files.
 - **Stockfish WASM**, single-threaded `nmrugg/stockfish.js` flavor
-  (`stockfish@18.0.8`), loaded from jsDelivr CDN as a Worker. Single-threaded
+  (`stockfish@18.0.0`), **vendored** next to `chess.html`
+  (`stockfish-18-lite-single.{js,wasm}`) and loaded as a local Worker (CDN
+  fallback kept). Single-threaded
   on purpose: no COOP/COEP/`SharedArrayBuffer` requirement, so the file works
   via `file://` or any static host. Multi-threading is a deferred upgrade
   (spec A11.3 / §13, TDD §5.2).
@@ -150,10 +155,10 @@ engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 ## 6. Development standards
 
 - **Single-file discipline.** Everything ships in `chess.html`. Do not add
-  `.js`/`.css` files, build steps, or npm dependencies. The only permitted
-  external fetches are the Stockfish CDN asset and the user-supplied LLM
-  endpoint — nothing else. (Verified: only `STOCKFISH_URL` and the LLM
-  `fetch` touch the network.)
+  `.js`/`.css` files, build steps, or npm dependencies. The Stockfish runtime
+  is vendored (the two sibling binaries, GPL-3.0); the only network fetch is
+  the user-supplied LLM endpoint (plus a Stockfish CDN backstop if the local
+  bundle is ever absent) — nothing else.
 - **Lazy by default.** Question whether a feature needs to exist. Reuse what's
   already in the file before writing new code. Stdlib/platform features before
   custom code. Shortest working diff wins — once you've read the whole flow.
@@ -205,17 +210,16 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 - **Run:** open `chess.html` in a browser (or `firefox chess.html`). No server
   required; works via `file://`. Human-vs-Human and Human-vs-Normal need no
   network. LLM-Assisted needs the network (the configured endpoint).
-- **Offline Grandmaster:** download the two-file Stockfish bundle from the
-  `nmrugg/stockfish.js` GitHub release (v18.0.0) and drop it next to
-  `chess.html`:
+- **Grandmaster / Stockfish:** the two-file Stockfish bundle is **committed
+  to the repo** next to `chess.html`:
   - `stockfish-18-lite-single.js` (~20 KB loader)
   - `stockfish-18-lite-single.wasm` (~7 MB; NNUE compiled in)
-  The loader then tries the local bundle first, then a CDN fallback. **Do not
-  commit these binaries** — they're GPLv3 and gitignored; vendoring them makes
-  the repo effectively GPL-3.0 (spec §12.4 / NG3). Note: the jsDelivr CDN URL
-  in the fallback list is currently broken (the npm package exceeds jsDelivr's
-  150 MB limit → HTTP 403), so the local bundle is also the only reliable way
-  Grandmaster loads right now.
+  The project is GPL-3.0, so vendoring the GPL Stockfish binary is consistent
+  (spec §12.4). Grandmaster therefore works **out of the box — fully offline
+  and on the live site** — with no extra download. The loader tries the local
+  bundle first, then a CDN fallback; the CDN backstop is currently broken
+  (jsDelivr refuses the >150 MB npm package with HTTP 403), but the committed
+  local bundle makes that irrelevant.
 - **Test:** there is **no in-repo test runner**. Validation done so far:
   - Perft-style rules-engine checks and Normal-engine search checks (run
     ad-hoc, e.g. via `node` extracting the inline scripts).

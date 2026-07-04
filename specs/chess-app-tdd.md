@@ -158,9 +158,9 @@ These five strings render verbatim as the colored badge next to the move in the 
 ## 5. Grandmaster engine design (Stockfish WASM, Web Worker)
 
 ### 5.1 Asset loading
-- **Chosen build: `nmrugg/stockfish.js`, single-threaded flavor** (`npm i stockfish`, GPL-3.0) — full NNUE evaluation, single core, no `SharedArrayBuffer`/COOP/COEP requirement (spec §12.1, §12.4). This directly resolves the open question flagged in spec NFR-5.3 / A11.3.
-- Loaded **local-first**: the app tries a sibling local bundle (`./stockfish-18-lite-single.js`, which itself fetches the matching `.wasm` sibling) before falling back to a CDN. The local bundle is the only currently-working source — jsDelivr refuses the >150 MB npm package with HTTP 403, and other CDNs 404 the deep path; GitHub release assets work for manual download but lack CORS headers so can't be loaded cross-origin as a Worker. Both files come from the `nmrugg/stockfish.js` GitHub release (v18.0.0). Loaded lazily — only when a Grandmaster-controlled game actually starts (FR-4.4). The two binaries are runtime-only and **gitignored, never committed** (NG3 / §12.4 license guardrail).
-- **License posture:** the Stockfish worker is a separate runtime process speaking UCI over the post (spec §7.3), not statically linked into our source — keeps GPL-3.0 copyleft on the asset, off our JavaScript (spec §12.4).
+- **Chosen build: `nmrugg/stockfish.js`, single-threaded flavor** (`stockfish@18.0.0`, GPL-3.0) — full NNUE evaluation, single core, no `SharedArrayBuffer`/COOP/COEP requirement (spec §12.1, §12.4). This directly resolves the open question flagged in spec NFR-5.3 / A11.3.
+- Loaded **local-first**: the two-file Stockfish bundle is **committed to the repo** next to `chess.html` (`stockfish-18-lite-single.js` + `.wasm`, GPL-3.0), so the local path is always present; the app tries it before a CDN backstop. The CDN backstop is currently non-functional anyway (jsDelivr refuses the >150 MB npm package with HTTP 403; other CDNs 404 the deep path; GitHub release assets lack CORS so can't load cross-origin as a Worker), but the vendored bundle makes that irrelevant. Loaded lazily — only when a Grandmaster-controlled game actually starts (FR-4.4).
+- **License posture:** the project is GPL-3.0 and **vendors** the Stockfish runtime into the repo; the Stockfish worker is a separate runtime process speaking UCI over the post (spec §7.3). Consistent copyleft across the app and the bundled engine (spec §12.4).
 - Load failure (network error, blocked resource) triggers a worker message `{ type: 'error', code: 'load_failed' }`; the engine manager surfaces this to the UI per PRD §5.5 and disables the Grandmaster option for the current session rather than retrying silently on every move. The single-threaded build removes the COOP/COEP failure mode entirely (the one deployment header class that previously could make Grandmaster silently degrade).
 
 ### 5.2 Threading decision (resolves spec open question A11.3 / NFR-5.3)
@@ -261,7 +261,7 @@ All applied moves — human or AI — pass through the same rules-engine validat
 - Timing consistency of `go movetime` across browsers/devices for Stockfish — may need a depth-based fallback if movetime proves unreliable (noted in §5.3).
 - Whether centipawn-based move-quality thresholds (PRD §5.4) feel right in practice — likely needs a tuning pass after initial playtesting, not purely a code-review concern.
 - Memory/GC behavior of the Normal engine's transposition table across long AI-vs-AI spectator sessions (PRD §2.3) — worth a soak test.
-- **License drift:** if a contributor later vendors the `nmrugg/stockfish.js` GPL asset into the repo (instead of loading it as a runtime Worker from a local bundle or CDN), or links `chessops`/`shakmaty` into the rules engine, the project becomes GPL-3.0 effectively. The §5.1 worker-over-UCI isolation and the `.gitignore` on the Stockfish binaries are the guardrails; review them before any dependency add (spec §12.4).
+- **License posture (intentional, not drift):** the project is **GPL-3.0** and **vendors** the `nmrugg/stockfish.js` runtime into the repo (spec §12.4) — this is a deliberate licensing choice, no longer a drift risk to guard against. What *does* still warrant review before any dependency add: (a) linking `chessops`/`shakmaty` into the rules engine (currently reference-only; the rules engine is hand-rolled 0x88), and (b) inlining Stockfish into the single HTML file itself (NG3) — both would bloat or further entangle the source. The Stockfish worker stays a separate UCI-over-post process (§5.1).
 
 ## 13. Dependencies & references
 
@@ -269,7 +269,7 @@ Concrete picks binding spec §12 to implementation:
 
 | Concern | Pick | License | Loaded how |
 |---|---|---|---|
-| Grandmaster engine | `nmrugg/stockfish.js`, single-threaded flavor (`npm i stockfish`) | GPL-3.0 | CDN `importScripts` in the GM worker, lazy (§5.1) |
+| Grandmaster engine | `nmrugg/stockfish.js`, single-threaded flavor (`stockfish@18.0.0`) | GPL-3.0 | **Vendored** (`stockfish-18-lite-single.{js,wasm}` next to chess.html), local-first load with CDN backstop, lazy (§5.1) |
 | Rules engine | In-house 0x88 (FR-1, §3) | n/a | Inline in the single HTML file |
 | Rules fallback | `chess.js` | permissive (verify in-repo) | CDN, only if §11 perft tests fail |
 | Normal engine | In-house (FR-3, §4) | n/a | Inline |
