@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Chess Adventure!</title>
+<style>
+  :root {
+    --sun: #fff6df; --cream: #fffdf7;
+    --coral: #ff6b6b; --sky: #43b0d6; --grass: #57b96a; --gold: #f4b73f; --plum: #4a3b6b;
+    --ink: #3a2e5c; --ink-soft: #6b5f8c;
+    --font-display: 'Trebuchet MS', 'Verdana', sans-serif;
+    --font-body: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--sun); color: var(--ink); font-family: var(--font-body); line-height: 1.6; }
+  .wrap { max-width: 700px; margin: 0 auto; padding: 0 20px 70px; }
+  h1, h2, h3 { font-family: var(--font-display); color: var(--plum); }
+  strong { color: var(--plum); }
+
+  .cover {
+    text-align: center; padding: 50px 20px 40px; position: relative;
+  }
+  .cover .mascot { font-size: 4.2rem; display: block; }
+  .cover h1 { font-size: clamp(1.9rem, 6vw, 2.8rem); margin: 6px 0 10px; }
+  .cover p { color: var(--ink-soft); font-size: 1.1rem; max-width: 40ch; margin: 0 auto; }
+  .stars { display: flex; justify-content: center; gap: 10px; margin-top: 14px; font-size: 1.3rem; }
+
+  .page {
+    background: var(--cream); border-radius: 22px; padding: 26px 26px 30px; margin: 24px 0;
+    box-shadow: 0 6px 0 rgba(74,59,107,.08);
+    border: 3px solid rgba(74,59,107,.08);
+  }
+  .page h2 { font-size: 1.5rem; margin-top: 0; display: flex; align-items: center; gap: 10px; }
+  .page h2 .emoji { font-size: 1.4rem; }
+
+  .friends { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+  @media (max-width: 520px) { .friends { grid-template-columns: 1fr; } }
+  .friend-card {
+    border-radius: 18px; padding: 16px; text-align: center; color: #fff;
+  }
+  .friend-card .avatar { font-size: 2.6rem; display: block; margin-bottom: 6px; }
+  .friend-card h3 { color: #fff; margin: 4px 0; font-size: 1.05rem; }
+  .friend-card p { margin: 0; font-size: .88rem; opacity: .95; }
+  .fc-1 { background: var(--sky); }
+  .fc-2 { background: var(--grass); }
+  .fc-3 { background: var(--gold); }
+  .fc-4 { background: var(--coral); }
+
+  .step-row { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+  .step-row .bubble {
+    flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: var(--coral); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.2rem;
+  }
+  .step-row p { margin: 0; }
+
+  .badge-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .badge-row { display: flex; align-items: center; gap: 12px; background: var(--sun); border-radius: 14px; padding: 10px 14px; }
+  .badge-row .emoji { font-size: 1.5rem; }
+  .badge-row strong { font-size: 1rem; }
+  .badge-row span.desc { color: var(--ink-soft); font-size: .88rem; }
+
+  .tip-box {
+    background: #eafbee; border: 2px dashed var(--grass); border-radius: 16px; padding: 14px 18px; margin: 10px 0;
+  }
+  .tip-box strong { color: var(--grass); }
+
+  .challenge {
+    background: #fff2e0; border-radius: 16px; padding: 16px 18px; text-align: center;
+  }
+  .challenge .board-mini {
+    display: inline-block; font-size: 1.6rem; letter-spacing: 4px; margin: 10px 0; background: #fffdf7;
+    padding: 8px 14px; border-radius: 10px;
+  }
+
+  .certificate {
+    text-align: center; border: 4px dashed var(--gold); border-radius: 20px; padding: 30px 20px; background: #fffaf0;
+  }
+  .certificate .ribbon { font-size: 2.5rem; }
+  .certificate h2 { margin: 8px 0; }
+  .certificate .line { border-bottom: 2px solid var(--ink-soft); width: 70%; margin: 20px auto 6px; }
+  .certificate small { color: var(--ink-soft); }
+
+  footer { text-align: center; color: var(--ink-soft); font-size: .85rem; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="cover">
+    <span class="mascot">♞</span>
+    <h1>Your Chess Adventure!</h1>
+    <p>Meet Nico the Knight — your guide to playing chess against friends, robots, and even a chatty AI brain.</p>
+    <div class="stars">⭐ ⭐ ⭐</div>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">🧩</span> What is chess, anyway?</h2>
+    <p>Chess is a game for two players. You each have an army of pieces, and you take turns moving them across a checkered board. The big goal: trap the other player's <strong>King</strong> so it can't escape — that's called <strong>checkmate</strong>, and it wins the game!</p>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">👋</span> Meet your opponents</h2>
+    <p>In this game, you can play against four totally different kinds of opponents. Here they are!</p>
+    <div class="friends">
+      <div class="friend-card fc-1">
+        <span class="avatar">🧑‍🤝‍🧑</span>
+        <h3>A Friend</h3>
+        <p>Play against a real person sitting next to you. Take turns clicking moves!</p>
+      </div>
+      <div class="friend-card fc-2">
+        <span class="avatar">🤖</span>
+        <h3>Practice Bot</h3>
+        <p>A computer friend with 5 levels, from "still learning" to "quite tricky." Pick one that's just right for you.</p>
+      </div>
+      <div class="friend-card fc-3">
+        <span class="avatar">🧙</span>
+        <h3>Grandmaster Gustav</h3>
+        <p>The super-genius. Gustav almost never makes a mistake — a fun (and tough!) challenge.</p>
+      </div>
+      <div class="friend-card fc-4">
+        <span class="avatar">💬</span>
+        <h3>Chatty the AI Pen Pal</h3>
+        <p>A grown-up can hook up a talking AI to play a side too — it picks its moves by thinking in words!</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">🎮</span> How to play in 4 easy steps</h2>
+    <div class="step-row"><div class="bubble">1</div><p>Pick who plays White and who plays Black — you, a Practice Bot, Gustav, or Chatty.</p></div>
+    <div class="step-row"><div class="bubble">2</div><p>Press <strong>Start Game</strong>.</p></div>
+    <div class="step-row"><div class="bubble">3</div><p>Click a piece to pick it up, then click a glowing square to put it down.</p></div>
+    <div class="step-row"><div class="bubble">4</div><p>Take turns until someone wins, or the game ends in a draw. Then play again!</p></div>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">📊</span> The Smart-o-Meter</h2>
+    <p>See that tall skinny bar next to the board? That's the <strong>Smart-o-Meter</strong>. When it fills up light, White is doing great. When it fills up dark, Black is ahead. Watch it change after every move!</p>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">🏷️</span> Move badges — how good was that move?</h2>
+    <p>After a computer moves, you'll see a little badge telling you how smart the move was:</p>
+    <div class="badge-list">
+      <div class="badge-row"><span class="emoji">🌟</span><strong>Best</strong> <span class="desc">— the smartest move possible!</span></div>
+      <div class="badge-row"><span class="emoji">👍</span><strong>Good</strong> <span class="desc">— a solid, sensible move.</span></div>
+      <div class="badge-row"><span class="emoji">🤔</span><strong>Inaccuracy</strong> <span class="desc">— hmm, there was a better choice.</span></div>
+      <div class="badge-row"><span class="emoji">😬</span><strong>Mistake</strong> <span class="desc">— oops, that one costs something.</span></div>
+      <div class="badge-row"><span class="emoji">💥</span><strong>Blunder</strong> <span class="desc">— whoa, big oopsie!</span></div>
+    </div>
+    <p>It's a fun way to spot which opponent is really the smartest one!</p>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">💡</span> Three tips from Nico the Knight</h2>
+    <div class="tip-box"><strong>Tip 1:</strong> In the beginning, try to move your Knights and Bishops out early — they like to be in the game!</div>
+    <div class="tip-box"><strong>Tip 2:</strong> Keep your King safe. Tucking it behind some pawns (that's called <em>castling</em>) is usually smart.</div>
+    <div class="tip-box"><strong>Tip 3:</strong> Before you click a square, take a breath and look — is any of your pieces about to get captured?</div>
+  </div>
+
+  <div class="page challenge">
+    <h2><span class="emoji">🧠</span> Mini Challenge!</h2>
+    <p>Can you remember which piece can jump over other pieces? It moves in an L-shape!</p>
+    <div class="board-mini">♞ ? ? ?</div>
+    <p><em>(Answer: the Knight! ♞)</em></p>
+  </div>
+
+  <div class="certificate">
+    <div class="ribbon">🏆</div>
+    <h2>You're ready to play!</h2>
+    <p>Fill in your name below after your very first game.</p>
+    <div class="line"></div>
+    <small>played their first game of chess today</small>
+  </div>
+
+  <footer>Have fun, be a good sport, and remember — every grandmaster started exactly where you are now. ♞</footer>
+</div>
+</body>
+</html>

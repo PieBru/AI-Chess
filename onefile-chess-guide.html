@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OneFile Chess — Player's Guide</title>
+<style>
+  :root {
+    --paper: #f7f3ea; --paper-2: #efe8d8; --ink: #2b2620; --ink-dim: #6b6255;
+    --brass: #a97d2d; --brass-dark: #7a5a1f;
+    --line: #ddd3bb; --board-light: #ead9b3; --board-dark: #7c5a37;
+    --tip: #4b7c63; --warn: #a04b3c;
+    --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body); line-height: 1.65; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 24px 80px; }
+  h1, h2, h3 { font-family: var(--font-display); color: var(--ink); }
+  a { color: var(--brass-dark); }
+  code { font-family: var(--font-mono); background: var(--paper-2); padding: 1px 6px; border-radius: 4px; font-size: .92em; }
+
+  .cover { padding: 70px 0 40px; border-bottom: 3px double var(--line); text-align: center; }
+  .cover .kicker { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--brass-dark); }
+  .cover h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); margin: 10px 0 8px; }
+  .cover p { color: var(--ink-dim); max-width: 46ch; margin: 0 auto; }
+
+  nav.toc { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin: 34px 0; }
+  nav.toc h2 { font-size: 1rem; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--brass-dark); }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+  @media (max-width: 560px) { nav.toc ol { columns: 1; } }
+  nav.toc a { text-decoration: none; color: var(--ink); }
+  nav.toc a:hover { color: var(--brass-dark); }
+
+  section { margin: 48px 0; scroll-margin-top: 20px; }
+  section h2 { font-size: 1.4rem; border-bottom: 2px solid var(--line); padding-bottom: 8px; margin-bottom: 18px; }
+  .step {
+    display: flex; gap: 14px; margin-bottom: 18px; align-items: flex-start;
+  }
+  .step .num {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--brass); color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .9rem;
+  }
+  .step p { margin: 2px 0 0; }
+
+  .callout { border-radius: 8px; padding: 14px 18px; margin: 18px 0; font-size: .95rem; }
+  .callout.tip { background: rgba(75,124,99,.1); border-left: 4px solid var(--tip); }
+  .callout.tip strong { color: var(--tip); }
+  .callout.warn { background: rgba(160,75,60,.09); border-left: 4px solid var(--warn); }
+  .callout.warn strong { color: var(--warn); }
+
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+  th { background: var(--paper-2); font-family: var(--font-display); }
+
+  .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+  .sw-best { background: #4caf7d; } .sw-good { background: #c9a24b; }
+  .sw-inaccuracy { background: #e6b450; } .sw-mistake { background: #e68c3c; } .sw-blunder { background: #d1495b; }
+
+  details { background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; margin-bottom: 10px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 10px 0 4px; color: var(--ink-dim); }
+
+  .demo-board {
+    display: grid; grid-template-columns: repeat(8, 1fr); width: 220px; aspect-ratio: 1;
+    border: 3px solid var(--brass-dark); border-radius: 4px; margin: 16px auto;
+  }
+  .demo-board div:nth-child(odd) { background: var(--board-light); }
+  .demo-board div:nth-child(even) { background: var(--board-dark); }
+  .demo-board div { display:flex; }
+
+  footer { text-align: center; color: var(--ink-dim); font-size: .85rem; padding-top: 30px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="cover">
+    <div class="kicker">Player's Guide</div>
+    <h1>OneFile Chess</h1>
+    <p>Everything you need to set up a game, understand what's happening on the board, and get the most out of playing against four very different opponents.</p>
+  </div>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#opening">Opening the app</a></li>
+      <li><a href="#setup">Setting up a game</a></li>
+      <li><a href="#playing">Making moves</a></li>
+      <li><a href="#reading">Reading the board</a></li>
+      <li><a href="#difficulty">Understanding difficulty</a></li>
+      <li><a href="#llm">Using LLM-Assisted mode</a></li>
+      <li><a href="#controls">Game controls</a></li>
+      <li><a href="#faq">Troubleshooting &amp; FAQ</a></li>
+    </ol>
+  </nav>
+
+  <section id="opening">
+    <h2>1. Opening the app</h2>
+    <div class="step"><div class="num">1</div><p>Find the file — it's a single page named something like <code>chess.html</code>.</p></div>
+    <div class="step"><div class="num">2</div><p>Double-click it. It opens directly in your default web browser — Chrome, Firefox, Safari, or Edge all work.</p></div>
+    <div class="step"><div class="num">3</div><p>That's it. There's nothing to install and no account to create.</p></div>
+    <div class="callout tip"><strong>Tip:</strong> Human vs. Human and Human vs. Normal AI work with no internet connection at all. Only Grandmaster mode (the first time you use it) and LLM-Assisted mode need to reach the internet.</p></div>
+  </section>
+
+  <section id="setup">
+    <h2>2. Setting up a game</h2>
+    <p>When the app opens, you'll see a setup screen with two panels — one for White, one for Black. For each side, choose one of four options:</p>
+    <table>
+      <tr><th>Option</th><th>What it means</th></tr>
+      <tr><td><strong>Human</strong></td><td>You (or whoever's sitting at the keyboard) make the moves.</td></tr>
+      <tr><td><strong>Normal AI</strong></td><td>A built-in computer opponent. Pick a difficulty from 1 (Beginner) to 5 (Expert).</td></tr>
+      <tr><td><strong>Grandmaster</strong></td><td>The strongest setting — runs the Stockfish engine, one of the strongest chess players in existence, human or computer.</td></tr>
+      <tr><td><strong>LLM-Assisted</strong></td><td>An AI language model plays this side. You'll need to supply a few details — see section 6.</td></tr>
+    </table>
+    <p>You can mix and match freely — a Human vs. a Normal AI, two different AIs against each other, or even the same AI type at two different difficulties, playing itself.</p>
+    <p>Once both sides are set, press <strong>Start Game</strong>.</p>
+  </section>
+
+  <section id="playing">
+    <h2>3. Making moves</h2>
+    <div class="step"><div class="num">1</div><p>Click the piece you want to move. Its legal destination squares light up — a small dot for a quiet move, a ring around the square for a capture.</p></div>
+    <div class="step"><div class="num">2</div><p>Click a highlighted square to move there. Click the same piece again to deselect it.</p></div>
+    <div class="step"><div class="num">3</div><p>If a pawn reaches the far end of the board, a small menu pops up asking which piece to promote to — Queen, Rook, Bishop, or Knight.</p></div>
+    <div class="demo-board" aria-hidden="true">
+      <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+    </div>
+    <p style="text-align:center; color:var(--ink-dim); font-size:.85rem">The board itself — light and dark squares, same as any physical chess set.</p>
+  </section>
+
+  <section id="reading">
+    <h2>4. Reading the board</h2>
+    <p><strong>The eval bar</strong> (the vertical gauge beside the board) shows who's ahead. A taller light fill means White is doing better; a taller dark portion means Black is. It updates after every AI move.</p>
+    <p><strong>Move-quality tags</strong> appear next to AI moves in the history panel, so you can see how good each move really was:</p>
+    <div class="legend-item"><span class="legend-swatch sw-best"></span> <strong>Best</strong> — the strongest move available.</div>
+    <div class="legend-item"><span class="legend-swatch sw-good"></span> <strong>Good</strong> — a small step off the top choice, nothing to worry about.</div>
+    <div class="legend-item"><span class="legend-swatch sw-inaccuracy"></span> <strong>Inaccuracy</strong> — a noticeably better move existed.</div>
+    <div class="legend-item"><span class="legend-swatch sw-mistake"></span> <strong>Mistake</strong> — a costly slip.</div>
+    <div class="legend-item"><span class="legend-swatch sw-blunder"></span> <strong>Blunder</strong> — a serious error, often losing material.</div>
+    <p>This is a great way to actually see the difference in strength between, say, Normal AI on Beginner and Grandmaster mode — watch the tags, not just who wins.</p>
+  </section>
+
+  <section id="difficulty">
+    <h2>5. Understanding Normal AI's difficulty levels</h2>
+    <table>
+      <tr><th>Level</th><th>Feel</th></tr>
+      <tr><td>1 — Beginner</td><td>Makes mistakes on purpose. Good for a first-ever game.</td></tr>
+      <tr><td>2 — Easy</td><td>A relaxed, casual opponent.</td></tr>
+      <tr><td>3 — Medium</td><td>A solid club-level challenge.</td></tr>
+      <tr><td>4 — Hard</td><td>A strong, focused opponent — expect it to punish mistakes.</td></tr>
+      <tr><td>5 — Expert</td><td>The strongest this hand-built engine can play.</td></tr>
+    </table>
+    <p>Grandmaster mode has no difficulty setting — it always plays at full strength.</p>
+  </section>
+
+  <section id="llm">
+    <h2>6. Using LLM-Assisted mode</h2>
+    <p>This option lets an AI language model play a side, via any service that speaks the common "OpenAI-compatible" chat format. To set it up you'll need:</p>
+    <table>
+      <tr><th>Field</th><th>What to put there</th></tr>
+      <tr><td>API base URL</td><td>The web address of the AI service, e.g. <code>https://api.openai.com/v1</code>, or the address of a program running on your own computer.</td></tr>
+      <tr><td>API key</td><td>A password-like code the service gives you. Leave this blank if you're using a local service that doesn't require one.</td></tr>
+      <tr><td>Model</td><td>The specific model's name, e.g. <code>gpt-4o-mini</code>.</td></tr>
+    </table>
+    <div class="callout warn"><strong>Privacy note:</strong> the app talks to that address directly from your browser — there's no in-between server. Don't paste an API key into a copy of this file that you then share with someone else, since it would travel with it.</div>
+    <div class="callout tip"><strong>If it fails:</strong> a bad key, a typo in the address, or a service hiccup won't end your game — the app quietly makes a fallback move and tells you what happened, so play continues.</div>
+  </section>
+
+  <section id="controls">
+    <h2>7. Game controls</h2>
+    <table>
+      <tr><th>Button</th><th>What it does</th></tr>
+      <tr><td>Flip board</td><td>Turns the board around, so you can view it from the other side.</td></tr>
+      <tr><td>Resign</td><td>Ends the game immediately in your opponent's favor.</td></tr>
+      <tr><td>New game</td><td>Returns to the setup screen. Nothing from the current game is saved.</td></tr>
+    </table>
+  </section>
+
+  <section id="faq">
+    <h2>8. Troubleshooting &amp; FAQ</h2>
+    <details>
+      <summary>Grandmaster mode won't load</summary>
+      <p>It needs an internet connection the first time you use it, to fetch the Stockfish engine. If you're offline, or a firewall is blocking it, you'll see a message explaining that, and the option will be disabled for that session.</p>
+    </details>
+    <details>
+      <summary>Can I save a game and come back later?</summary>
+      <p>Not currently — closing or refreshing the page resets everything. Each session starts fresh by design.</p>
+    </details>
+    <details>
+      <summary>Why did the "thinking" indicator take a few seconds?</summary>
+      <p>Higher Normal AI difficulties and Grandmaster mode both spend real time calculating. The board stays fully responsive while this happens — you can still flip it or scroll the move list.</p>
+    </details>
+    <details>
+      <summary>Does this app track or store anything about me?</summary>
+      <p>No accounts, no analytics, nothing saved between sessions. The only outside connections it ever makes are to fetch the Grandmaster engine (if you use that mode) and to whichever address you provide in LLM-Assisted mode.</p>
+    </details>
+  </section>
+
+  <footer>OneFile Chess — Player's Guide</footer>
+</div>
+</body>
+</html>

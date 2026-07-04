@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Tua Avventura a Scacchi!</title>
+<style>
+  :root {
+    --sun: #fff6df; --cream: #fffdf7;
+    --coral: #ff6b6b; --sky: #43b0d6; --grass: #57b96a; --gold: #f4b73f; --plum: #4a3b6b;
+    --ink: #3a2e5c; --ink-soft: #6b5f8c;
+    --font-display: 'Trebuchet MS', 'Verdana', sans-serif;
+    --font-body: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--sun); color: var(--ink); font-family: var(--font-body); line-height: 1.6; }
+  .wrap { max-width: 700px; margin: 0 auto; padding: 0 20px 70px; }
+  h1, h2, h3 { font-family: var(--font-display); color: var(--plum); }
+  strong { color: var(--plum); }
+
+  .cover {
+    text-align: center; padding: 50px 20px 40px; position: relative;
+  }
+  .cover .mascot { font-size: 4.2rem; display: block; }
+  .cover h1 { font-size: clamp(1.9rem, 6vw, 2.8rem); margin: 6px 0 10px; }
+  .cover p { color: var(--ink-soft); font-size: 1.1rem; max-width: 40ch; margin: 0 auto; }
+  .stars { display: flex; justify-content: center; gap: 10px; margin-top: 14px; font-size: 1.3rem; }
+
+  .page {
+    background: var(--cream); border-radius: 22px; padding: 26px 26px 30px; margin: 24px 0;
+    box-shadow: 0 6px 0 rgba(74,59,107,.08);
+    border: 3px solid rgba(74,59,107,.08);
+  }
+  .page h2 { font-size: 1.5rem; margin-top: 0; display: flex; align-items: center; gap: 10px; }
+  .page h2 .emoji { font-size: 1.4rem; }
+
+  .friends { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+  @media (max-width: 520px) { .friends { grid-template-columns: 1fr; } }
+  .friend-card {
+    border-radius: 18px; padding: 16px; text-align: center; color: #fff;
+  }
+  .friend-card .avatar { font-size: 2.6rem; display: block; margin-bottom: 6px; }
+  .friend-card h3 { color: #fff; margin: 4px 0; font-size: 1.05rem; }
+  .friend-card p { margin: 0; font-size: .88rem; opacity: .95; }
+  .fc-1 { background: var(--sky); }
+  .fc-2 { background: var(--grass); }
+  .fc-3 { background: var(--gold); }
+  .fc-4 { background: var(--coral); }
+
+  .step-row { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+  .step-row .bubble {
+    flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: var(--coral); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.2rem;
+  }
+  .step-row p { margin: 0; }
+
+  .badge-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .badge-row { display: flex; align-items: center; gap: 12px; background: var(--sun); border-radius: 14px; padding: 10px 14px; }
+  .badge-row .emoji { font-size: 1.5rem; }
+  .badge-row strong { font-size: 1rem; }
+  .badge-row span.desc { color: var(--ink-soft); font-size: .88rem; }
+
+  .tip-box {
+    background: #eafbee; border: 2px dashed var(--grass); border-radius: 16px; padding: 14px 18px; margin: 10px 0;
+  }
+  .tip-box strong { color: var(--grass); }
+
+  .challenge {
+    background: #fff2e0; border-radius: 16px; padding: 16px 18px; text-align: center;
+  }
+  .challenge .board-mini {
+    display: inline-block; font-size: 1.6rem; letter-spacing: 4px; margin: 10px 0; background: #fffdf7;
+    padding: 8px 14px; border-radius: 10px;
+  }
+
+  .certificate {
+    text-align: center; border: 4px dashed var(--gold); border-radius: 20px; padding: 30px 20px; background: #fffaf0;
+  }
+  .certificate .ribbon { font-size: 2.5rem; }
+  .certificate h2 { margin: 8px 0; }
+  .certificate .line { border-bottom: 2px solid var(--ink-soft); width: 70%; margin: 20px auto 6px; }
+  .certificate small { color: var(--ink-soft); }
+
+  footer { text-align: center; color: var(--ink-soft); font-size: .85rem; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="cover">
+    <span class="mascot">♞</span>
+    <h1>La Tua Avventura a Scacchi!</h1>
+    <p>Incontra Nico il Cavallo — la tua guida per giocare a scacchi contro amici, robot e persino un'IA chiacchierona.</p>
+    <div class="stars">⭐ ⭐ ⭐</div>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">🧩</span> Cosa sono gli scacchi?</h2>
+    <p>Gli scacchi sono un gioco per due giocatori. Ognuno ha un esercito di pezzi, e a turno li muovete sulla scacchiera a caselle. L'obiettivo grande: intrappolare il <strong>Re</strong> dell'altro giocatore così che non possa più scappare — si chiama <strong>scacco matto</strong>, e fa vincere la partita!</p>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">👋</span> Incontra i tuoi avversari</h2>
+    <p>In questo gioco puoi sfidare quattro tipi di avversari completamente diversi. Eccoli!</p>
+    <div class="friends">
+      <div class="friend-card fc-1">
+        <span class="avatar">🧑‍🤝‍🧑</span>
+        <h3>Un Amico</h3>
+        <p>Gioca contro una persona vera seduta accanto a te. Fate le mosse a turno cliccando!</p>
+      </div>
+      <div class="friend-card fc-2">
+        <span class="avatar">🤖</span>
+        <h3>Robot Allenatore</h3>
+        <p>Un amico computer con 5 livelli, da "sta ancora imparando" a "piuttosto astuto." Scegline uno adatto a te.</p>
+      </div>
+      <div class="friend-card fc-3">
+        <span class="avatar">🧙</span>
+        <h3>Gran Maestro Gustavo</h3>
+        <p>Il super-genio. Gustavo non sbaglia quasi mai — una sfida divertente (e difficile)!</p>
+      </div>
+      <div class="friend-card fc-4">
+        <span class="avatar">💬</span>
+        <h3>Chiacchierina, l'IA Amica di Penna</h3>
+        <p>Un adulto può collegare un'IA che chiacchiera per farla giocare da un lato — sceglie le mosse ragionando a parole!</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">🎮</span> Come giocare in 4 semplici passi</h2>
+    <div class="step-row"><div class="bubble">1</div><p>Scegli chi gioca con il Bianco e chi con il Nero — tu, un Robot Allenatore, Gustavo oppure Chiacchierina.</p></div>
+    <div class="step-row"><div class="bubble">2</div><p>Premi <strong>Start Game</strong>.</p></div>
+    <div class="step-row"><div class="bubble">3</div><p>Clicca su un pezzo per prenderlo in mano, poi clicca su una casella che si illumina per posarlo.</p></div>
+    <div class="step-row"><div class="bubble">4</div><p>Fate i turni finché qualcuno vince, o la partita finisce in parità. Poi giocate ancora!</p></div>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">📊</span> Il Misura-Intelligenza</h2>
+    <p>Vedi quella barretta alta e sottile accanto alla scacchiera? È il <strong>Misura-Intelligenza</strong>. Quando si riempie di chiaro, il Bianco sta andando alla grande. Quando si riempie di scuro, è il Nero ad essere avanti. Guardala cambiare dopo ogni mossa!</p>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">🏷️</span> Le medaglie delle mosse — quanto era brava quella mossa?</h2>
+    <p>Dopo che il computer muove, vedrai una piccola medaglia che ti dice quanto era intelligente la mossa:</p>
+    <div class="badge-list">
+      <div class="badge-row"><span class="emoji">🌟</span><strong>Ottima</strong> <span class="desc">— la mossa più intelligente possibile!</span></div>
+      <div class="badge-row"><span class="emoji">👍</span><strong>Buona</strong> <span class="desc">— una mossa solida e sensata.</span></div>
+      <div class="badge-row"><span class="emoji">🤔</span><strong>Imprecisione</strong> <span class="desc">— mmm, c'era una scelta migliore.</span></div>
+      <div class="badge-row"><span class="emoji">😬</span><strong>Errore</strong> <span class="desc">— ops, questa costa qualcosa.</span></div>
+      <div class="badge-row"><span class="emoji">💥</span><strong>Svista grave</strong> <span class="desc">— ohi ohi, gran pasticcio!</span></div>
+    </div>
+    <p>È un modo divertente per scoprire chi è davvero l'avversario più intelligente!</p>
+  </div>
+
+  <div class="page">
+    <h2><span class="emoji">💡</span> Tre consigli da Nico il Cavallo</h2>
+    <div class="tip-box"><strong>Consiglio 1:</strong> All'inizio, prova a far uscire presto i tuoi Cavalli e Alfieri — a loro piace essere in campo!</div>
+    <div class="tip-box"><strong>Consiglio 2:</strong> Tieni al sicuro il tuo Re. Nasconderlo dietro qualche pedone (si chiama <em>arrocco</em>) di solito è una mossa saggia.</div>
+    <div class="tip-box"><strong>Consiglio 3:</strong> Prima di cliccare su una casella, fai un respiro e guarda bene — c'è un tuo pezzo che sta per essere catturato?</div>
+  </div>
+
+  <div class="page challenge">
+    <h2><span class="emoji">🧠</span> Mini Sfida!</h2>
+    <p>Ricordi quale pezzo può saltare sopra gli altri pezzi? Si muove a forma di L!</p>
+    <div class="board-mini">♞ ? ? ?</div>
+    <p><em>(Risposta: il Cavallo! ♞)</em></p>
+  </div>
+
+  <div class="certificate">
+    <div class="ribbon">🏆</div>
+    <h2>Sei pronto a giocare!</h2>
+    <p>Scrivi qui il tuo nome dopo la tua primissima partita.</p>
+    <div class="line"></div>
+    <small>ha giocato oggi la sua prima partita a scacchi</small>
+  </div>
+
+  <footer>Divertiti, gioca con lealtà, e ricorda — ogni gran maestro è partito esattamente da dove sei tu adesso. ♞</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OneFile Chess — Guida del Giocatore</title>
+<style>
+  :root {
+    --paper: #f7f3ea; --paper-2: #efe8d8; --ink: #2b2620; --ink-dim: #6b6255;
+    --brass: #a97d2d; --brass-dark: #7a5a1f;
+    --line: #ddd3bb; --board-light: #ead9b3; --board-dark: #7c5a37;
+    --tip: #4b7c63; --warn: #a04b3c;
+    --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body); line-height: 1.65; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 24px 80px; }
+  h1, h2, h3 { font-family: var(--font-display); color: var(--ink); }
+  a { color: var(--brass-dark); }
+  code { font-family: var(--font-mono); background: var(--paper-2); padding: 1px 6px; border-radius: 4px; font-size: .92em; }
+
+  .cover { padding: 70px 0 40px; border-bottom: 3px double var(--line); text-align: center; }
+  .cover .kicker { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--brass-dark); }
+  .cover h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); margin: 10px 0 8px; }
+  .cover p { color: var(--ink-dim); max-width: 46ch; margin: 0 auto; }
+
+  nav.toc { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin: 34px 0; }
+  nav.toc h2 { font-size: 1rem; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--brass-dark); }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; }
+  @media (max-width: 560px) { nav.toc ol { columns: 1; } }
+  nav.toc a { text-decoration: none; color: var(--ink); }
+  nav.toc a:hover { color: var(--brass-dark); }
+
+  section { margin: 48px 0; scroll-margin-top: 20px; }
+  section h2 { font-size: 1.4rem; border-bottom: 2px solid var(--line); padding-bottom: 8px; margin-bottom: 18px; }
+  .step {
+    display: flex; gap: 14px; margin-bottom: 18px; align-items: flex-start;
+  }
+  .step .num {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--brass); color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .9rem;
+  }
+  .step p { margin: 2px 0 0; }
+
+  .callout { border-radius: 8px; padding: 14px 18px; margin: 18px 0; font-size: .95rem; }
+  .callout.tip { background: rgba(75,124,99,.1); border-left: 4px solid var(--tip); }
+  .callout.tip strong { color: var(--tip); }
+  .callout.warn { background: rgba(160,75,60,.09); border-left: 4px solid var(--warn); }
+  .callout.warn strong { color: var(--warn); }
+
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+  th { background: var(--paper-2); font-family: var(--font-display); }
+
+  .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+  .sw-best { background: #4caf7d; } .sw-good { background: #c9a24b; }
+  .sw-inaccuracy { background: #e6b450; } .sw-mistake { background: #e68c3c; } .sw-blunder { background: #d1495b; }
+
+  details { background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; margin-bottom: 10px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 10px 0 4px; color: var(--ink-dim); }
+
+  .demo-board {
+    display: grid; grid-template-columns: repeat(8, 1fr); width: 220px; aspect-ratio: 1;
+    border: 3px solid var(--brass-dark); border-radius: 4px; margin: 16px auto;
+  }
+  .demo-board div:nth-child(odd) { background: var(--board-light); }
+  .demo-board div:nth-child(even) { background: var(--board-dark); }
+  .demo-board div { display:flex; }
+
+  footer { text-align: center; color: var(--ink-dim); font-size: .85rem; padding-top: 30px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="cover">
+    <div class="kicker">Guida del Giocatore</div>
+    <h1>OneFile Chess</h1>
+    <p>Tutto quello che ti serve per impostare una partita, capire cosa sta succedendo sulla scacchiera e sfruttare al meglio quattro avversari molto diversi tra loro.</p>
+  </div>
+
+  <nav class="toc">
+    <h2>Indice</h2>
+    <ol>
+      <li><a href="#opening">Aprire l'app</a></li>
+      <li><a href="#setup">Impostare una partita</a></li>
+      <li><a href="#playing">Muovere i pezzi</a></li>
+      <li><a href="#reading">Leggere la scacchiera</a></li>
+      <li><a href="#difficulty">Capire la difficoltà</a></li>
+      <li><a href="#llm">Usare la modalità Assistita da LLM</a></li>
+      <li><a href="#controls">Comandi di gioco</a></li>
+      <li><a href="#faq">Risoluzione problemi e FAQ</a></li>
+    </ol>
+  </nav>
+
+  <section id="opening">
+    <h2>1. Aprire l'app</h2>
+    <div class="step"><div class="num">1</div><p>Trova il file — è una singola pagina chiamata qualcosa come <code>chess.html</code>.</p></div>
+    <div class="step"><div class="num">2</div><p>Fai doppio clic. Si apre direttamente nel tuo browser predefinito — funzionano tutti: Chrome, Firefox, Safari o Edge.</p></div>
+    <div class="step"><div class="num">3</div><p>Tutto qui. Non c'è nulla da installare e nessun account da creare.</p></div>
+    <div class="callout tip"><strong>Suggerimento:</strong> Umano contro Umano e Umano contro IA Normale funzionano senza alcuna connessione internet. Solo la modalità Grandmaster (la prima volta che la usi) e la modalità Assistita da LLM hanno bisogno di internet.</div>
+  </section>
+
+  <section id="setup">
+    <h2>2. Impostare una partita</h2>
+    <p>Quando l'app si apre, vedrai una schermata di impostazione con due pannelli — uno per il Bianco, uno per il Nero. Per ciascun lato, scegli una di queste quattro opzioni:</p>
+    <table>
+      <tr><th>Opzione</th><th>Cosa significa</th></tr>
+      <tr><td><strong>Umano</strong></td><td>Tu (o chiunque sia seduto alla tastiera) fai le mosse.</td></tr>
+      <tr><td><strong>IA Normale</strong></td><td>Un avversario computerizzato integrato. Scegli una difficoltà da 1 (Principiante) a 5 (Esperto).</td></tr>
+      <tr><td><strong>Grandmaster</strong></td><td>L'impostazione più forte — usa il motore Stockfish, uno dei giocatori di scacchi più forti in assoluto, umani o computer che siano.</td></tr>
+      <tr><td><strong>Assistito da LLM</strong></td><td>Un modello linguistico IA gioca questo lato. Dovrai fornire alcuni dettagli — vedi la sezione 6.</td></tr>
+    </table>
+    <p>Puoi combinare le opzioni liberamente — un Umano contro un'IA Normale, due IA diverse una contro l'altra, oppure persino lo stesso tipo di IA a due difficoltà diverse, che gioca contro se stessa.</p>
+    <p>Una volta impostati entrambi i lati, premi <strong>Start Game</strong>.</p>
+  </section>
+
+  <section id="playing">
+    <h2>3. Muovere i pezzi</h2>
+    <div class="step"><div class="num">1</div><p>Clicca sul pezzo che vuoi muovere. Le caselle di destinazione legali si illuminano — un puntino per una mossa semplice, un anello attorno alla casella per una cattura.</p></div>
+    <div class="step"><div class="num">2</div><p>Clicca su una casella evidenziata per muoverti lì. Clicca di nuovo sullo stesso pezzo per deselezionarlo.</p></div>
+    <div class="step"><div class="num">3</div><p>Se un pedone raggiunge l'ultima traversa, compare un piccolo menu che chiede in quale pezzo promuoverlo — Donna, Torre, Alfiere o Cavallo.</p></div>
+    <div class="demo-board" aria-hidden="true">
+      <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+    </div>
+    <p style="text-align:center; color:var(--ink-dim); font-size:.85rem">La scacchiera stessa — caselle chiare e scure, come qualsiasi set di scacchi fisico.</p>
+  </section>
+
+  <section id="reading">
+    <h2>4. Leggere la scacchiera</h2>
+    <p><strong>La barra di valutazione</strong> (l'indicatore verticale accanto alla scacchiera) mostra chi è in vantaggio. Un riempimento chiaro più alto significa che il Bianco sta andando meglio; una porzione scura più alta significa che è il Nero ad avvantaggiarsi. Si aggiorna dopo ogni mossa dell'IA.</p>
+    <p><strong>Le etichette di qualità della mossa</strong> compaiono accanto alle mosse dell'IA nel pannello della cronologia, così puoi vedere quanto era davvero buona ogni mossa:</p>
+    <div class="legend-item"><span class="legend-swatch sw-best"></span> <strong>Ottima</strong> — la mossa più forte disponibile.</div>
+    <div class="legend-item"><span class="legend-swatch sw-good"></span> <strong>Buona</strong> — un piccolo scostamento dalla scelta migliore, nulla di cui preoccuparsi.</div>
+    <div class="legend-item"><span class="legend-swatch sw-inaccuracy"></span> <strong>Imprecisione</strong> — esisteva una mossa nettamente migliore.</div>
+    <div class="legend-item"><span class="legend-swatch sw-mistake"></span> <strong>Errore</strong> — una svista costosa.</div>
+    <div class="legend-item"><span class="legend-swatch sw-blunder"></span> <strong>Svista grave</strong> — un errore serio, che spesso costa materiale.</div>
+    <p>È un ottimo modo per vedere davvero la differenza di forza tra, ad esempio, l'IA Normale a livello Principiante e la modalità Grandmaster — osserva le etichette, non solo chi vince.</p>
+  </section>
+
+  <section id="difficulty">
+    <h2>5. Capire i livelli di difficoltà dell'IA Normale</h2>
+    <table>
+      <tr><th>Livello</th><th>Come si sente giocare</th></tr>
+      <tr><td>1 — Principiante</td><td>Sbaglia apposta. Ottimo per una prima partita in assoluto.</td></tr>
+      <tr><td>2 — Facile</td><td>Un avversario rilassato e informale.</td></tr>
+      <tr><td>3 — Medio</td><td>Una sfida solida, da livello circolo.</td></tr>
+      <tr><td>4 — Difficile</td><td>Un avversario forte e concentrato — aspettati che punisca gli errori.</td></tr>
+      <tr><td>5 — Esperto</td><td>Il massimo che questo motore scritto a mano sa fare.</td></tr>
+    </table>
+    <p>La modalità Grandmaster non ha un'impostazione di difficoltà — gioca sempre a piena forza.</p>
+  </section>
+
+  <section id="llm">
+    <h2>6. Usare la modalità Assistita da LLM</h2>
+    <p>Questa opzione permette a un modello linguistico IA di giocare un lato, tramite qualsiasi servizio che parli il formato di chat comune "compatibile con OpenAI". Per impostarla ti serviranno:</p>
+    <table>
+      <tr><th>Campo</th><th>Cosa inserire</th></tr>
+      <tr><td>URL base dell'API</td><td>L'indirizzo web del servizio IA, ad es. <code>https://api.openai.com/v1</code>, oppure l'indirizzo di un programma in esecuzione sul tuo stesso computer.</td></tr>
+      <tr><td>Chiave API</td><td>Un codice simile a una password fornito dal servizio. Lascialo vuoto se usi un servizio locale che non lo richiede.</td></tr>
+      <tr><td>Modello</td><td>Il nome specifico del modello, ad es. <code>gpt-4o-mini</code>.</td></tr>
+    </table>
+    <div class="callout warn"><strong>Nota sulla privacy:</strong> l'app parla direttamente con quell'indirizzo dal tuo browser — non c'è alcun server intermedio. Non incollare una chiave API in una copia di questo file che poi condividi con qualcun altro, perché viaggerebbe insieme al file.</div>
+    <div class="callout tip"><strong>Se qualcosa va storto:</strong> una chiave sbagliata, un errore di battitura nell'indirizzo o un intoppo del servizio non fanno finire la partita — l'app fa silenziosamente una mossa di ripiego e ti spiega cos'è successo, così il gioco continua.</div>
+  </section>
+
+  <section id="controls">
+    <h2>7. Comandi di gioco</h2>
+    <table>
+      <tr><th>Pulsante</th><th>Cosa fa</th></tr>
+      <tr><td>Flip board (ruota scacchiera)</td><td>Gira la scacchiera, così puoi vederla dall'altro lato.</td></tr>
+      <tr><td>Resign (abbandona)</td><td>Termina subito la partita a favore dell'avversario.</td></tr>
+      <tr><td>New game (nuova partita)</td><td>Torna alla schermata di impostazione. Nulla della partita in corso viene salvato.</td></tr>
+    </table>
+  </section>
+
+  <section id="faq">
+    <h2>8. Risoluzione problemi e FAQ</h2>
+    <details>
+      <summary>La modalità Grandmaster non si carica</summary>
+      <p>Ha bisogno di una connessione internet la prima volta che la usi, per scaricare il motore Stockfish. Se sei offline, o un firewall la sta bloccando, vedrai un messaggio che lo spiega, e l'opzione verrà disabilitata per quella sessione.</p>
+    </details>
+    <details>
+      <summary>Posso salvare una partita e riprenderla più tardi?</summary>
+      <p>Al momento no — chiudere o ricaricare la pagina azzera tutto. Ogni sessione inizia da zero, per scelta progettuale.</p>
+    </details>
+    <details>
+      <summary>Perché l'indicatore "sto pensando" ha impiegato qualche secondo?</summary>
+      <p>Le difficoltà più alte dell'IA Normale e la modalità Grandmaster impiegano tempo reale per calcolare. La scacchiera resta comunque completamente reattiva nel frattempo — puoi ancora ruotarla o scorrere l'elenco delle mosse.</p>
+    </details>
+    <details>
+      <summary>Questa app traccia o salva qualcosa su di me?</summary>
+      <p>Nessun account, nessuna analitica, niente salvato tra una sessione e l'altra. Le uniche connessioni esterne che fa mai sono per scaricare il motore Grandmaster (se usi quella modalità) e verso l'indirizzo che fornisci tu nella modalità Assistita da LLM.</p>
+    </details>
+  </section>
+
+  <footer>OneFile Chess — Guida del Giocatore</footer>
+</div>
+</body>
+</html>

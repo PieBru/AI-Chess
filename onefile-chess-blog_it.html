@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OneFile Chess — un intero laboratorio di motori scacchistici in un solo file HTML</title>
+<style>
+  :root {
+    --bg: #1b1f27; --panel: #242a35; --panel-2: #2c3340; --line: #3a4152;
+    --text: #eef1f6; --text-dim: #9aa3b2;
+    --brass: #c9a24b; --brass-dim: #8a713a;
+    --board-light: #ead9b3; --board-dark: #7c5a37;
+    --green: #6fae8f;
+    --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.65; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.2; }
+  a { color: var(--brass); }
+  code { font-family: var(--font-mono); background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: .9em; }
+
+  header.hero {
+    padding: 90px 0 60px; border-bottom: 1px solid var(--line);
+    background: radial-gradient(ellipse at top, rgba(201,162,75,.09), transparent 60%);
+  }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+  .badge {
+    font-size: .72rem; letter-spacing: .04em; text-transform: uppercase;
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; color: var(--text-dim);
+  }
+  .badge.green { border-color: var(--green); color: var(--green); }
+  .badge.brass { border-color: var(--brass); color: var(--brass); }
+  h1.title { font-size: clamp(2rem, 5vw, 3rem); margin: 0 0 18px; }
+  .subhead { font-size: 1.15rem; color: var(--text-dim); max-width: 60ch; }
+
+  .eval-hero {
+    margin-top: 44px; display: flex; align-items: center; gap: 18px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+  }
+  .eval-hero .gauge { width: 28px; height: 90px; background: #171a1a; border-radius: 4px; position: relative; flex-shrink: 0; }
+  .eval-hero .gauge .fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 63%; background: linear-gradient(180deg,#f2ecdd,#d8cca4); border-radius: 0 0 4px 4px; }
+  .eval-hero p { margin: 0; color: var(--text-dim); font-size: .92rem; }
+  .eval-hero strong { color: var(--text); }
+
+  main { padding: 50px 0 90px; }
+  section { margin-bottom: 56px; }
+  section > h2 { font-size: 1.5rem; margin-bottom: 14px; color: var(--brass); }
+  p { color: #d7dce6; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  @media (max-width: 620px) { .cards { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 8px; font-size: 1.05rem; color: var(--text); }
+  .card p { margin: 0; font-size: .92rem; color: var(--text-dim); }
+  .card .tag { display: inline-block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--brass); margin-bottom: 6px; }
+
+  .terminal {
+    background: #14171e; border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+    font-family: var(--font-mono); font-size: .82rem; color: #b9d6c4; overflow-x: auto;
+  }
+  .terminal .dim { color: #6d7688; }
+
+  blockquote {
+    border-left: 3px solid var(--brass); margin: 0; padding: 4px 0 4px 18px;
+    color: var(--text-dim); font-style: italic;
+  }
+
+  .cta {
+    text-align: center; padding: 50px 30px; background: var(--panel); border: 1px solid var(--brass-dim);
+    border-radius: 14px;
+  }
+  .cta h2 { color: var(--text); margin-bottom: 10px; }
+  .cta p { margin-bottom: 22px; }
+  .cta .btn {
+    display: inline-block; background: var(--brass); color: #241a08; font-weight: 600;
+    padding: 12px 26px; border-radius: 8px; text-decoration: none;
+  }
+
+  footer { border-top: 1px solid var(--line); padding: 30px 0 60px; color: var(--text-dim); font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="badges">
+      <span class="badge green">Open source</span>
+      <span class="badge green">Funziona completamente offline</span>
+      <span class="badge brass">Nessuna installazione, nessun account</span>
+    </div>
+    <h1 class="title">Un laboratorio di motori scacchistici che sta in un solo file HTML</h1>
+    <p class="subhead">OneFile Chess è un'app di scacchi da browser dove puoi sfidare un amico, un motore scritto a mano che puoi davvero leggere, Stockfish a piena forza, oppure un LLM a tua scelta — e osservare quanto diversamente ciascuno "ragiona".</p>
+
+    <div class="eval-hero">
+      <div class="gauge"><div class="fill"></div></div>
+      <p>Quella barretta non è decorativa. Ogni mossa dell'IA viene valutata rispetto a una ricerca locale, così puoi osservare — mossa dopo mossa — quale motore ha davvero giocato meglio.</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <h2>Il punto</h2>
+  <p>La maggior parte delle demo "IA scacchistica" sul web è un unico motore, nascosto dietro un server che non puoi ispezionare, che non puoi far girare senza una connessione internet. OneFile Chess fa l'opposto: è un unico file <code>.html</code> — lo apri e hai un motore di regole scacchistiche completo, un'IA basata su ricerca scritta a mano con cinque livelli di difficoltà, un collegamento a Stockfish (attualmente il motore scacchistico più forte esistente), e la possibilità di far giocare qualsiasi LLM compatibile con le API OpenAI. Nessuna build, nessun server, nessun npm install. Salvi il file, fai doppio clic, e stai già giocando.</p>
+</section>
+
+<section>
+  <h2>Quattro avversari molto diversi</h2>
+  <p>La parte interessante non è un singolo avversario — è poterli mettere nella stessa stanza e osservare come differiscono.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">Livello 1</span>
+      <h3>Un amico, sullo stesso schermo</h3>
+      <p>Gioco a turni sullo stesso dispositivo, con supporto completo alle regole — arrocco, en passant, sottopromozione, tutto quanto.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Livello 2 — IA Normale</span>
+      <h3>Un motore che puoi davvero leggere</h3>
+      <p>Ricerca alpha-beta, approfondimento iterativo, ricerca di quiete, una funzione di valutazione graduale — cinque livelli di difficoltà, da "perde apposta" a "il massimo che questo motore scritto a mano sa fare." Ogni riga di codice è lì, nel file.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Livello 3 — Grandmaster</span>
+      <h3>Stockfish, a piena forza</h3>
+      <p>Gira interamente lato client tramite WebAssembly in un Web Worker, quindi non blocca mai la scacchiera. È la stessa classe di motore che supera qualsiasi essere umano abbia mai giocato, Kasparov incluso.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Livello 4 — Assistito da LLM</span>
+      <h3>Porta il tuo modello</h3>
+      <p>Collega uno dei due lati a qualsiasi endpoint di chat compatibile con OpenAI — un modello in cloud, oppure uno locale sul tuo stesso computer — e guardalo giocare. Riceve direttamente l'elenco delle mosse legali, quindi non può "allucinare" una mossa illegale; deve solo scegliere bene tra quelle.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>"Completamente locale" non è uno slogan, qui</h2>
+  <p>Gioca Umano contro Umano oppure Umano contro IA Normale e l'app non tocca mai la rete — l'intero motore di regole e l'algoritmo di ricerca girano nel tuo browser. La modalità Grandmaster è l'unica eccezione voluta: la build WebAssembly di Stockfish pesa alcuni megabyte, quindi viene scaricata una volta sola da un CDN invece di appesantire un file unico fino a renderlo poco maneggevole. La modalità LLM è opzionale per definizione — sei tu a fornire l'endpoint.</p>
+  <blockquote>"Locale prima di tutto" non significa ostile alla rete. Significa che la rete è facoltativa, non indispensabile.</blockquote>
+</section>
+
+<section>
+  <h2>Sotto il cofano, in breve</h2>
+  <p>Per i curiosi: la scacchiera è un classico array 0x88, il tipo di rappresentazione che si trova nei piccoli motori scacchistici da decenni. La generazione delle mosse è pienamente legale (non solo pseudo-legale-e-si-spera), verificata rispetto alla suite di test perft standard su più profondità, inclusa una posizione di stress che mette alla prova arrocco, en passant e promozioni tutti insieme.</p>
+  <div class="terminal">
+<span class="dim">$ perft startpos depth 4</span>
+ottenuto 197281, atteso 197281 → OK
+<span class="dim">$ perft kiwipete depth 3</span>
+ottenuto 97862, atteso 97862 → OK
+  </div>
+  <p style="margin-top:16px">La ricerca del motore Normale è un negamax con potatura alpha-beta, una tabella delle trasposizioni e una ricerca di quiete, così da non perdere un pezzo appena oltre il proprio orizzonte di ricerca. La modalità Grandmaster usa deliberatamente la build Stockfish WASM a thread singolo, così funziona senza intestazioni server speciali — nessuna danza di isolamento cross-origin richiesta, basta aprire il file.</p>
+</section>
+
+<section>
+  <h2>Perché disturbarsi a confrontarle?</h2>
+  <p>Perché a "quanto è davvero brava questa IA?" di solito si risponde con un numero da marketing, non con qualcosa che puoi osservare accadere. Ogni mossa dell'IA — Normale, Grandmaster o LLM — viene valutata rispetto a una rapida ricerca locale ed etichettata: ottima, buona, un'imprecisione, un errore, una svista grave. Metti due IA una contro l'altra e ottieni una risposta davvero leggibile a "quale delle due è realmente più intelligente", mossa dopo mossa, invece di un punteggio in classifica da prendere per fede.</p>
+</section>
+
+<div class="cta">
+  <h2>Aprilo. Questo è tutto il processo di installazione.</h2>
+  <p>Un solo file. Nessun account, nessuna telemetria, nessun server di cui doversi fidare.</p>
+  <a class="btn" href="#">Scarica il file HTML</a>
+</div>
+
+</main>
+
+<footer class="wrap">
+  <p>OneFile Chess è open source — leggilo, forkalo, discuti con la sua funzione di valutazione. Segnalazioni di bug e pull request sono benvenute.</p>
+</footer>
+
+</body>
+</html>
