@@ -34,11 +34,11 @@ endpoint, ideally a local server.
 
 ```
 chess.html                    # The app. Single file. This is the deliverable.
+AGENTS.md                     # This file (operating manual) — at root for agent tooling
 specs/                        # Project / governing documentation (SDD layers)
   chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
   chess-app-prd.md            # SDD Layer 2 — PRD (UX, flows, behavior)
   chess-app-tdd.md            # SDD Layer 3 — TDD (architecture, design, schemas)
-  AGENTS.md                   # This file (operating manual)
 docs/                         # User-facing pages (blog / guide / kids, EN + IT)
   onefile-chess-*.html
 ```
