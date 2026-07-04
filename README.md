@@ -7,7 +7,7 @@
 - Player's guide — 🇬🇧 [English](https://piebru.github.io/AI-Chess/docs/onefile-chess-guide.html) · 🇮🇹 [Italiano](https://piebru.github.io/AI-Chess/docs/onefile-chess-guide_it.html)
 - For kids — 🇬🇧 [English](https://piebru.github.io/AI-Chess/docs/onefile-chess-kids.html) · 🇮🇹 [Italiano](https://piebru.github.io/AI-Chess/docs/onefile-chess-kids_it.html)
 
-A single-file chess app built with vanilla HTML, CSS, and JavaScript — no build step, no frameworks, no npm. Just open the file and play.
+A single-file chess app built with vanilla HTML, CSS, and JavaScript — no build step, no frameworks, no npm. `chess.html` **is the whole app**: open it and play. The only other files in the repo are the Stockfish engine binaries, which are **optional** and used **only** for Grandmaster mode — every other mode (Human, Normal AI, LLM-Assisted) runs entirely from that one file.
 
 I made it to have fun while entertaining my grandkids on both playing and designing such software, and to have an empirical benchmark platform to measure my self-hosted systems' quality about LLM inferencing, harnesses, scaffolds, software engineering, and coding. Two goals, in priority order: **entertain** (a beginner should have a winnable, enjoyable game; a strong player should get a genuine challenge) and **evaluate AI "intelligence"** — concretely, how the engines and LLMs think move-to-move.
 
@@ -15,7 +15,7 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 
 ## Features
 
-- **Self-contained** — everything in one `chess.html`, no build step, no frameworks, no CDN for core play.
+- **Single-file app** — everything lives in one `chess.html`: no build step, no frameworks, no CDN for core play. (The Stockfish files are an optional companion for Grandmaster mode only — see [Play](#play).)
 - **Hand-rolled 0x88 rules engine** — legal move generation, FEN/SAN, check/checkmate/stalemate, and draws (threefold, fifty-move, insufficient material). No `chess.js` dependency.
 - **Four opponent types, pickable per side:**
   - **Human** — local two-player on one board.
@@ -30,12 +30,9 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 
 ## Play
 
-Open `chess.html` in any modern browser (or `firefox chess.html`). It works via `file://` — no server required.
+Open `chess.html` in any modern browser (or `firefox chess.html`). It works via `file://` — no server required. **`chess.html` alone is a complete game**: Human vs Human, Human vs Normal AI, and LLM-Assisted all run from that one file with nothing else.
 
-For **offline Grandmaster** strength, the two-file Stockfish bundle is shipped
-with the repo (next to `chess.html`) under the project's GPL-3.0 license, so
-Grandmaster works out of the box — including on the live site — with no
-extra download.
+**Grandmaster mode is the one exception** — it needs the Stockfish engine, shipped as two optional companion files next to `chess.html` (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0). They load only when a side is set to Grandmaster; delete them and every other mode keeps working unchanged.
 
 ## Specs
 
@@ -55,4 +52,4 @@ This project was developed fully locally on **Arch Linux**, driven by the [**pi*
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
 
-This project vendors the **Stockfish** runtime (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0) directly in the repository, so the whole project is GPL-3.0 — consistent copyleft across the app and the bundled engine.
+This project vendors the **Stockfish** runtime (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0) directly in the repository, so the whole project is GPL-3.0 — consistent copyleft across the app and the bundled engine. Those files are an optional companion (Grandmaster mode only); `chess.html` itself is a complete single-file app without them.
