@@ -1,0 +1,236 @@
+# AGENTS.md — OneFile Chess
+
+Operating manual for AI agents (and humans) working in this repo. Read this
+first; it encodes the vision, the architecture, the tech stack, and the
+standards this project is held to. Everything here is grounded in the actual
+source — when code and docs disagree, **code is the source of truth** and the
+docs are the thing that's wrong (see §7).
+
+---
+
+## 1. Vision
+
+A chess application delivered as a **single self-contained HTML file** (inline
+CSS + JS, no build step, no backend, no install) that runs in any modern
+browser. Two goals, in priority order (PRD §1):
+
+1. **Entertain.** A beginner should have a winnable, enjoyable game; a strong
+   player should get a genuine challenge.
+2. **Evaluate AI "intelligence."** The app is also a lens for comparing the
+   engines — how Normal behaves at each difficulty, how strong Grandmaster is,
+   and concretely how each thinks move-to-move. This goal drives the
+   transparency features (eval bar, move-quality tags, thinking indicator,
+   AI-vs-AI spectating) that a plain "let me play chess" app wouldn't need.
+
+The design is deliberately **vendor-neutral**: the only cloud-LLM brand
+referenced anywhere is OpenAI, and only as the de-facto *protocol* name
+("OpenAI-compatible") plus placeholder text. No Anthropic/Claude/Gemini/etc.
+appear, and none should be added — LLM play goes through a user-supplied
+endpoint, ideally a local server.
+
+---
+
+## 2. Repository layout
+
+```
+chess.html                  # The app. Single file. This is the deliverable.
+chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
+chess-app-prd.md            # SDD Layer 2 — PRD (UX, flows, behavior)
+chess-app-tdd.md            # SDD Layer 3 — TDD (architecture, design, schemas)
+onefile-chess-*.html        # User-facing pages (blog / guide / kids, EN + IT)
+AGENTS.md                   # This file
+```
+
+No `package.json`, no build tooling, no test runner, no `.gitignore` — by
+design. See §6 and §8.
+
+---
+
+## 3. Tech stack
+
+- **Single HTML file.** All CSS in one `<style>`, all JS in one `<script>`.
+  No bundler, no framework, no transpile step. Edit and reload.
+- **Plain DOM.** No React/Vue/etc. Board = grid of `<div>`/`<button>` squares.
+- **Web Workers.** The Normal engine and Stockfish run off the main thread so
+  the UI never blocks. Worker source is built by concatenating two inline
+  `<script type="text/plain">` blocks (`#rules-src`, `#normal-engine-src`)
+  into a `Blob` URL — keeps the engine source in the same file, versionable,
+  no separate `.js` files.
+- **Stockfish WASM**, single-threaded `nmrugg/stockfish.js` flavor
+  (`stockfish@18.0.8`), loaded from jsDelivr CDN as a Worker. Single-threaded
+  on purpose: no COOP/COEP/`SharedArrayBuffer` requirement, so the file works
+  via `file://` or any static host. Multi-threading is a deferred upgrade
+  (spec A11.3 / §13, TDD §5.2).
+- **Hand-rolled 0x88 rules engine** (`Rules` namespace) — legal move
+  generation, FEN/SAN, check/checkmate/stalemate, draws (threefold, fifty-move,
+  insufficient material). `chess.js` is the documented fallback (spec §12.2)
+  only if perft tests fail.
+- **`fetch()` to an OpenAI-compatible chat endpoint** for LLM-Assisted mode,
+  straight from the main thread. No SDK, no proxy.
+
+---
+
+## 4. Architecture (chess.html)
+
+The file is one big `<script>` after the markup. Top-down:
+
+### 4.1 Rules engine (`#rules-src`)
+Pure functions, no DOM/worker dependency. Owns the 0x88 board, move
+generation, FEN/SAN, game-end detection. Key surface: `Rules.newGame`,
+`genLegalMoves`, `applyMove`, `toFEN`/`fromFEN`, `toSAN`, `gameStatus`,
+`zobristHash`, `sqName`/`nameToSq`. This is reused inside the worker, so it
+lives in the inline `#rules-src` block that gets concatenated into the worker
+blob.
+
+### 4.2 Normal engine (`#normal-engine-src`)
+Hand-built alpha-beta with null-move pruning, late-move reductions, a capped
+transposition table, and per-difficulty move-selection noise. Difficulty table
+(DIFFICULTY, ~line 1012):
+
+| Level | maxDepth | timeMs | noise |
+|---|---|---|---|
+| 1 Beginner | 1 | 50 | wide-random |
+| 2 Easy | 3 | 150 | top3-random |
+| 3 Medium | 4 | 500 | gaussian-small |
+| 4 Hard | 6 | 1500 | gaussian-tiny |
+| 5 Expert | 99 | 4000 | none |
+
+(TDD §4.3 is the contract; constants are tunable.) Runs in a worker and
+answers two message types: `search` (pick a move) and `analyze` (grade an
+arbitrary played move — used for quality tagging of *any* move source).
+
+### 4.3 Grandmaster engine
+Stockfish over UCI-in-a-worker: `uci`→`uciok`→`isready`→`readyok` handshake,
+then `position fen … moves …` + `go movetime 3000` per move, parsing
+`score cp`/`score mate` and `bestmove`. Loaded lazily; load failure disables
+the option for the session (PRD §5.5).
+
+### 4.4 LLM-Assisted controller
+Not a worker — a main-thread `fetch` to `{apiBase}/chat/completions`. Prompt
+sends FEN + side + SAN history + the **full legal UCI move list** (constrained
+choice = the main reliability lever). One corrective retry feeding the bad
+reply back into the conversation; on final failure, **falls back to a local
+Normal move (difficulty 3)** so play continues (LLM APIs are transiently
+flaky; a flaky endpoint must not kill a game). Evals for the bar/tags come
+from the Normal engine's `analyze` message — the chat endpoint returns none.
+
+### 4.5 Game loop & UI
+`playTurn()` is the spine: checks game status, dispatches to the side's
+controller via the engine-agnostic `requestAIMove()` (all tiers resolve to
+`{ move, evalCp, bestEvalCp }`), re-validates every AI move through the rules
+engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
+`playTurn()` recursing at the loop tail. Setup screen captures per-side
+`ControllerConfig`; `matchConfig` is the live `{white, black}` pair.
+
+---
+
+## 5. Key contracts (don't break these)
+
+- **ControllerConfig:** `{ type: 'human' | 'normal' | 'grandmaster' | 'llm',
+  difficulty?, apiBase?, apiKey?, model? }` (spec §8, TDD §2).
+- **Worker protocol** (spec §9, TDD §6):
+  - Main→Worker: `{type:'search',...}`, `{type:'analyze', fen, uciMove}`
+    (Normal only), `{type:'stop'}`.
+  - Worker→Main: `{type:'result', move, evalCp, bestEvalCp}`,
+    `{type:'analysis', evalCp, bestEvalCp}`, `{type:'error', message}`.
+- **Eval convention:** scores are side-to-move-relative (negamax for Normal,
+  UCI `score cp` for Stockfish), normalized to White's perspective before
+  storage. Mate encoded as ±100000 ∓ N.
+- **Move-quality tags** (PRD §5.4, TDD §4.5): five buckets by mover-perspective
+  centipawn loss vs the best move — `best` ≤5, `good` ≤30, `inaccuracy` ≤90,
+  `mistake` ≤200, `blunder` >200. Tunable baseline, not a contract.
+
+---
+
+## 6. Development standards
+
+- **Single-file discipline.** Everything ships in `chess.html`. Do not add
+  `.js`/`.css` files, build steps, or npm dependencies. The only permitted
+  external fetches are the Stockfish CDN asset and the user-supplied LLM
+  endpoint — nothing else. (Verified: only `STOCKFISH_URL` and the LLM
+  `fetch` touch the network.)
+- **Lazy by default.** Question whether a feature needs to exist. Reuse what's
+  already in the file before writing new code. Stdlib/platform features before
+  custom code. Shortest working diff wins — once you've read the whole flow.
+  Mark deliberate simplifications with a `// ponytail:` comment naming the
+  ceiling and the upgrade path.
+- **Bug fixes target the root cause**, not the reported symptom. A guard in
+  the shared function beats a guard in every caller.
+- **Leave a check behind.** Non-trivial logic (a parser, a money/legality
+  path, a branchy loop) gets the smallest runnable self-check — an
+  `assert`-style `__main__`/demo block or one tiny test. Trivial one-liners
+  need none.
+- **Offline-first.** Human-vs-Human and Human-vs-Normal must work with no
+  network. Only Grandmaster (Stockfish fetch) and LLM-Assisted (endpoint
+  fetch) need the network.
+- **Security at trust boundaries stays.** LLM API keys are held in memory only
+  (never `localStorage`, never written into the file) and are sent directly
+  from the browser to the endpoint — acceptable for local use, not for
+  sharing the file with a real key typed in.
+
+---
+
+## 7. Documentation discipline (this project's recurring failure mode)
+
+This repo has three governing docs (spec/PRD/TDD) written *before* the code,
+plus user-facing pages. They drift. Two drift directions, both have bitten us:
+
+1. **Docs under-describe the code** (e.g. move-quality thresholds lived only in
+   `classifyQuality`; LLM failure-fallback was documented as "error out").
+2. **Docs over-describe the code** — the bigger current gap: six documented
+   features the build does not ship (Appendix A). User-facing pages are the
+   most dangerous place for this.
+
+**Rules:**
+- When you change behavior in `chess.html`, update the matching spec/PRD/TDD
+  section in the same commit.
+- **Code is the source of truth.** If docs and code conflict, fix the docs
+  unless the user explicitly wants the behavior to change.
+- Never commit a user-facing page (`onefile-*.html`) that promises a feature
+  the build lacks — cross-check against Appendix A first.
+- When deferring a feature, record it in PRD §8.1 (deferred-features register)
+  with a re-open trigger, and downgrade any spec FR it traces to.
+
+---
+
+## 8. Running & testing
+
+- **Run:** open `chess.html` in a browser (or `firefox chess.html`). No server
+  required; works via `file://`. Grandmaster/LLM modes need network.
+- **Test:** there is **no in-repo test runner**. Validation done so far:
+  - Perft-style rules-engine checks and Normal-engine search checks (run
+    ad-hoc, e.g. via `node` extracting the inline scripts).
+  - jsdom headless tests for LLM setup validation, retry-on-illegal, and
+    fallback-on-failure paths (run externally by the maintainer).
+- When you add non-trivial logic, keep the ad-hoc check runnable: extract the
+  last `<script>` and `new Function()` it, or run a perft node count. A
+  one-line `node -e` parse/self-check is the bar, not a test framework.
+
+---
+
+## Appendix A — Documented features NOT yet implemented
+
+> **Read this before trusting any doc or user-facing page at face value.**
+> These six items are described in spec/PRD but **absent from `chess.html`**.
+> They are promised, not shipped. Treat the current build as a partial v0.
+
+| # | Feature | Doc source | Code status |
+|---|---|---|---|
+| 1 | **Pause/Stop AI-vs-AI** | spec FR-6.4, PRD §2.3 | Missing — AI-vs-AI auto-plays via `playTurn()` recursion; no pause/stop controls |
+| 2 | **Spectator speed control** (Normal/Fast/Instant) | PRD §2.3, traceability table ("Speed control is new") | Missing |
+| 3 | **"Rematch" action** (same config) | PRD §2.4 | Missing — only "New game" |
+| 4 | **Rich summary panel** (per-side quality breakdown + "who played cleaner") | PRD §2.4 / §5.4 | Missing — only a one-line result banner: `Result: 1-0 (checkmate)` |
+| 5 | **Captured-piece tray** | spec FR-5.3 | Missing — `Move` objects record captures but nothing renders a tray |
+| 6 | **Sound effects + off-by-default toggle** | PRD §6, §8 ("toggle in v1") | Missing entirely |
+
+**Disposition (pending product decision — build vs. defer):**
+- #1 and #5 are **spec FRs** (not PRD nice-to-haves) and are small/high-value
+  if AI-vs-AI spectating is a real use case — strongest candidates to build.
+- #3 is trivial (~5 lines).
+- #4 most directly serves the "evaluate intelligence" goal but is the most
+  code.
+- #2 and #6 are genuinely optional.
+
+Until resolved, do not describe any of #1–6 as working in docs or user pages,
+and don't write tests/claims that assume them. If you implement one, strike it
+from this appendix, restore its spec/PRD standing, and update PRD §8.1.
