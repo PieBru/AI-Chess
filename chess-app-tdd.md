@@ -1,4 +1,4 @@
-# Single-File AI Chess — Technical Design Document (TDD)
+# Granpy Piero's AI Chess — Technical Design Document (TDD)
 
 **Document type:** TDD (SDD Layer 2 — architecture, data, algorithms)
 **Derived from:** `chess-app-spec.md`, `chess-app-prd.md`

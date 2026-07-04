@@ -1,4 +1,4 @@
-# Single-File AI Chess — Specification
+# Granpy Piero's AI Chess — Specification
 
 **Document type:** Spec (SDD Layer 1 — WHAT and WHY)
 **Downstream artifacts:** PRD (product/UX detail), TDD (technical/architecture detail)
