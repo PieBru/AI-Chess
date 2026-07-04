@@ -137,7 +137,7 @@
 
 <section>
   <h2>"Fully local" is not a slogan here</h2>
-  <p>Play Human vs. Human or Human vs. Normal AI and the app never touches the network — the entire rules engine and search algorithm run in your browser. Grandmaster mode is the one deliberate exception: Stockfish's WebAssembly build is a few megabytes, so it's fetched once from a CDN rather than bloating a single file into something unwieldy. LLM mode is opt-in by definition — you supply the endpoint.</p>
+  <p>Play Human vs. Human, Human vs. Normal AI, or even Human vs. Grandmaster and the app never touches the network — the entire rules engine, the search algorithm, and Stockfish itself all run in your browser. Stockfish's WebAssembly build ships bundled right next to the single HTML file, so Grandmaster is fully offline too: no CDN fetch, no internet required. LLM mode is opt-in by definition — you supply the endpoint.</p>
   <blockquote>Local-first doesn't mean network-hostile. It means the network is optional, not load-bearing.</blockquote>
 </section>
 
@@ -161,7 +161,7 @@ got 97862, expected 97862 → OK
 <div class="cta">
   <h2>Open it. That's the whole install process.</h2>
   <p>One file. No account, no telemetry, no server you have to trust.</p>
-  <a class="btn" href="#">Get the HTML file</a>
+  <a class="btn" href="https://github.com/PieBru/AI-Chess">Get the HTML file</a>
 </div>
 
 </main>
