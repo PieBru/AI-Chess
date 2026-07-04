@@ -44,7 +44,7 @@ Both engines run inside a **Web Worker** so the UI thread never blocks during se
 
 - **NG1.** Online multiplayer / networked play between two browsers.
 - **NG2.** User accounts, persistent rating, or game history across sessions.
-- **NG3.** Full offline operation in Grandmaster mode (see §6.5 — Stockfish WASM is expected to load from a CDN; a fully bundled offline build is a future consideration, not a v1 requirement).
+- **NG3.** Vendoring the Stockfish binaries into the repo or the shipped HTML. Offline Grandmaster play *is* supported (NFR-5.2) via a local two-file asset bundle dropped next to `chess.html` at runtime — but those GPLv3 binaries are never committed to the tree (they would make the project effectively GPL-3.0; see §12.4).
 - **NG4.** Mobile-native app packaging (the deliverable is a web page; responsive layout is in scope, native app is not).
 - **NG5.** Voice control, puzzles, tutorials, or opening-explorer features.
 
@@ -147,7 +147,7 @@ The deliverable is one `.html` file containing all CSS and JS inline. Exception:
 
 ### NFR-5. Network dependency (Grandmaster and LLM-Assisted modes)
 - NFR-5.1 Human vs Human and Human vs Normal AI must work fully offline once the page is loaded.
-- NFR-5.2 Grandmaster mode requires network access on first use (to fetch the Stockfish WASM asset). This is an explicit, documented exception to "single file" — see NG3.
+- NFR-5.2 Grandmaster can run **fully offline** if the local two-file asset bundle (`stockfish-18-lite-single.js` + `stockfish-18-lite-single.wasm`) sits next to `chess.html`. The loader tries the local bundle first, then falls back to a CDN; the local bundle is also the only currently-working source, since jsDelivr refuses the >150 MB npm package with HTTP 403. The binaries are a runtime-only asset (never committed — NG3).
 - NFR-5.4 LLM-Assisted mode requires network access to a user-supplied OpenAI-compatible endpoint on every move. The endpoint must itself serve permissive CORS headers (the browser makes the call directly); local servers such as LM Studio, llama.cpp, vLLM, and LocalAI do, while OpenAI's hosted API does not from a browser — a CORS-friendly proxy is the user's responsibility. No CORS handling is implemented app-side.
 - NFR-5.3 **Threading caveat to carry into the TDD:** multi-threaded Stockfish WASM builds require `SharedArrayBuffer`, which requires cross-origin isolation (COOP/COEP response headers). A file opened directly via `file://` or served without those headers will not get multi-threading. The TDD must decide between (a) using a single-threaded WASM build for maximum compatibility at somewhat reduced NPS, or (b) requiring the file be served with the correct headers to unlock multi-threading. This materially affects Grandmaster-mode strength and must not be left ambiguous downstream.
 

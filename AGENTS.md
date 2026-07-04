@@ -198,7 +198,19 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 ## 8. Running & testing
 
 - **Run:** open `chess.html` in a browser (or `firefox chess.html`). No server
-  required; works via `file://`. Grandmaster/LLM modes need network.
+  required; works via `file://`. Human-vs-Human and Human-vs-Normal need no
+  network. LLM-Assisted needs the network (the configured endpoint).
+- **Offline Grandmaster:** download the two-file Stockfish bundle from the
+  `nmrugg/stockfish.js` GitHub release (v18.0.0) and drop it next to
+  `chess.html`:
+  - `stockfish-18-lite-single.js` (~20 KB loader)
+  - `stockfish-18-lite-single.wasm` (~7 MB; NNUE compiled in)
+  The loader then tries the local bundle first, then a CDN fallback. **Do not
+  commit these binaries** — they're GPLv3 and gitignored; vendoring them makes
+  the repo effectively GPL-3.0 (spec §12.4 / NG3). Note: the jsDelivr CDN URL
+  in the fallback list is currently broken (the npm package exceeds jsDelivr's
+  150 MB limit → HTTP 403), so the local bundle is also the only reliable way
+  Grandmaster loads right now.
 - **Test:** there is **no in-repo test runner**. Validation done so far:
   - Perft-style rules-engine checks and Normal-engine search checks (run
     ad-hoc, e.g. via `node` extracting the inline scripts).

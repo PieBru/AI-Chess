@@ -133,7 +133,7 @@ Single source of truth for anything pushed past v1. Each item keeps the door ope
 | Drag-and-drop move input | spec FR-5.2, A11.4 | Nice-to-have, defer | Confirmed before locking UX flows post-launch |
 | Sound effects default + assets | PRD §6, spec A11.5 | Off-by-default toggle in v1; assets deferred | Design pass picks the sound set |
 | Multi-threaded Stockfish WASM | spec A11.3, §12; TDD §5.2 | v1.1 upgrade, header-gated | Deployment host confirmed to serve COOP/COEP |
-| Full offline Grandmaster mode | spec NG3 | Future bundled build | Offline-use requirement materializes |
+| ~~Full offline Grandmaster mode~~ | spec NG3 | **Done** — supported via the local two-file asset bundle (NFR-5.2); binaries stay gitignored, not vendored | n/a |
 | Move-quality tag thresholds + ELO mapping | PRD §5.4, spec A11.1 | Not blocking; tuned post-launch | Playtest data available |
 
 None of the above blocks v1 scope (spec FR/AC set, PRD §5 UX). All are additive and reversible.

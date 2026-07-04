@@ -1180,32 +1180,58 @@ function requestMove(fen, difficulty) {
   // paths in a future release, update STOCKFISH_URL accordingly — the
   // load-failure handling below will surface that clearly rather than
   // failing silently either way.
-  const STOCKFISH_URL = 'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js';
+  // Stockfish asset: try local first (fully offline, no CORS), then a CDN.
+  // The local bundle is TWO sibling files dropped next to chess.html:
+  //   stockfish-18-lite-single.js   (~20KB loader)
+  //   stockfish-18-lite-single.wasm  (~7MB; NNUE compiled in, fetched as sibling)
+  // Download both from the nmrugg/stockfish.js GitHub release (v18.0.0) —
+  // jsDelivr REFUSES the npm package (it exceeds jsDelivr's 150MB limit and
+  // returns HTTP 403), so as of writing the local bundle is the only reliable
+  // way Grandmaster loads. Append a working CORS-enabled mirror if one appears.
+  const STOCKFISH_URLS = [
+    './stockfish-18-lite-single.js',                                                  // local bundle (preferred; offline)
+    'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js', // CDN (currently 403; kept in case policy changes)
+  ];
 
   let gmWorker = null;
   let gmReadyPromise = null;
-  function initGrandmaster() {
-    if (gmReadyPromise) return gmReadyPromise;
-    gmReadyPromise = new Promise((resolve, reject) => {
-      let settled = false;
-      try {
-        gmWorker = new Worker(STOCKFISH_URL);
-      } catch (err) {
-        settled = true; reject(err); return;
-      }
-      gmWorker.onerror = function (err) {
-        if (settled) return;
-        settled = true; reject(new Error('Could not load Stockfish (network or CORS issue).'));
+
+  // Boot Stockfish from one URL; resolve a UCI-ready Worker or reject.
+  function bootGrandmasterFrom(url, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      let settled = false, worker;
+      try { worker = new Worker(url); }
+      catch (err) { reject(err); return; }
+      const failTimer = setTimeout(() => {
+        if (settled) return; settled = true;
+        try { worker.terminate(); } catch (e) {}
+        reject(new Error('Stockfish load timed out (' + url + ').'));
+      }, timeoutMs);
+      worker.onerror = function () {
+        if (settled) return; settled = true; clearTimeout(failTimer);
+        try { worker.terminate(); } catch (e) {}
+        reject(new Error('Could not load Stockfish from ' + url + '.'));
       };
       let uciAck = false;
-      gmWorker.onmessage = function (e) {
+      worker.onmessage = function (e) {
         const line = typeof e.data === 'string' ? e.data : (e.data && e.data.data) || '';
-        if (line.indexOf('uciok') !== -1) { uciAck = true; gmWorker.postMessage('isready'); }
-        else if (line.indexOf('readyok') !== -1 && uciAck && !settled) { settled = true; resolve(gmWorker); }
+        if (line.indexOf('uciok') !== -1) { uciAck = true; worker.postMessage('isready'); }
+        else if (line.indexOf('readyok') !== -1 && uciAck && !settled) {
+          settled = true; clearTimeout(failTimer); resolve(worker);
+        }
       };
-      gmWorker.postMessage('uci');
-      setTimeout(() => { if (!settled) { settled = true; reject(new Error('Stockfish load timed out.')); } }, 15000);
+      worker.postMessage('uci');
     });
+  }
+
+  function initGrandmaster() {
+    if (gmReadyPromise) return gmReadyPromise;
+    // Try each candidate URL in order; first to reach readyok wins. A failed
+    // attempt terminates its worker before the next is tried, so we never leak.
+    gmReadyPromise = STOCKFISH_URLS.reduce(
+      (p, url) => p.catch(() => bootGrandmasterFrom(url, 15000)),
+      Promise.reject(new Error('no Stockfish source tried'))
+    ).then(worker => { gmWorker = worker; return worker; });
     return gmReadyPromise;
   }
 

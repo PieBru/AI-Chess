@@ -159,7 +159,7 @@ These five strings render verbatim as the colored badge next to the move in the 
 
 ### 5.1 Asset loading
 - **Chosen build: `nmrugg/stockfish.js`, single-threaded flavor** (`npm i stockfish`, GPL-3.0) — full NNUE evaluation, single core, no `SharedArrayBuffer`/COOP/COEP requirement (spec §12.1, §12.4). This directly resolves the open question flagged in spec NFR-5.3 / A11.3.
-- Loaded from a CDN via `importScripts()` inside the worker (or `fetch` + `WebAssembly.instantiate`, depending on the build's loader). Loaded lazily — only when a Grandmaster-controlled game actually starts (PRD/spec FR-4.4, NG3).
+- Loaded **local-first**: the app tries a sibling local bundle (`./stockfish-18-lite-single.js`, which itself fetches the matching `.wasm` sibling) before falling back to a CDN. The local bundle is the only currently-working source — jsDelivr refuses the >150 MB npm package with HTTP 403, and other CDNs 404 the deep path; GitHub release assets work for manual download but lack CORS headers so can't be loaded cross-origin as a Worker. Both files come from the `nmrugg/stockfish.js` GitHub release (v18.0.0). Loaded lazily — only when a Grandmaster-controlled game actually starts (FR-4.4). The two binaries are runtime-only and **gitignored, never committed** (NG3 / §12.4 license guardrail).
 - **License posture:** the Stockfish worker is a separate runtime process speaking UCI over the post (spec §7.3), not statically linked into our source — keeps GPL-3.0 copyleft on the asset, off our JavaScript (spec §12.4).
 - Load failure (network error, blocked resource) triggers a worker message `{ type: 'error', code: 'load_failed' }`; the engine manager surfaces this to the UI per PRD §5.5 and disables the Grandmaster option for the current session rather than retrying silently on every move. The single-threaded build removes the COOP/COEP failure mode entirely (the one deployment header class that previously could make Grandmaster silently degrade).
 
@@ -261,7 +261,7 @@ All applied moves — human or AI — pass through the same rules-engine validat
 - Timing consistency of `go movetime` across browsers/devices for Stockfish — may need a depth-based fallback if movetime proves unreliable (noted in §5.3).
 - Whether centipawn-based move-quality thresholds (PRD §5.4) feel right in practice — likely needs a tuning pass after initial playtesting, not purely a code-review concern.
 - Memory/GC behavior of the Normal engine's transposition table across long AI-vs-AI spectator sessions (PRD §2.3) — worth a soak test.
-- **License drift:** if a contributor later vendors the `nmrugg/stockfish.js` GPL asset into the repo (instead of CDN `importScripts`), or links `chessops`/`shakmaty` into the rules engine, the project becomes GPL-3.0 effectively. The §5.1 worker-over-UCI isolation is the guardrail; review it before any dependency add (spec §12.4).
+- **License drift:** if a contributor later vendors the `nmrugg/stockfish.js` GPL asset into the repo (instead of loading it as a runtime Worker from a local bundle or CDN), or links `chessops`/`shakmaty` into the rules engine, the project becomes GPL-3.0 effectively. The §5.1 worker-over-UCI isolation and the `.gitignore` on the Stockfish binaries are the guardrails; review them before any dependency add (spec §12.4).
 
 ## 13. Dependencies & references
 

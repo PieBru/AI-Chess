@@ -1,0 +1,7 @@
+# Stockfish local runtime bundle (nmrugg/stockfish.js, GPLv3).
+# These are dropped next to chess.html for offline Grandmaster play and loaded
+# at runtime as a Worker — they are NOT vendored into the repo. Committing them
+# would make this project effectively GPL-3.0 (spec §12.4 / TDD license-drift
+# guardrail). Download on demand; do not track.
+stockfish-18-lite-single.js
+stockfish-18-lite-single.wasm
