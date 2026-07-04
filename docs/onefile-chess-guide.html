@@ -64,14 +64,6 @@
   details summary { cursor: pointer; font-weight: 600; }
   details p { margin: 10px 0 4px; color: var(--ink-dim); }
 
-  .demo-board {
-    display: grid; grid-template-columns: repeat(8, 1fr); width: 220px; aspect-ratio: 1;
-    border: 3px solid var(--brass-dark); border-radius: 4px; margin: 16px auto;
-  }
-  .demo-board div:nth-child(odd) { background: var(--board-light); }
-  .demo-board div:nth-child(even) { background: var(--board-dark); }
-  .demo-board div { display:flex; }
-
   footer { text-align: center; color: var(--ink-dim); font-size: .85rem; padding-top: 30px; border-top: 1px solid var(--line); }
 </style>
 </head>
@@ -125,10 +117,6 @@
     <div class="step"><div class="num">1</div><p>Click the piece you want to move. Its legal destination squares light up — a small dot for a quiet move, a ring around the square for a capture.</p></div>
     <div class="step"><div class="num">2</div><p>Click a highlighted square to move there. Click the same piece again to deselect it.</p></div>
     <div class="step"><div class="num">3</div><p>If a pawn reaches the far end of the board, a small menu pops up asking which piece to promote to — Queen, Rook, Bishop, or Knight.</p></div>
-    <div class="demo-board" aria-hidden="true">
-      <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
-    </div>
-    <p style="text-align:center; color:var(--ink-dim); font-size:.85rem">The board itself — light and dark squares, same as any physical chess set.</p>
   </section>
 
   <section id="reading">
