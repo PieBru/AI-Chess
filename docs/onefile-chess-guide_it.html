@@ -64,14 +64,6 @@
   details summary { cursor: pointer; font-weight: 600; }
   details p { margin: 10px 0 4px; color: var(--ink-dim); }
 
-  .demo-board {
-    display: grid; grid-template-columns: repeat(8, 1fr); width: 220px; aspect-ratio: 1;
-    border: 3px solid var(--brass-dark); border-radius: 4px; margin: 16px auto;
-  }
-  .demo-board div:nth-child(odd) { background: var(--board-light); }
-  .demo-board div:nth-child(even) { background: var(--board-dark); }
-  .demo-board div { display:flex; }
-
   footer { text-align: center; color: var(--ink-dim); font-size: .85rem; padding-top: 30px; border-top: 1px solid var(--line); }
 </style>
 </head>
@@ -125,10 +117,6 @@
     <div class="step"><div class="num">1</div><p>Clicca sul pezzo che vuoi muovere. Le caselle di destinazione legali si illuminano — un puntino per una mossa semplice, un anello attorno alla casella per una cattura.</p></div>
     <div class="step"><div class="num">2</div><p>Clicca su una casella evidenziata per muoverti lì. Clicca di nuovo sullo stesso pezzo per deselezionarlo.</p></div>
     <div class="step"><div class="num">3</div><p>Se un pedone raggiunge l'ultima traversa, compare un piccolo menu che chiede in quale pezzo promuoverlo — Donna, Torre, Alfiere o Cavallo.</p></div>
-    <div class="demo-board" aria-hidden="true">
-      <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
-    </div>
-    <p style="text-align:center; color:var(--ink-dim); font-size:.85rem">La scacchiera stessa — caselle chiare e scure, come qualsiasi set di scacchi fisico.</p>
   </section>
 
   <section id="reading">
