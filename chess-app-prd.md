@@ -62,7 +62,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 
 Per spec §3, and additionally for this PRD specifically:
 - No onboarding tutorial or rules explainer — the audience is assumed to already know how to play chess (the AI-comparison angle implies a somewhat engaged, curious user).
-- No persistent cross-session stats (spec NG2). Within a single browser session, a lightweight running tally of AI-vs-AI results may be kept in memory purely for the spectator flow, but resets on reload — this is explicitly transient, not a database.
+- No persistent cross-session stats (spec NG2). Within a single browser session, a lightweight running tally of AI-vs-AI results *could* be kept in memory purely for the spectator flow (resets on reload — explicitly transient, not a database), but is **deferred past v1** per the §8 decision below.
 - No user accounts, sharing, or export (e.g. exporting a PGN) in v1 — flagged as a good v1.1 candidate given the evaluation goal, but not required now.
 
 ## 5. UX requirements by component
@@ -116,7 +116,23 @@ Since the primary goal is entertainment, the app should not read as a bare techn
 
 ## 8. Open questions for design/implementation
 
-- Exact move-quality thresholds (§5.4) and difficulty-to-ELO mapping (spec A11.1) — needs playtesting, not a UX decision.
-- Dependency choices (Stockfish build, rules-engine build-vs-buy) are now settled in spec §12 — no longer UX-open; the only UX-facing artifact is the §5.5 Stockfish-load-failure copy, which the chosen single-threaded build makes *more* robust (no COOP/COEP prerequisite to fail on).
-- Whether the in-session AI-vs-AI tally (§4) is worth building for v1 or deferred — low cost, but confirm it's wanted before implementing.
-- Sound on/off default and asset choice — design call, not blocking.
+- Exact move-quality thresholds (§5.4) and difficulty-to-ELO mapping (spec A11.1) — needs playtesting, not a UX decision. **Not blocking v1**; tuned post-launch against real games.
+- Dependency choices (Stockfish build, rules-engine build-vs-buy) are now settled in spec §12 — no longer UX-open; the only UX-facing artifact is the §5.5 Stockfish-load-failure copy, which the chosen single-threaded build makes *more* robust (no COOP/COEP prerequisite to fail on). **Closed.**
+- ~~Whether the in-session AI-vs-AI tally (§4) is worth building for v1 or deferred~~ — **Resolved (2026-07-04): defer past v1.** Zero spec/TDD hooks (FR-6.4 pause/stop and FR-7.2 result line are independent of it); it is speculative UX layered on a working spectator flow. The §4 carve-out stays open so the door isn't foreclosed; build it (~15 lines: an in-memory counter bumped on each game result, rendered in the summary panel) only if the spectator flow earns it.
+- Sound on/off default and asset choice — design call, not blocking. **Resolved (2026-07-04): off by default, user-toggleable (§6 line 108 already states this as the safe choice); assets chosen at implementation time. No UX question left open for v1.**
+
+### 8.1 Deferred features (consolidated register)
+
+Single source of truth for anything pushed past v1. Each item keeps the door open and names the re-open trigger.
+
+| Feature | Source | Decision | Re-open trigger |
+|---|---|---|---|
+| In-session AI-vs-AI result tally | PRD §4, §8 | Defer past v1 | Spectator flow ships and a user asks for a session scoreboard |
+| PGN export / accounts / sharing | PRD §4, spec NG2 | v1.1 candidate | Evaluation goal surfaces a concrete export need |
+| Drag-and-drop move input | spec FR-5.2, A11.4 | Nice-to-have, defer | Confirmed before locking UX flows post-launch |
+| Sound effects default + assets | PRD §6, spec A11.5 | Off-by-default toggle in v1; assets deferred | Design pass picks the sound set |
+| Multi-threaded Stockfish WASM | spec A11.3, §12; TDD §5.2 | v1.1 upgrade, header-gated | Deployment host confirmed to serve COOP/COEP |
+| Full offline Grandmaster mode | spec NG3 | Future bundled build | Offline-use requirement materializes |
+| Move-quality tag thresholds + ELO mapping | PRD §5.4, spec A11.1 | Not blocking; tuned post-launch | Playtest data available |
+
+None of the above blocks v1 scope (spec FR/AC set, PRD §5 UX). All are additive and reversible.
