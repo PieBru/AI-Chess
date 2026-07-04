@@ -322,6 +322,19 @@ users. Each would need a spec FR + PRD/TDD section before implementation.
      which interacts with Appendix B #3 (turn timer) — a reasoning-capped LLM
      under a timer is a distinct fairness scenario worth defining together.
 
+7. **Confirm destructive actions** (New game, Resign), with an option to save
+   the current game on confirm. Today both buttons are immediate and
+   non-reversible — a stray click/keystroke ends or discards an in-progress
+   game. Add a confirmation step; if a game is in progress, offer to save it
+   first (ties into Appendix B #1 save/load).
+   - *Hook:* interpose a confirm dialog before `finishGame` (Resign) and
+     before returning to the setup screen (New game); the save-offer branch
+     reuses B #1's serialization once it exists.
+   - *Decisions needed:* (a) confirmation UX — native `confirm()` is the
+     zero-dependency lazy default; an inline modal is nicer but more code;
+     (b) the save-offer only makes sense once B #1 lands, so this splits into
+     a standalone confirm-now piece and a save-on-confirm piece gated on B #1.
+
 When one of these is chosen for implementation: move it out of this appendix,
 write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
 the §4 / NG lists explicitly.
