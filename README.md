@@ -4,7 +4,7 @@
 
 📖 **Read more:**
 - Blog — 🇬🇧 [English](https://piebru.github.io/AI-Chess/docs/onefile-chess-blog.html) · 🇮🇹 [Italiano](https://piebru.github.io/AI-Chess/docs/onefile-chess-blog_it.html)
-- Player's guide — 🇬🇧 [English](https://piebru.github.io/AI-Chess/docs/onefile-chess-guide.html) · 🇮🇹 [Guida](https://piebru.github.io/AI-Chess/docs/onefile-chess-guide_it.html)
+- Player's guide — 🇬🇧 [English](https://piebru.github.io/AI-Chess/docs/onefile-chess-guide.html) · 🇮🇹 [Italiano](https://piebru.github.io/AI-Chess/docs/onefile-chess-guide_it.html)
 - For kids — 🇬🇧 [English](https://piebru.github.io/AI-Chess/docs/onefile-chess-kids.html) · 🇮🇹 [Italiano](https://piebru.github.io/AI-Chess/docs/onefile-chess-kids_it.html)
 
 A single-file chess app built with vanilla HTML, CSS, and JavaScript — no build step, no frameworks, no npm. Just open the file and play.
