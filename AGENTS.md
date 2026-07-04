@@ -304,6 +304,24 @@ users. Each would need a spec FR + PRD/TDD section before implementation.
      builds on **Appendix A #6 (sound) which isn't implemented at all yet** —
      audio output is a missing foundation to lay first.
 
+6. **Configurable LLM reasoning/thinking level**, from none up to the max the
+   model allows (e.g. reasoning-effort / thinking-budget knobs, or a
+   chain-of-thought prompt prefix). Lets a side trade latency/cost for move
+   quality — directly serving the "evaluate AI intelligence" goal (how much
+   does extra reasoning actually help an LLM play chess?).
+   - *Hook:* add a per-side `reasoning` field to `ControllerConfig`; map it to
+     either an OpenAI-style `reasoning_effort`/`max_completion_tokens` request
+     parameter (when the endpoint supports it) or a prompt-side
+     think-then-move scaffold (when it doesn't). Reuse the existing
+     `apiBase`/`apiKey`/`model` config.
+   - *Decisions needed:* (a) the param mapping is **endpoint/model-specific** —
+     not every OpenAI-compatible server exposes the same knob, so this needs a
+     capability probe or a per-model setting; (b) prompt-scaffold fallback is
+     weaker and must still return one legal UCI move (don't break the
+     constrained-choice contract); (c) higher reasoning = more latency/cost,
+     which interacts with Appendix B #3 (turn timer) — a reasoning-capped LLM
+     under a timer is a distinct fairness scenario worth defining together.
+
 When one of these is chosen for implementation: move it out of this appendix,
 write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
 the §4 / NG lists explicitly.
