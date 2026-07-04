@@ -234,3 +234,55 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 Until resolved, do not describe any of #1–6 as working in docs or user pages,
 and don't write tests/claims that assume them. If you implement one, strike it
 from this appendix, restore its spec/PRD standing, and update PRD §8.1.
+
+---
+
+## Appendix B — Future feature ideas (not started; for planning only)
+
+Recorded so they aren't forgotten. None are specced, designed, or promised to
+users. Each would need a spec FR + PRD/TDD section before implementation.
+
+1. **Save / load / replay a game session** (completed or in-progress),
+   including **replay from step N**.
+   - *Hook:* `moveHistory` already records every ply (SAN + move + evals) —
+     serialization is straightforward; replay = rebuild state from `START_FEN`
+     by applying moves 1..N, then park the game loop. PGN is the natural format
+     (already a v1.1 candidate in PRD §8.1).
+   - *Decision needed:* this **reopens spec NG2 / FR-8.1** (no cross-session
+     persistence is currently a hard non-goal). Pick a storage target
+     (`localStorage`, file download/upload) and explicitly relax NG2.
+
+2. **LLM-assisted single hint** requestable by a human player, with a
+   **budget capped by the chosen game level**.
+   - *Hook:* reuse the LLM `fetch` path with a "suggest, don't move" prompt;
+   render as a square/arrow highlight, never an auto-move.
+   - *Decisions needed:* (a) humans have no difficulty setting today — define
+   what "game level" gates the hint budget (opponent's difficulty? a fixed
+   per-game counter?); (b) in Human-vs-Normal/Grandmaster there is no LLM
+   endpoint configured, so the hint needs its own LLM config independent of the
+   opponent's controller.
+
+3. **Turn timer**, configurable, **applying to AI and LLM players too** — so a
+   strong-but-slow engine/LLM can't simply out-think a weaker-but-faster one.
+   - *Hook:* wrap `requestAIMove()` in `Promise.race` with a wall-clock timeout;
+   on expiry either forfeit the move or force a quick fallback move.
+   - *Decision needed:* this adds a **new game-over reason (time forfeit)** —
+   `finishGame` and the result banner gain a loss-on-time case. Also note
+   engines already have internal budgets (Normal `timeMs`, Stockfish
+   `movetime`, LLM = unbounded network latency); the turn timer is a
+   wall-clock cap *above* those, with different fairness implications per
+   controller type.
+
+4. **Per-opponent language selection** (English / Italian, extensible) — each
+   side picks its own language.
+   - *Hook:* needs an in-app i18n string table (the `onefile-*_it.html` pages
+   prove EN/IT translations exist for marketing copy, but **no in-app strings
+   are localized today** — the UI is single-language via `<html lang>`).
+   - *Decision needed:* clarify scope — is this per-side **UI** language (two
+   players sharing one screen in different languages?), per-side **commentary
+   / thinking text**, or move announcements? The sharing-one-screen case has
+   real layout/contrast implications and should be pinned down before any code.
+
+When one of these is chosen for implementation: move it out of this appendix,
+write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
+the §4 / NG lists explicitly.
