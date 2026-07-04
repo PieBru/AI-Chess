@@ -285,6 +285,25 @@ users. Each would need a spec FR + PRD/TDD section before implementation.
    / thinking text**, or move announcements? The sharing-one-screen case has
    real layout/contrast implications and should be pinned down before any code.
 
+5. **AI commentary per move, spoken via multilingual TTS.** After each move,
+   an LLM generates spoken commentary for the current context (move, SAN,
+   eval, quality tag), played through a multilingual TTS engine (e.g. Piper,
+   QwenTTS, or similar). Pure entertainment — opponents and spectators *hear*
+   the game. Configurable **language/profile** (serious, soccer-style,
+   satiric, humorous, …).
+   - *Hook:* reuse the LLM `fetch` path with a commentary prompt; feed the
+   returned text to TTS. The **lazy/zero-dependency first option is the
+     browser-native `SpeechSynthesis` API** (Web Speech) — multilingual, no
+     network, no dependency; reach for Piper/QwenTTS (server or WASM) only if
+     native voices fall short.
+   - *Decisions needed:* (a) which LLM — reuse a side's LLM config, or a
+     dedicated commentary endpoint? (b) TTS engine choice (native vs. hosted);
+     (c) profile/language selector UI; (d) **latency** — commentary per move
+     adds wall-clock delay and must not block the game loop or AI-vs-AI pacing
+     (generate async, queue/decay if moves come faster than speech); (e) this
+     builds on **Appendix A #6 (sound) which isn't implemented at all yet** —
+     audio output is a missing foundation to lay first.
+
 When one of these is chosen for implementation: move it out of this appendix,
 write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
 the §4 / NG lists explicitly.
