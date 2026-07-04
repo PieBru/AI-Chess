@@ -335,6 +335,23 @@ users. Each would need a spec FR + PRD/TDD section before implementation.
      (b) the save-offer only makes sense once B #1 lands, so this splits into
      a standalone confirm-now piece and a save-on-confirm piece gated on B #1.
 
+8. **Move-evaluation SFX** — play a sound keyed off the move-quality tag
+   (e.g. applause for `best`, a "Boooo" for `blunder`). Pure entertainment,
+   reinforcing the quality tags audibly for players and spectators.
+   - *Hook:* `classifyQuality` already returns the tag per move — trigger a
+     cue from the same point tags are rendered. Off-by-default toggle per
+     PRD §6 / §8 (Appendix A #6).
+   - *Decisions needed:* the **sound-source tradeoff** is the real question:
+     (a) **synthesized via native `AudioContext`** (Web Audio) — zero-
+     dependency, fits the single-file stance, but synthesized applause/boo is
+     limited in expressiveness; (b) **sampled clips** (real applause/boo) are
+     expressive but either bloat the file as base64 or require a network fetch,
+     both against the single-file/no-fetch grain. Likely answer: synthesize
+     simple tones for the milder tags and accept limited expressiveness, or
+     treat sampled SFX as the one exception that fetches from a CDN (like
+     Stockfish). Also gates on Appendix A #6 (sound foundation not built yet)
+     and can share the audio-output plumbing with B #5 (TTS commentary).
+
 When one of these is chosen for implementation: move it out of this appendix,
 write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
 the §4 / NG lists explicitly.
