@@ -436,6 +436,8 @@
       <div id="spectator-controls" class="spectator-controls" hidden>
         <label class="speed-label">Speed
           <select id="speed-select">
+            <option value="veryslow">Very slow</option>
+            <option value="slow">Slow</option>
             <option value="normal">Normal</option>
             <option value="fast">Fast</option>
             <option value="instant">Instant</option>
@@ -1513,7 +1515,7 @@ function requestMove(fen, difficulty) {
   let capturedByBlack = [];
   let soundEnabled = false;           // off by default, per PRD §6/§8
   let showCoords = false;             // board a–h / 1–8 labels, off by default
-  let spectatorSpeed = 'normal';      // 'normal' | 'fast' | 'instant', AI-vs-AI pacing
+  let spectatorSpeed = 'normal';      // 'veryslow' | 'slow' | 'normal' | 'fast' | 'instant', AI-vs-AI pacing
   let lastResult = '*';               // PGN result tag: set by finishGame, '*' while in progress
   let replayMode = false;             // viewing a loaded game; board/inputs frozen, step controls shown
   let replayStates = null;            // precomputed state after each ply (index 0 = start position)
@@ -1655,7 +1657,7 @@ function requestMove(fen, difficulty) {
     soundEnabled = !!p.sound;
     showCoords = !!p.coords;
     reactionsEnabled = !!p.reactions;
-    spectatorSpeed = p.speed === 'fast' || p.speed === 'instant' ? p.speed : 'normal';
+    spectatorSpeed = ['veryslow','slow','normal','fast','instant'].includes(p.speed) ? p.speed : 'normal';
     soundToggleEl.checked = soundEnabled;
     coordsToggleEl.checked = showCoords;
     reactionsToggleEl.checked = reactionsEnabled;
@@ -2330,7 +2332,7 @@ function requestMove(fen, difficulty) {
   // Wall-clock pause inserted between AI-vs-AI moves so a human spectator
   // can follow along; irrelevant (and skipped) whenever a human is playing,
   // since play then naturally paces on that human's own moves.
-  const SPEED_DELAYS = { normal: 2800, fast: 800, instant: 0 };   // ms between AI-vs-AI moves (additive on top of engine think time)
+  const SPEED_DELAYS = { veryslow: 6000, slow: 4500, normal: 2800, fast: 800, instant: 0 };   // ms between AI-vs-AI moves (additive on top of engine think time)
 
   // Bumped by startGame() so an AI move still being computed for a PREVIOUS
   // game (e.g. superseded mid-thought by Rematch) can recognize it's stale

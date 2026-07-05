@@ -258,7 +258,7 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 | # | Feature | Doc source | Implementation note |
 |---|---|---|---|
 | 1 | **Pause/Stop AI-vs-AI** | spec FR-6.4, PRD §2.3 | Spectator-only control bar. Pause halts the loop after the in-flight move; Stop ends the game with reason "stopped by spectator" (result `*`). Generation tracking prevents a move computed for a superseded game (e.g. via Rematch) from leaking into a new one. |
-| 2 | **Spectator speed control** (Normal/Fast/Instant) | PRD §2.3 | Select inserts a 700/200/0 ms pause between AI-vs-AI moves; persisted to `localStorage`. |
+| 2 | **Spectator speed control** (Very slow / Slow / Normal / Fast / Instant) | PRD §2.3 | Select inserts a 6000/4500/2800/800/0 ms pause between AI-vs-AI moves; persisted to `localStorage`. |
 | 3 | **"Rematch" action** (same config) | PRD §2.4 | Same controllers, straight into a new game — no setup-screen detour. |
 | 4 | **Rich summary panel** | PRD §2.4 / §5.4 | Per-side quality breakdown (best/good/inaccuracy/mistake/blunder + average centipawn loss) and a "who played cleaner" verdict. Human moves are not engine-scored, so the panel says so honestly rather than treating them as perfect. |
 | 5 | **Captured-piece tray** | spec FR-5.3 | Glyphs sorted queen→pawn with a small material-advantage badge. |

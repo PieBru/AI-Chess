@@ -84,7 +84,7 @@ interface ControllerConfig {
 interface MatchConfig {
   white: ControllerConfig;
   black: ControllerConfig;
-  spectatorSpeed?: 'normal'|'fast'|'instant'; // PRD §2.3, AI-vs-AI only
+  spectatorSpeed?: 'veryslow'|'slow'|'normal'|'fast'|'instant'; // PRD §2.3, AI-vs-AI only
 }
 ```
 

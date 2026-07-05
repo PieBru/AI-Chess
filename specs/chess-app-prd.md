@@ -30,7 +30,7 @@ These two goals are complementary, not competing: transparency features that sat
 ### 2.3 Spectator flow (AI vs AI)
 This flow exists specifically to serve the secondary goal — watching two AIs (or two difficulty levels of the same AI) play each other is the most direct way to "evaluate how smart each one is."
 1. User configures both sides as AI (any tier/difficulty combination, including Normal vs Normal at different difficulties, or Normal vs Grandmaster).
-2. A **playback speed control** (Normal / Fast / Instant) governs how long the app pauses between moves purely for watchability — the AI still computes at its real budget; this only affects the pacing of what's shown.
+2. A **playback speed control** (Very slow / Slow / Normal / Fast / Instant) governs how long the app pauses between moves purely for watchability — the AI still computes at its real budget; this only affects the pacing of what's shown.
 3. Pause/Resume and Stop controls are always visible (spec FR-6.4).
 4. The eval bar and move-quality tags (§5.4) are especially prominent in this mode, since there's no human move to focus on.
 
