@@ -2378,7 +2378,7 @@ function requestMove(fen, difficulty) {
   // Wall-clock pause inserted between AI-vs-AI moves so a human spectator
   // can follow along; irrelevant (and skipped) whenever a human is playing,
   // since play then naturally paces on that human's own moves.
-  const SPEED_DELAYS = { normal: 700, fast: 200, instant: 0 };
+  const SPEED_DELAYS = { normal: 1400, fast: 450, instant: 0 };   // ms between AI-vs-AI moves
 
   // Bumped by startGame() so an AI move still being computed for a PREVIOUS
   // game (e.g. superseded mid-thought by Rematch) can recognize it's stale
