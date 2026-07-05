@@ -851,7 +851,11 @@ function toSAN(state, move, legalMoves) {
   const pieceChar = move.piece === PAWN ? '' : PIECE_CHARS[move.piece].toUpperCase();
   let disambig = '';
   if (move.piece !== PAWN) {
-    const others = legalMoves.filter(m => m !== move && m.piece === move.piece && m.to === move.to);
+    // Disambiguate by value (from/to), not object identity: callers pass a
+    // `move` that often came from a different genLegalMoves() call than
+    // `legalMoves`, so `m !== move` would always be true and over-disambiguate
+    // every non-pawn move (e.g. "Ng1f3" instead of "Nf3").
+    const others = legalMoves.filter(m => m.from !== move.from && m.piece === move.piece && m.to === move.to);
     if (others.length) {
       const sameFile = others.some(m => file(m.from) === file(move.from));
       const sameRank = others.some(m => rank(m.from) === rank(move.from));
@@ -2207,7 +2211,12 @@ function requestMove(fen, difficulty) {
 
   // ---- Game loop ----
   async function playTurn() {
-    if (gameOver || replayMode) return;
+    // Bail before starting any new search if the spectator paused or the
+    // game ended while a speed-delay timer was pending — otherwise the
+    // delay firing would compute+apply a whole extra move before the tail
+    // check below caught it. (An already in-flight move still finishes; that
+    // is the intended "finishes the current move" semantics.)
+    if (gameOver || replayMode || paused) return;
     const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
