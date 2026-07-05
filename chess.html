@@ -1613,8 +1613,15 @@ function requestMove(fen, difficulty) {
   }
   // Map a move-quality tag to a crowd reaction. 'good' is silent — the crowd
   // only reacts to the notable (brilliance or errors), to avoid constant noise.
-  function playReactionForQuality(quality) {
+  function playReactionForQuality(quality, move) {
     if (!reactionsEnabled || !quality) return;
+    // Spectator reactions are reserved for tactically notable moments — a
+    // capture — so a strong match (where 'best' fires almost every move)
+    // doesn't drown the game in constant applause/boo. Quiet positional
+    // moves get no crowd reaction.
+    // ponytail: capture-gate is the simplest 'earned' rule; a per-side
+    // underdog/leader factor could refine it later without changing this.
+    if (!move || !move.captured) return;
     if (quality === 'best') playReaction('applause');
     else if (quality === 'blunder') playReaction('boo');
     else if (quality === 'mistake') playReaction('disappointment');
@@ -2401,7 +2408,7 @@ function requestMove(fen, difficulty) {
       renderCapturedTray();
       render();
       playMoveSound(move);
-      playReactionForQuality(quality);   // spectator reactions keyed off move quality
+      playReactionForQuality(quality, move);   // spectator reactions: only on captures (earned, not every move)
     } catch (err) {
       thinkingEl.hidden = true;
       gameOver = true;
