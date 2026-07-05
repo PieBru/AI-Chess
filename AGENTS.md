@@ -262,7 +262,7 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 | 3 | **"Rematch" action** (same config) | PRD §2.4 | Same controllers, straight into a new game — no setup-screen detour. |
 | 4 | **Rich summary panel** | PRD §2.4 / §5.4 | Per-side quality breakdown (best/good/inaccuracy/mistake/blunder + average centipawn loss) and a "who played cleaner" verdict. Human moves are not engine-scored, so the panel says so honestly rather than treating them as perfect. |
 | 5 | **Captured-piece tray** | spec FR-5.3 | Glyphs sorted queen→pawn with a small material-advantage badge. |
-| 6 | **Sound effects + off-by-default toggle** | PRD §6, §8 | Synthesized via Web Audio (no external assets — closes PRD §8.1's "assets deferred" open item). Off by default; toggle persists locally. |
+| 6 | **Sound effects + off-by-default toggle** | PRD §6, §8 | Sampled CC0 piece sounds (lichess `standard`/`sfx` themes: move, capture, check, game-end), embedded as base64 data URIs in a `#sound-clips-src` block — self-contained, offline, ~31 KB raw. Off by default; toggle persists locally. |
 
 **Judgment calls where docs were silent:**
 - Pause/Stop/Speed render only in true AI-vs-AI spectating (both sides
