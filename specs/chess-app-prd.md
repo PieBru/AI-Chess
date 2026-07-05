@@ -22,7 +22,7 @@ These two goals are complementary, not competing: transparency features that sat
 4. "Start Game" begins play; the board screen loads with both sides' controllers locked for that game (spec FR-2.3).
 
 ### 2.2 Gameplay flow (Human involved)
-1. On a human turn: legal-move highlighting on piece selection, click-to-move (drag-and-drop optional stretch), illegal attempts bounce back with a subtle shake — no modal, no dead end.
+1. On a human turn: legal-move highlighting on piece selection, click-to-move **and drag-and-drop**; an illegal click reselects/deselects and an invalid drop snaps back — no modal, no dead end.
 2. On an AI turn: board is read-only, a **thinking indicator** appears (see §5.3) — this is not just a spinner, it's part of the "evaluate the AI" experience.
 3. After every ply: move appended to history panel in SAN, last-move highlighted, check indicator if applicable.
 4. Game end: a summary panel appears (see §2.4).
@@ -48,7 +48,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 | Controller picker (per side) | FR-2 | Human / Normal(+difficulty) / Grandmaster |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
-| Board + move input | FR-1, FR-5 | Click-to-move required; drag-and-drop stretch |
+| Board + move input | FR-1, FR-5 | Click-to-move + drag-and-drop |
 | Move history (SAN) | FR-5.4 | Scrollable, always visible |
 | Thinking indicator | NFR-3 | Must reflect worker activity, never fake/static |
 | Eval bar | new — see §5.4 | Not in spec v1; added here to serve secondary goal |
@@ -130,7 +130,7 @@ Single source of truth for anything pushed past v1. Each item keeps the door ope
 |---|---|---|---|
 | In-session AI-vs-AI result tally | PRD §4, §8 | Defer past v1 | Spectator flow ships and a user asks for a session scoreboard |
 | ~~PGN export / accounts / sharing~~ | PRD §4, spec NG2 | **Shipped (2026-07-05):** user-initiated PGN export (download) + import (view-only replay via First/Prev/Next/Last). Not accounts/sharing and not automatic persistence — NG2/FR-8.1 narrowed to permit file I/O only. | Accounts/ratings or server-side sharing, if a real sharing need surfaces |
-| Drag-and-drop move input | spec FR-5.2, A11.4 | Nice-to-have, defer | Confirmed before locking UX flows post-launch |
+| ~~Drag-and-drop move input~~ | spec FR-5.2, A11.4 | **Shipped (2026-07-05):** click + drag share one resolver (`attemptMoveTo`); invalid drops snap back | n/a |
 | ~~Sound effects default + assets~~ | PRD §6, spec A11.5 | **Shipped (2026-07-05):** off-by-default Web Audio toggle, synthesized (no external assets), persisted. Resolves the §8 "asset choice" open question by avoiding assets entirely. | Only if synthesized tones prove too limited and a real sound set is wanted |
 | Multi-threaded Stockfish WASM | spec A11.3, §12; TDD §5.2 | v1.1 upgrade, header-gated | Deployment host confirmed to serve COOP/COEP |
 | ~~Full offline Grandmaster mode~~ | spec NG3 | **Done** — the Stockfish bundle is vendored in the repo (GPL-3.0, NFR-5.2), so Grandmaster works out of the box, offline and on the live site | n/a |

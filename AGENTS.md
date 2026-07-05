@@ -271,7 +271,7 @@ re-open trigger fires; no new design questions to resolve first.
 |---|---|---|
 | In-session AI-vs-AI result tally | PRD §4, §8 | A user asks for a session scoreboard |
 | PGN export / accounts / sharing | PRD §4, spec NG2 | v1.1 candidate; a concrete export need surfaces (relaxes NG2) |
-| Drag-and-drop move input | spec FR-5.2, A11.4 | Confirmed before locking UX post-launch (code is click-to-move only today) |
+| ~~Drag-and-drop move input~~ | spec FR-5.2, A11.4 | **Shipped (2026-07-05)** — click + drag share one resolver (`attemptMoveTo`); invalid drops snap back | n/a |
 | Multi-threaded Stockfish WASM | spec A11.3, TDD §5.2 | Deployment host confirmed to serve COOP/COEP headers |
 
 **Tier 2 — Future ideas needing decisions (Appendix B below).** Not specced,
@@ -298,9 +298,11 @@ map of the open blockers (full detail in Appendix B):
 8. **Move-evaluation SFX** — sound-source tradeoff (synthesized vs sampled);
    can share audio plumbing with #5.
 
-**Lowest-friction next build:** Tier 1 drag-and-drop is fully specified
-(spec FR-5.2) and unblocked — the clear next pick. Among Tier 2, #2 (LLM
-hint) is the highest-value but needs a config decision first.
+**Lowest-friction next build:** Tier 1 is now exhausted (all four items
+shipped). Among Tier 2, #2 (LLM hint) is the highest-value but needs a config
+decision first; #3 (turn timer) is self-contained and adds a clear evaluation
+lens. Everything left in Tier 2 carries a real product question — pick one
+and talk through the decision before building.
 
 ---
 

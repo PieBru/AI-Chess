@@ -104,7 +104,10 @@ All Human/AI combinations must be supported without special-casing in the rules 
 
 ### FR-5. Board & interaction UI
 - FR-5.1 Rendered 8×8 board, correctly oriented (can be flipped), with legal-move highlighting when a human selects a piece.
-- FR-5.2 Move input via click-to-select-then-click-to-move at minimum; drag-and-drop is a nice-to-have, not required for v1.
+- FR-5.2 Move input via click-to-select-then-click-to-move **and**
+  drag-and-drop. Both paths share one move-resolution routine
+  (`attemptMoveTo`), so promotion and legality behave identically; an invalid
+  drop simply snaps back (no move played, selection cleared).
 - FR-5.3 Last-move highlight, check indicator, and captured-piece tray for both sides.
 - FR-5.4 Move history panel in SAN, scrollable, updated after every ply.
 
@@ -237,7 +240,7 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - A11.1 Exact ELO targets per Normal difficulty level — needs tuning/benchmarking, not specified here.
 - A11.2 Whether Grandmaster mode exposes a "thinking time" or strength setting to the user, or is fixed — currently spec'd as fixed max strength.
 - A11.3 ~~Whether multi-threaded WASM (requiring specific server headers) is a hard requirement or a "best effort if headers present"~~ — **Resolved (see §13):** use a single-threaded Stockfish WASM build for v1. Recommended package: `nmrugg/stockfish.js` single-threaded flavor (`stockfish` on npm). Multi-threading is a v1.1 upgrade gated on confirming the deployment host can serve COOP/COEP headers. See §13 and TDD §5.2.
-- A11.4 Drag-and-drop move input is explicitly deferred to "nice to have" — confirm before PRD locks UX flows.
+- A11.4 Drag-and-drop move input — **shipped (2026-07-05)** as part of FR-5.2; see that FR.
 - A11.5 Sound effects, animations, and visual theme are UX decisions left entirely to the PRD.
 - A11.6 LLM-Assisted prompt robustness — the single-hard-move prompt + one-retry policy (FR-9.3) is a baseline; real-world move legality/parse rates depend on the chosen model and may need a richer prompt or constrained decoding later. Not blocking v1.
 

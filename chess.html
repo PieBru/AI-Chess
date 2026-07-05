@@ -176,6 +176,10 @@
   }
   .square.last-move { box-shadow: inset 0 0 0 999px rgba(201,162,75,.22); }
   .square.in-check { box-shadow: inset 0 0 0 999px rgba(209,73,91,.45); }
+  /* drag-and-drop: drag-target marks all legal destinations while a piece is
+     held; drag-over marks the single square currently under the cursor. */
+  .square.drag-target { box-shadow: inset 0 0 0 999px rgba(201,162,75,.18); }
+  .square.drag-over { box-shadow: inset 0 0 0 3px var(--brass); }
   .square .dot {
     position: absolute; width: 26%; height: 26%; border-radius: 50%;
     background: rgba(30,20,10,.35); pointer-events: none;
@@ -1949,8 +1953,10 @@ function requestMove(fen, difficulty) {
     '1b': '♟', '2b': '♞', '3b': '♝', '4b': '♜', '5b': '♛', '6b': '♚',
   };
 
+  const sqDivs = new Map();   // 0x88 sq -> square div, rebuilt with the board
   function buildBoardDOM() {
     boardEl.innerHTML = '';
+    sqDivs.clear();
     for (let idx = 0; idx < 64; idx++) {
       const sq = displayIndexToSquare(idx);
       const r = Rules.rank(sq), f = Rules.file(sq);
@@ -1958,6 +1964,43 @@ function requestMove(fen, difficulty) {
       div.className = 'square ' + (((r + f) % 2 === 0) ? 'light' : 'dark');
       div.dataset.sq = sq;
       div.addEventListener('click', () => onSquareClick(sq));
+      // ---- Drag-and-drop move input (spec FR-5.2) ----
+      // dragstart selects the piece and lights destinations directly via the
+      // sqDivs map (no full render() — mutating the source div mid-drag can
+      // blank the browser's drag image). Drop reuses attemptMoveTo, so
+      // promotion works identically to click-to-move.
+      div.addEventListener('dragstart', (e) => {
+        if (!isHumanTurn()) { e.preventDefault(); return; }
+        const piece = gameState.board[sq];
+        if (piece === 0 || Math.sign(piece) !== gameState.turn) { e.preventDefault(); return; }
+        selectedSquare = sq;
+        legalFromSelected = Rules.genLegalMoves(gameState).filter(m => m.from === sq);
+        e.dataTransfer.setData('text/plain', String(sq));
+        e.dataTransfer.effectAllowed = 'move';
+        for (const m of legalFromSelected) {
+          const d = sqDivs.get(m.to);
+          if (d) d.classList.add('drag-target');
+        }
+      });
+      div.addEventListener('dragover', (e) => {
+        if (selectedSquare === null || !legalFromSelected.some(m => m.to === sq)) return;
+        e.preventDefault();                       // without it the drop won't fire
+        e.dataTransfer.dropEffect = 'move';
+        div.classList.add('drag-over');
+      });
+      div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+      div.addEventListener('drop', (e) => {
+        e.preventDefault();
+        div.classList.remove('drag-over');
+        clearDragTargets();
+        if (selectedSquare === null) return;
+        if (!attemptMoveTo(sq)) clearSelection();  // invalid drop -> snap back
+      });
+      div.addEventListener('dragend', () => {
+        clearDragTargets();
+        if (selectedSquare !== null && !pendingPromotion) clearSelection();
+      });
+      sqDivs.set(sq, div);
       boardEl.appendChild(div);
     }
   }
@@ -1966,16 +2009,19 @@ function requestMove(fen, difficulty) {
     const status = Rules.gameStatus(gameState);
     const checkSq = status.check || (status.over && status.reason === 'checkmate') ? findKingSquare(gameState.turn) : -1;
 
+    const humanTurn = isHumanTurn();
     for (const div of boardEl.children) {
       const sq = parseInt(div.dataset.sq, 10);
-      div.classList.remove('selected', 'last-move', 'in-check');
+      div.classList.remove('selected', 'last-move', 'in-check', 'drag-target', 'drag-over');
       div.innerHTML = '';
+      div.draggable = false;
       const piece = gameState.board[sq];
       if (piece !== 0) {
         const span = document.createElement('span');
         span.className = 'piece ' + (piece > 0 ? 'white' : 'black');
         span.textContent = PIECE_GLYPHS[Math.abs(piece) + (piece > 0 ? 'w' : 'b')];
         div.appendChild(span);
+        if (humanTurn && Math.sign(piece) === gameState.turn) div.draggable = true;
       }
       if (sq === selectedSquare) div.classList.add('selected');
       if (lastMove && (sq === lastMove.from || sq === lastMove.to)) div.classList.add('last-move');
@@ -2045,45 +2091,55 @@ function requestMove(fen, difficulty) {
     return 'blunder';
   }
 
-  // ---- Human move input ----
-  function onSquareClick(sq) {
-    if (gameOver || replayMode || pendingPromotion) return;
+  // ---- Human move input (click-to-move + drag-and-drop, spec FR-5.2) ----
+  function isHumanTurn() {
+    if (gameOver || replayMode) return false;
     const sideConfig = gameState.turn === Rules.WHITE ? matchConfig.white : matchConfig.black;
-    if (sideConfig.type !== 'human') return;
+    return sideConfig.type === 'human';
+  }
 
-    if (selectedSquare === null) {
-      const piece = gameState.board[sq];
-      if (piece !== 0 && Math.sign(piece) === gameState.turn) {
-        selectedSquare = sq;
-        legalFromSelected = Rules.genLegalMoves(gameState).filter(m => m.from === sq);
-        render();
-      }
-      return;
+  function selectPieceAt(sq) {
+    const piece = gameState.board[sq];
+    if (piece !== 0 && Math.sign(piece) === gameState.turn) {
+      selectedSquare = sq;
+      legalFromSelected = Rules.genLegalMoves(gameState).filter(m => m.from === sq);
+    } else {
+      selectedSquare = null; legalFromSelected = [];
     }
+    render();
+  }
+  function clearSelection() { selectedSquare = null; legalFromSelected = []; render(); }
 
-    if (sq === selectedSquare) { selectedSquare = null; legalFromSelected = []; render(); return; }
-
+  // Resolve the currently selected piece to a target square. Returns true if
+  // a move was started (or the promotion overlay opened); false if the target
+  // is not a legal destination. Shared by click-to-move and drag-and-drop so
+  // the two input paths can never drift apart.
+  function attemptMoveTo(sq) {
+    if (selectedSquare === null) return false;
     const move = legalFromSelected.find(m => m.to === sq);
-    if (!move) {
-      const piece = gameState.board[sq];
-      if (piece !== 0 && Math.sign(piece) === gameState.turn) {
-        selectedSquare = sq;
-        legalFromSelected = Rules.genLegalMoves(gameState).filter(m => m.from === sq);
-        render();
-      } else {
-        selectedSquare = null; legalFromSelected = []; render();
-      }
-      return;
-    }
-
+    if (!move) return false;
     const promoChoices = legalFromSelected.filter(m => m.to === sq && m.promotion);
     if (promoChoices.length > 1) {
       pendingPromotion = { from: selectedSquare, to: sq, choices: promoChoices };
       promoOverlay.hidden = false;
-      return;
+      return true;
     }
-
     playHumanMove(move);
+    return true;
+  }
+
+  function onSquareClick(sq) {
+    if (gameOver || replayMode || pendingPromotion) return;
+    if (!isHumanTurn()) return;
+    if (selectedSquare === null) { selectPieceAt(sq); return; }
+    if (sq === selectedSquare) { clearSelection(); return; }
+    if (attemptMoveTo(sq)) return;
+    selectPieceAt(sq);   // not a legal dest: reselect another own piece, else deselect
+  }
+
+  // Clear all drag highlight classes (called on drop / dragend / cancel).
+  function clearDragTargets() {
+    for (const d of sqDivs.values()) d.classList.remove('drag-target', 'drag-over');
   }
 
   promoOverlay.addEventListener('click', (e) => {
