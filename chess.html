@@ -1461,6 +1461,15 @@ function requestMove(fen, difficulty) {
     return content.trim();
   }
 
+  function llmEndpointErrorHint(apiBase) {
+    // NetworkError on an HTTPS page with HTTP endpoint = mixed-content block.
+    // Give the user a specific hint instead of a generic failure message.
+    if (location.protocol === 'https:' && apiBase.startsWith('http:')) {
+      return ' (HTTPS page cannot fetch from HTTP endpoint. Use an HTTPS LLM url, or serve this app locally via HTTP.)';
+    }
+    return '';
+  }
+
   function extractUciMove(text, legalUci) {
     const lower = text.toLowerCase();
     // Prefer an exact legal-move token if the model echoed one back cleanly.
@@ -1486,7 +1495,7 @@ function requestMove(fen, difficulty) {
       try {
         lastRaw = await callLLM(sideConfig, messages);
       } catch (err) {
-        throw new Error('LLM call failed: ' + err.message);
+        throw new Error('LLM call failed: ' + err.message + llmEndpointErrorHint(sideConfig.apiBase));
       }
       uciMove = extractUciMove(lastRaw, legalUci);
       if (uciMove && !legalUci.includes(uciMove)) uciMove = null;
@@ -1757,7 +1766,7 @@ function requestMove(fen, difficulty) {
     human: 'Makes moves via the board UI.',
     normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
     grandmaster: 'Level 6 = Stockfish, full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
-    llm: 'Calls an OpenAI-compatible chat endpoint and plays whichever legal move it picks.',
+    llm: 'Calls an OpenAI-compatible chat endpoint. If this page is served over HTTPS (e.g. GitHub Pages), the endpoint must also be HTTPS — browsers block mixed-content fetch to an HTTP LAN server. Serve this app locally (via python3 -m http.server) to reach HTTP-only LLM servers.',
   };
   // Difficulty 6 is the Grandmaster sentinel: it routes the controller to
   // Stockfish. Kept as a Normal-AI dropdown option to simplify the setup
@@ -1842,6 +1851,8 @@ function requestMove(fen, difficulty) {
         entry.model = cfgEl.querySelector('.llm-model').value.trim();
         if (!entry.apiBase || !entry.model) {
           errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-Assisted needs at least an API base URL and a model name.');
+        } else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) {
+          errors.push(side[0].toUpperCase() + side.slice(1) + ': The LLM endpoint is HTTP, but this page is served over HTTPS — browsers block mixed-content requests. Use an HTTPS endpoint, or serve this app locally via HTTP.');
         }
       }
       config[side] = entry;
