@@ -375,10 +375,10 @@
             <option value="3" selected>3 — Medium (≈1400)</option>
             <option value="4">4 — Hard (≈1800)</option>
             <option value="5">5 — Expert (≈2000)</option>
-            <option value="6">6 — Grandmaster (full)</option>
-            <option value="7">7 — Grandmaster (Elo 1350)</option>
-            <option value="8">8 — Grandmaster (Elo 1800)</option>
-            <option value="9">9 — Grandmaster (Elo 2200)</option>
+            <option value="6">6 — Grandmaster (Elo 1350)</option>
+            <option value="7">7 — Grandmaster (Elo 1800)</option>
+            <option value="8">8 — Grandmaster (Elo 2200)</option>
+            <option value="9">9 — Grandmaster (full)</option>
           </select>
         </div>
         <div class="llm-config" hidden>
@@ -406,10 +406,10 @@
             <option value="3" selected>3 — Medium (≈1400)</option>
             <option value="4">4 — Hard (≈1800)</option>
             <option value="5">5 — Expert (≈2000)</option>
-            <option value="6">6 — Grandmaster (full)</option>
-            <option value="7">7 — Grandmaster (Elo 1350)</option>
-            <option value="8">8 — Grandmaster (Elo 1800)</option>
-            <option value="9">9 — Grandmaster (Elo 2200)</option>
+            <option value="6">6 — Grandmaster (Elo 1350)</option>
+            <option value="7">7 — Grandmaster (Elo 1800)</option>
+            <option value="8">8 — Grandmaster (Elo 2200)</option>
+            <option value="9">9 — Grandmaster (full)</option>
           </select>
         </div>
         <div class="llm-config" hidden>
@@ -1795,7 +1795,7 @@ function requestMove(fen, difficulty) {
   // instead of 4). The ControllerConfig contract is unchanged — levels
   // 6-9 build a { type: 'grandmaster' } entry with an elo field.
   const GM_LEVEL = 6;
-  const GRANDMASTER_ELO_LEVELS = { 6: null, 7: 1350, 8: 1800, 9: 2200 };
+  const GRANDMASTER_ELO_LEVELS = { 6: 1350, 7: 1800, 8: 2200, 9: null };   // 9 = full strength
   // Shared by click handling and restore-from-storage so both take the same path.
   function selectSideType(cfgEl, type) {
     cfgEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
@@ -1844,7 +1844,9 @@ function requestMove(fen, difficulty) {
       const uiType = entry.type === 'grandmaster' ? 'normal' : (entry.type || 'human');
       selectSideType(cfgEl, uiType);
       if (entry.type === 'grandmaster') {
-        cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty || GM_LEVEL);
+        // entry.difficulty was added in the fairness build; old saved configs
+        // lack it and were always full-strength (now difficulty 9).
+        cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty != null ? entry.difficulty : 9);
       } else if (entry.difficulty != null) {
         cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
       }

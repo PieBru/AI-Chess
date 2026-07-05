@@ -91,10 +91,10 @@ All Human/AI combinations must be supported without special-casing in the rules 
   | 3 — Medium | ~4 ply / ~500ms | Best move, small eval noise | Club player |
   | 4 — Hard | ~6 ply / ~1.5s | Best move, minimal noise | Strong club player |
   | 5 — Expert | full iterative deepening / ~3–5s budget | Best move only | Upper limit of this engine's honest strength |
-  | 6 — Grandmaster full | Stockfish NNUE | Best move only (Stockfish) | Full strength |
-  | 7 — Grandmaster (Elo 1350) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=1350 | Best move only (Elo-limited Stockfish) | ~1350 |
-  | 8 — Grandmaster (Elo 1800) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=1800 | Best move only (Elo-limited Stockfish) | ~1800 |
-  | 9 — Grandmaster (Elo 2200) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=2200 | Best move only (Elo-limited Stockfish) | ~2200 |
+  | 6 — Grandmaster (Elo 1350) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=1350 | Best move only (Elo-limited Stockfish) | ~1350 |
+  | 7 — Grandmaster (Elo 1800) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=1800 | Best move only (Elo-limited Stockfish) | ~1800 |
+  | 8 — Grandmaster (Elo 2200) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=2200 | Best move only (Elo-limited Stockfish) | ~2200 |
+  | 9 — Grandmaster full | Stockfish NNUE | Best move only (Stockfish) | Full strength |
 
   Levels 6–9 route to Grandmaster (`type: 'grandmaster'` in ControllerConfig) with an optional `elo` field. The Normal AI difficulty picker exposes them (PRD §2.1) to keep the controller picker to three choices. Levels 1–5 remain the Normal engine's own depths.
 
