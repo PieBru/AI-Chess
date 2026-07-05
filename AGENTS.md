@@ -107,6 +107,12 @@ transposition table, and per-difficulty move-selection noise. Difficulty table
 | 4 Hard | 6 | 1500 | gaussian-tiny |
 | 5 Expert | 99 | 4000 | none |
 
+**Setup-screen note:** Grandmaster (Stockfish, §4.3) is exposed in the UI as
+Normal AI **difficulty 6** — it builds a `{ type: 'grandmaster' }`
+ControllerConfig under the hood, so the contract and engine dispatch are
+unchanged; only the setup screen is simplified to 3 controller choices
+(Human / Normal AI / LLM-Assisted) instead of 4.
+
 (TDD §4.3 is the contract; constants are tunable.) Runs in a worker and
 answers two message types: `search` (pick a move) and `analyze` (grade an
 arbitrary played move — used for quality tagging of *any* move source).

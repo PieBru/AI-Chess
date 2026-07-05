@@ -91,6 +91,9 @@ All Human/AI combinations must be supported without special-casing in the rules 
   | 3 — Medium | ~4 ply / ~500ms | Best move, small eval noise | Club player |
   | 4 — Hard | ~6 ply / ~1.5s | Best move, minimal noise | Strong club player |
   | 5 — Expert | full iterative deepening / ~3–5s budget | Best move only | Upper limit of this engine's honest strength |
+  | 6 — Grandmaster | (routes to Stockfish, §4.3) | Best move only (Stockfish NNUE) | Superhuman |
+
+  Level 6 is a **UI sentinel**: the setup screen exposes Grandmaster as Normal AI's 6th difficulty option (PRD §2.1) to keep the controller picker to three choices. Selecting it builds a `{ type: 'grandmaster' }` ControllerConfig (no `difficulty` field) — the contract and engine dispatch are unchanged; levels 1–5 remain the Normal engine's own depths.
 
   Exact ELO targets are a PRD/TDD tuning concern; this table constrains *mechanism* (how difficulty is achieved), not exact numbers.
 - FR-3.3 The Normal engine must never crash or stall the worker on any legal position, including positions with very few legal moves (forced sequences) or none (must correctly report game-over rather than search).

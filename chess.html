@@ -328,7 +328,7 @@
 
 <div class="topbar">
   <h1>♟ Granpy Piero's AI Chess</h1>
-  <span class="tagline">Human or AI, either side — Normal (adjustable) and Grandmaster (Stockfish)</span>
+  <span class="tagline">Human, Normal AI (6 levels — incl. Stockfish), or LLM-Assisted — either side</span>
 </div>
 
 <section id="setup-screen" class="screen">
@@ -342,7 +342,6 @@
         <div class="controller-options">
           <button class="opt-btn selected" data-type="human">Human</button>
           <button class="opt-btn" data-type="normal">Normal AI</button>
-          <button class="opt-btn" data-type="grandmaster">Grandmaster</button>
           <button class="opt-btn" data-type="llm">LLM-Assisted</button>
         </div>
         <div class="difficulty-picker" hidden>
@@ -353,6 +352,7 @@
             <option value="3" selected>3 — Medium</option>
             <option value="4">4 — Hard</option>
             <option value="5">5 — Expert</option>
+            <option value="6">6 — Grandmaster (Stockfish)</option>
           </select>
         </div>
         <div class="llm-config" hidden>
@@ -370,7 +370,6 @@
         <div class="controller-options">
           <button class="opt-btn selected" data-type="human">Human</button>
           <button class="opt-btn" data-type="normal">Normal AI</button>
-          <button class="opt-btn" data-type="grandmaster">Grandmaster</button>
           <button class="opt-btn" data-type="llm">LLM-Assisted</button>
         </div>
         <div class="difficulty-picker" hidden>
@@ -381,6 +380,7 @@
             <option value="3" selected>3 — Medium</option>
             <option value="4">4 — Hard</option>
             <option value="5">5 — Expert</option>
+            <option value="6">6 — Grandmaster (Stockfish)</option>
           </select>
         </div>
         <div class="llm-config" hidden>
@@ -1742,9 +1742,14 @@ function requestMove(fen, difficulty) {
   const SIDE_HINTS = {
     human: 'Makes moves via the board UI.',
     normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
-    grandmaster: 'Stockfish. Full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
+    grandmaster: 'Level 6 = Stockfish, full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
     llm: 'Calls an OpenAI-compatible chat endpoint and plays whichever legal move it picks.',
   };
+  // Difficulty 6 is the Grandmaster sentinel: it routes the controller to
+  // Stockfish. Kept as a Normal-AI dropdown option to simplify the setup
+  // screen (3 controller choices instead of 4). The ControllerConfig
+  // contract is unchanged — level 6 builds a { type: 'grandmaster' } entry.
+  const GM_LEVEL = 6;
   // Shared by click handling and restore-from-storage so both take the same path.
   function selectSideType(cfgEl, type) {
     cfgEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
@@ -1752,7 +1757,17 @@ function requestMove(fen, difficulty) {
     if (btn) btn.classList.add('selected');
     cfgEl.querySelector('.difficulty-picker').hidden = type !== 'normal';
     cfgEl.querySelector('.llm-config').hidden = type !== 'llm';
-    cfgEl.querySelector('.side-hint').textContent = SIDE_HINTS[type] || '';
+    updateSideHint(cfgEl, type);
+  }
+  // Hint reflects the chosen controller, and — for Normal — the selected
+  // difficulty (level 6 swaps in the Stockfish/file:// note).
+  function updateSideHint(cfgEl, type) {
+    if (type === 'normal') {
+      const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
+      cfgEl.querySelector('.side-hint').textContent = diff === GM_LEVEL ? SIDE_HINTS.grandmaster : SIDE_HINTS.normal;
+    } else {
+      cfgEl.querySelector('.side-hint').textContent = SIDE_HINTS[type] || '';
+    }
   }
 
   document.querySelectorAll('.side-config').forEach(cfgEl => {
@@ -1760,6 +1775,9 @@ function requestMove(fen, difficulty) {
       btn.addEventListener('click', () => {
         selectSideType(cfgEl, btn.dataset.type);
       });
+    });
+    cfgEl.querySelector('.difficulty-select').addEventListener('change', () => {
+      if (cfgEl.querySelector('.opt-btn.selected').dataset.type === 'normal') updateSideHint(cfgEl, 'normal');
     });
   });
 
@@ -1770,8 +1788,16 @@ function requestMove(fen, difficulty) {
     document.querySelectorAll('.side-config').forEach(cfgEl => {
       const entry = saved[cfgEl.dataset.side];
       if (!entry) return;
-      selectSideType(cfgEl, entry.type || 'human');
-      if (entry.difficulty != null) cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
+      // Grandmaster is stored as type 'grandmaster' but exposed in the UI as
+      // Normal AI difficulty 6; reflect that on restore.
+      const uiType = entry.type === 'grandmaster' ? 'normal' : (entry.type || 'human');
+      selectSideType(cfgEl, uiType);
+      if (entry.type === 'grandmaster') {
+        cfgEl.querySelector('.difficulty-select').value = String(GM_LEVEL);
+      } else if (entry.difficulty != null) {
+        cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
+      }
+      updateSideHint(cfgEl, uiType);   // difficulty value set above may change the hint
       if (entry.apiBase != null) cfgEl.querySelector('.llm-api-base').value = entry.apiBase;
       if (entry.apiKey != null) cfgEl.querySelector('.llm-api-key').value = entry.apiKey;
       if (entry.model != null) cfgEl.querySelector('.llm-model').value = entry.model;
@@ -1786,12 +1812,16 @@ function requestMove(fen, difficulty) {
       const selected = cfgEl.querySelector('.opt-btn.selected');
       const type = selected ? selected.dataset.type : 'human';
       const entry = { type };
-      if (type === 'grandmaster' && location.protocol === 'file:') {
-        const msg = side[0].toUpperCase() + side.slice(1) + ': Grandmaster cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.';
-        errors.push(msg);
-      }
       if (type === 'normal') {
-        entry.difficulty = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
+        const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
+        if (diff === GM_LEVEL) {            // 6 = Grandmaster (Stockfish)
+          entry.type = 'grandmaster';
+          if (location.protocol === 'file:') {
+            errors.push(side[0].toUpperCase() + side.slice(1) + ': Grandmaster (difficulty 6) cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.');
+          }
+        } else {
+          entry.difficulty = diff;
+        }
       } else if (type === 'llm') {
         entry.apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
         entry.apiKey = cfgEl.querySelector('.llm-api-key').value.trim();

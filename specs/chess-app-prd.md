@@ -17,7 +17,7 @@ These two goals are complementary, not competing: transparency features that sat
 
 ### 2.1 Setup flow
 1. User lands on a **Setup screen**: two side-by-side controller pickers, one per color (White / Black).
-2. Each picker offers: Human, Normal AI (→ reveals a Difficulty sub-picker, 1–5 per spec FR-3.2), Grandmaster AI, LLM-Assisted (→ reveals Endpoint / API key (optional) / Model fields per spec FR-9.1, independent per side).
+2. Each picker offers: Human, Normal AI (→ reveals a Difficulty sub-picker, 1–6 per spec FR-3.2 — **level 6 is Grandmaster / Stockfish**, so Grandmaster is no longer a separate top-level choice), LLM-Assisted (→ reveals Endpoint / API key (optional) / Model fields per spec FR-9.1, independent per side).
 3. A short one-line description accompanies each option so a non-technical user understands what they're choosing (see §5.1 copy).
 4. "Start Game" begins play; the board screen loads with both sides' controllers locked for that game (spec FR-2.3).
 
@@ -45,7 +45,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 
 | PRD feature | Spec ref | Notes |
 |---|---|---|
-| Controller picker (per side) | FR-2 | Human / Normal(+difficulty) / Grandmaster |
+| Controller picker (per side) | FR-2 | Human / Normal(+difficulty 1–6, where 6 = Grandmaster) / LLM-Assisted |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
 | Board + move input | FR-1, FR-5 | Click-to-move + drag-and-drop |
