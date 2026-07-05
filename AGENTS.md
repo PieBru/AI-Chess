@@ -99,13 +99,19 @@ Hand-built alpha-beta with null-move pruning, late-move reductions, a capped
 transposition table, and per-difficulty move-selection noise. Difficulty table
 (DIFFICULTY, ~line 1012):
 
-| Level | maxDepth | timeMs | noise |
+| Level | maxDepth | maxNodes | noise |
 |---|---|---|---|
-| 1 Beginner | 1 | 50 | wide-random |
-| 2 Easy | 3 | 150 | top3-random |
-| 3 Medium | 4 | 500 | gaussian-small |
-| 4 Hard | 6 | 1500 | gaussian-tiny |
-| 5 Expert | 99 | 4000 | none |
+| 1 Beginner | 1 | 5K | wide-random |
+| 2 Easy | 3 | 50K | top3-random |
+| 3 Medium | 99 | 200K | gaussian-small |
+| 4 Hard | 99 | 800K | gaussian-tiny |
+| 5 Expert | 99 | 4M | none |
+
+Node budgets (instead of wall-clock `timeMs`) ensure the same search tree
+depth on any CPU — a fast machine reaches it faster, a slow one takes
+longer, both play the same strength. A 30s safety cap prevents hangs on
+very slow hardware. See also the Grandmaster Elo-level fairness feature
+(Side hints: levels 6-9, Stockfish `UCI_LimitStrength`).
 
 **Setup-screen note:** Grandmaster (Stockfish, §4.3) is exposed in the UI as
 Normal AI **difficulty 6** — it builds a `{ type: 'grandmaster' }`

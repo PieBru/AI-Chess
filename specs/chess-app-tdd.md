@@ -121,15 +121,15 @@ Tapered evaluation, blended by a game-phase counter (sum of remaining non-pawn m
 
 ### 4.3 Difficulty parameter table (implements spec FR-3.2 / PRD §5.1)
 
-| Level | Max depth | Time budget | Pruning enabled | Move selection |
+| Level | Max depth | Node budget | Pruning enabled | Move selection |
 |---|---|---|---|---|
-| 1 | 1 | 50ms | No | Weighted random among all legal moves, biased toward reasonable ones; small chance of a randomly-selected non-top move even when a clear best move exists |
-| 2 | 3 | 150ms | No | Random among top 3 by eval |
-| 3 | 4 | 500ms | Yes | Best move + small Gaussian eval noise before comparison |
-| 4 | 6 | 1500ms | Yes | Best move, minimal noise |
-| 5 | ∞ (iterative) | 3000–5000ms | Yes (full) | Best move only |
+| 1 | 1 | 5K | No | Weighted random among all legal moves, biased toward reasonable ones; small chance of a randomly-selected non-top move even when a clear best move exists |
+| 2 | 3 | 50K | No | Random among top 3 by eval |
+| 3 | 99 | 200K | Yes | Best move + small Gaussian eval noise before comparison |
+| 4 | 99 | 800K | Yes | Best move, minimal noise |
+| 5 | ∞ (iterative) | 4M | Yes (full) | Best move only |
 
-Exact constants are implementation-tunable; this table is the contract the difficulty selector must honor.
+Node budgets (not wall-clock time) keep engine strength **hardware-independent**: the same `maxNodes` explores the same tree regardless of CPU speed. A 30 s wall-clock safety cap prevents hangs on slow machines.
 
 ### 4.4 Worker responsibilities
 - Owns board state reconstruction from a FEN string per request (stateless between calls — simplest correctness story, avoids state-drift bugs between main thread and worker).
@@ -169,8 +169,9 @@ Rationale: the single-file app must work when simply opened as a local file or s
 Consequence: Grandmaster strength is bounded by single-thread NPS. This is still far beyond the Normal engine and beyond human-Kasparov-level play at reasonable think times (spec context), so it does not compromise the product goal — flagged here so it isn't silently forgotten.
 
 ### 5.3 UCI protocol wrapper
+### 5.3 UCI protocol wrapper
 - On worker init: send `uci`, wait for `uciok`; send `isready`, wait for `readyok`.
-- Per move request: send `position fen <startFen> moves <uciMoves>` (both supplied directly in the request, built by the engine manager from the rules-engine `Move` history so Stockfish carries full repetition context — required by spec §7.3; a bare current FEN would blind it to threefold-repetition eval/draws), then `go movetime <N>` (fixed internal constant, not user-exposed per PRD scope) or `go depth <N>` as a fallback if movetime-based timing proves inconsistent across browsers.
+- Per move request: send UCI options (`UCI_LimitStrength true` + `UCI_Elo <N>` when a non-null Elo is configured; FR-6.6 fairness), then `position fen <startFen> moves <uciMoves>` (both supplied directly in the request, built by the engine manager from the rules-engine `Move` history so Stockfish carries full repetition context — required by spec §7.3; a bare current FEN would blind it to threefold-repetition eval/draws), then `go movetime 3000`.
 - Parse `info depth <d> score cp <cp> ...` lines during search to extract the live eval for the thinking indicator (PRD §5.3) and to obtain `bestEvalCp` for move-quality tagging (PRD §5.4) — Stockfish reports its own top-line eval as it deepens, so no extra search call is needed to get this number.
 - Parse `bestmove <uci-move> [ponder <move>]` as the terminal response.
 - UCI move strings (e.g. `e2e4`, `e7e8q`) are converted to the internal `Move` shape via the rules engine's own move generator (find the legal move matching that from/to/promotion) rather than trusted blindly — this reuses the legality filter as a safety net against any parser edge case.

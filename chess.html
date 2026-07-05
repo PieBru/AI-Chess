@@ -375,7 +375,10 @@
             <option value="3" selected>3 — Medium</option>
             <option value="4">4 — Hard</option>
             <option value="5">5 — Expert</option>
-            <option value="6">6 — Grandmaster (Stockfish)</option>
+            <option value="6">6 — Grandmaster (full)</option>
+            <option value="7">7 — Grandmaster (Elo 1350)</option>
+            <option value="8">8 — Grandmaster (Elo 1800)</option>
+            <option value="9">9 — Grandmaster (Elo 2200)</option>
           </select>
         </div>
         <div class="llm-config" hidden>
@@ -403,7 +406,10 @@
             <option value="3" selected>3 — Medium</option>
             <option value="4">4 — Hard</option>
             <option value="5">5 — Expert</option>
-            <option value="6">6 — Grandmaster (Stockfish)</option>
+            <option value="6">6 — Grandmaster (full)</option>
+            <option value="7">7 — Grandmaster (Elo 1350)</option>
+            <option value="8">8 — Grandmaster (Elo 1800)</option>
+            <option value="9">9 — Grandmaster (Elo 2200)</option>
           </select>
         </div>
         <div class="llm-config" hidden>
@@ -1106,6 +1112,7 @@ function orderMoves(moves, ttMove) {
 
 // ---- Quiescence search ------------------------------------------------
 function quiescence(state, alpha, beta, color, deadline) {
+  nodesSearched++;
   const standPat = color * evaluate(state);
   if (standPat >= beta) return beta;
   if (standPat > alpha) alpha = standPat;
@@ -1124,6 +1131,7 @@ function quiescence(state, alpha, beta, color, deadline) {
 
 // ---- Alpha-beta negamax with a simple transposition table --------------
 function search(state, depth, alpha, beta, color, deadline, tt, killers, ply) {
+  nodesSearched++;
   if (Date.now() > deadline) return { score: color * evaluate(state), move: null, timedOut: true };
 
   const key = R.toFEN(state);
@@ -1164,12 +1172,17 @@ function search(state, depth, alpha, beta, color, deadline, tt, killers, ply) {
 }
 
 // ---- Difficulty configuration (implements TDD §4.3) ---------------------
+// Node-budget based (not wall-clock) so engine strength is consistent
+// across hardware: same maxNodes = same explored tree = same quality of
+// play on any CPU, with a 30s safety deadline to prevent hangs on slow
+// machines. See also AGENTS.md B #3 fairness discussion.
+let nodesSearched = 0;
 const DIFFICULTY = {
-  1: { maxDepth: 1, timeMs: 50,   noise: 'wide-random' },
-  2: { maxDepth: 3, timeMs: 150,  noise: 'top3-random' },
-  3: { maxDepth: 4, timeMs: 500,  noise: 'gaussian-small' },
-  4: { maxDepth: 6, timeMs: 1500, noise: 'gaussian-tiny' },
-  5: { maxDepth: 99, timeMs: 4000, noise: 'none' },
+  1: { maxDepth: 1, maxNodes: 5000,    noise: 'wide-random' },
+  2: { maxDepth: 3, maxNodes: 50000,   noise: 'top3-random' },
+  3: { maxDepth: 99, maxNodes: 200000,  noise: 'gaussian-small' },
+  4: { maxDepth: 99, maxNodes: 800000,  noise: 'gaussian-tiny' },
+  5: { maxDepth: 99, maxNodes: 4000000, noise: 'none' },
 };
 
 function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -1180,7 +1193,8 @@ function requestMove(fen, difficulty) {
   const state = R.fromFEN(fen);
   const color = state.turn;
   const cfg = DIFFICULTY[difficulty] || DIFFICULTY[3];
-  const deadline = Date.now() + cfg.timeMs;
+  nodesSearched = 0;
+  const deadline = Date.now() + 30000;    // absolute wall-clock safety cap (node budget is the primary limiter)
   const tt = new Map();
 
   let best = null;
@@ -1189,6 +1203,7 @@ function requestMove(fen, difficulty) {
     const result = search(state, depth, -INF, INF, color, deadline, tt, null, 0);
     if (result.timedOut && depth > 1) break;
     if (result.move) { best = result; depthReached = depth; }
+    if (nodesSearched >= cfg.maxNodes) break;
     if (Date.now() > deadline) break;
     if (Math.abs(result.score) > MATE - 1000) break; // found forced mate, no need to go deeper
   }
@@ -1399,12 +1414,18 @@ function requestMove(fen, difficulty) {
     return gmReadyPromise;
   }
 
-  function requestGrandmasterMove(fen) {
+  function requestGrandmasterMove(fen, elo) {
     return initGrandmaster().then(worker => {
       return new Promise((resolve) => {
         let liveEvalCp = 0;
         const state = Rules.fromFEN(fen);
         function toWhitePerspective(cpFromMover) { return state.turn === Rules.WHITE ? cpFromMover : -cpFromMover; }
+        // Send UCI options before every request so they take effect even
+        // when the worker is reused across games (different Elo settings).
+        if (elo != null) {
+          worker.postMessage('setoption name UCI_LimitStrength value true');
+          worker.postMessage('setoption name UCI_Elo value ' + elo);
+        }
         function handler(e) {
           const line = typeof e.data === 'string' ? e.data : (e.data && e.data.data) || '';
           const cpMatch = line.match(/score cp (-?\d+)/);
@@ -1531,7 +1552,7 @@ function requestMove(fen, difficulty) {
     if (controllerConfig.type === 'llm') {
       return requestLLMMove(controllerConfig, fen);
     }
-    const r = await requestGrandmasterMove(fen);
+    const r = await requestGrandmasterMove(fen, controllerConfig.elo);
     const move = uciToMove(gameState, r.uciMove);
     if (!move) throw new Error('Grandmaster returned an unparseable move: ' + r.uciMove);
     return { move, evalCp: r.evalCp, bestEvalCp: r.bestEvalCp };
@@ -1768,11 +1789,13 @@ function requestMove(fen, difficulty) {
     grandmaster: 'Level 6 = Stockfish, full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
     llm: 'Calls an OpenAI-compatible chat endpoint. If this page is served over HTTPS (e.g. GitHub Pages), the endpoint must also be HTTPS — browsers block mixed-content fetch to an HTTP LAN server. Serve this app locally (via python3 -m http.server) to reach HTTP-only LLM servers.',
   };
-  // Difficulty 6 is the Grandmaster sentinel: it routes the controller to
-  // Stockfish. Kept as a Normal-AI dropdown option to simplify the setup
-  // screen (3 controller choices instead of 4). The ControllerConfig
-  // contract is unchanged — level 6 builds a { type: 'grandmaster' } entry.
+  // Difficulty 6 is the first Grandmaster level; difficulties 6-9 map to
+  // Stockfish UCI_Elo levels (null = full strength). Kept as a Normal-AI
+  // dropdown option to simplify the setup screen (3 controller choices
+  // instead of 4). The ControllerConfig contract is unchanged — levels
+  // 6-9 build a { type: 'grandmaster' } entry with an elo field.
   const GM_LEVEL = 6;
+  const GRANDMASTER_ELO_LEVELS = { 6: null, 7: 1350, 8: 1800, 9: 2200 };
   // Shared by click handling and restore-from-storage so both take the same path.
   function selectSideType(cfgEl, type) {
     cfgEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
@@ -1783,11 +1806,16 @@ function requestMove(fen, difficulty) {
     updateSideHint(cfgEl, type);
   }
   // Hint reflects the chosen controller, and — for Normal — the selected
-  // difficulty (level 6 swaps in the Stockfish/file:// note).
+  // difficulty (levels 6+ = Grandmaster variants).
   function updateSideHint(cfgEl, type) {
     if (type === 'normal') {
       const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
-      cfgEl.querySelector('.side-hint').textContent = diff === GM_LEVEL ? SIDE_HINTS.grandmaster : SIDE_HINTS.normal;
+      if (diff >= GM_LEVEL) {
+        const elo = GRANDMASTER_ELO_LEVELS[diff];
+        cfgEl.querySelector('.side-hint').textContent = elo != null ? 'Stockfish limited to Elo ' + elo + ' via UCI_LimitStrength.' : SIDE_HINTS.grandmaster;
+      } else {
+        cfgEl.querySelector('.side-hint').textContent = SIDE_HINTS.normal;
+      }
     } else {
       cfgEl.querySelector('.side-hint').textContent = SIDE_HINTS[type] || '';
     }
@@ -1816,7 +1844,7 @@ function requestMove(fen, difficulty) {
       const uiType = entry.type === 'grandmaster' ? 'normal' : (entry.type || 'human');
       selectSideType(cfgEl, uiType);
       if (entry.type === 'grandmaster') {
-        cfgEl.querySelector('.difficulty-select').value = String(GM_LEVEL);
+        cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty || GM_LEVEL);
       } else if (entry.difficulty != null) {
         cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
       }
@@ -1837,8 +1865,10 @@ function requestMove(fen, difficulty) {
       const entry = { type };
       if (type === 'normal') {
         const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
-        if (diff === GM_LEVEL) {            // 6 = Grandmaster (Stockfish)
+        if (diff >= GM_LEVEL) {            // 6+ = Grandmaster (full or Elo-limited)
           entry.type = 'grandmaster';
+          entry.difficulty = diff;
+          entry.elo = GRANDMASTER_ELO_LEVELS[diff];
           if (location.protocol === 'file:') {
             errors.push(side[0].toUpperCase() + side.slice(1) + ': Grandmaster (difficulty 6) cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.');
           }

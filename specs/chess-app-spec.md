@@ -56,7 +56,7 @@ There is a single user-facing configuration surface: **for each color (White, Bl
 |---|---|
 | Human | Moves are entered via the board UI (click or drag) |
 | Normal AI | Local custom engine; requires a **Difficulty** sub-selection |
-| Grandmaster AI | Stockfish WASM; no difficulty selection (max strength) |
+| Grandmaster AI | Stockfish WASM; selectable via Normal AI difficulty 6–9 (full strength or UCI_Elo-limited) |
 | LLM-Assisted | Calls a user-configured OpenAI-compatible chat endpoint per move; requires **Endpoint / API key (optional) / Model** sub-selection |
 
 All Human/AI combinations must be supported without special-casing in the rules engine (LLM-Assisted counts as an AI tier):
@@ -91,9 +91,12 @@ All Human/AI combinations must be supported without special-casing in the rules 
   | 3 — Medium | ~4 ply / ~500ms | Best move, small eval noise | Club player |
   | 4 — Hard | ~6 ply / ~1.5s | Best move, minimal noise | Strong club player |
   | 5 — Expert | full iterative deepening / ~3–5s budget | Best move only | Upper limit of this engine's honest strength |
-  | 6 — Grandmaster | (routes to Stockfish, §4.3) | Best move only (Stockfish NNUE) | Superhuman |
+  | 6 — Grandmaster full | Stockfish NNUE | Best move only (Stockfish) | Full strength |
+  | 7 — Grandmaster (Elo 1350) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=1350 | Best move only (Elo-limited Stockfish) | ~1350 |
+  | 8 — Grandmaster (Elo 1800) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=1800 | Best move only (Elo-limited Stockfish) | ~1800 |
+  | 9 — Grandmaster (Elo 2200) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=2200 | Best move only (Elo-limited Stockfish) | ~2200 |
 
-  Level 6 is a **UI sentinel**: the setup screen exposes Grandmaster as Normal AI's 6th difficulty option (PRD §2.1) to keep the controller picker to three choices. Selecting it builds a `{ type: 'grandmaster' }` ControllerConfig (no `difficulty` field) — the contract and engine dispatch are unchanged; levels 1–5 remain the Normal engine's own depths.
+  Levels 6–9 route to Grandmaster (`type: 'grandmaster'` in ControllerConfig) with an optional `elo` field. The Normal AI difficulty picker exposes them (PRD §2.1) to keep the controller picker to three choices. Levels 1–5 remain the Normal engine's own depths.
 
   Exact ELO targets are a PRD/TDD tuning concern; this table constrains *mechanism* (how difficulty is achieved), not exact numbers.
 - FR-3.3 The Normal engine must never crash or stall the worker on any legal position, including positions with very few legal moves (forced sequences) or none (must correctly report game-over rather than search).
@@ -135,6 +138,12 @@ All Human/AI combinations must be supported without special-casing in the rules 
   controller types; engines rarely flag (their think time is small relative
   to a minutes-long budget), so in practice it constrains humans and slow
   LLMs. Selection persists across sessions.
+- FR-6.7 Cross-hardware fairness: Normal AI uses node budgets (not wall-clock
+  time — see TDD §4.3) so the same difficulty level searches the same tree
+  on any CPU. Grandmaster (Stockfish) exposes selectable Elo levels via
+  `UCI_LimitStrength` + `UCI_Elo` (difficulty 7–9, levels below full
+  strength at 6), making Elo-limited Stockfish play the same on fast and
+  slow machines alike.
 
 ### FR-7. Game status & notation
 - FR-7.1 Persistent status line reflecting game state: whose turn, check, checkmate, stalemate, draw (with reason).
