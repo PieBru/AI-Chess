@@ -124,10 +124,21 @@ All Human/AI combinations must be supported without special-casing in the rules 
   discard an in-progress game with moves, OK saves it as a PGN file first
   (FR-8.2) then proceeds, Cancel keeps playing. Resign only confirms (it
   completes the game, which can then be saved from the summary).
+- FR-6.6 Optional chess clock (FIDE-style): a selectable time control at
+  setup — Off (default) / Bullet 1+0 / Blitz 3+2 / Rapid 10+5 / Classical
+  30+0 — gives each side a total time budget plus a per-move increment. The
+  side-to-move's clock runs while its move is being decided (human
+  deliberation or engine think); the AI-vs-AI spectator pacing delay does
+  NOT count (that is viewing time, not thinking time). On each completed
+  move the mover's clock gains the increment. A clock reaching zero ends
+  the game as a loss on time for that side (FR-7.2). Applies to all
+  controller types; engines rarely flag (their think time is small relative
+  to a minutes-long budget), so in practice it constrains humans and slow
+  LLMs. Selection persists across sessions.
 
 ### FR-7. Game status & notation
 - FR-7.1 Persistent status line reflecting game state: whose turn, check, checkmate, stalemate, draw (with reason).
-- FR-7.2 On game end, display the result (1-0, 0-1, ½-½) and reason.
+- FR-7.2 On game end, display the result (1-0, 0-1, ½-½) and reason. Reasons include checkmate, stalemate, draw (threefold/fifty-move/insufficient material/agreement), resignation, and — when the chess clock is enabled (FR-6.6) — loss on time.
 
 ### FR-8. Persistence
 - FR-8.1 No *automatic* persistence of game state in v1: refreshing the page

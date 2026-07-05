@@ -299,8 +299,9 @@ map of the open blockers (full detail in Appendix B):
    position only; loaded games don't resume engine play.
 2. **LLM single hint** — needs its own LLM config (humans have no endpoint
    today) + a definition of the hint budget.
-3. **Turn timer** — adds a new game-over reason (time forfeit); fairness
-   differs per controller type.
+3. ~~**Turn timer**~~ — **shipped (2026-07-05)** as spec FR-6.6: FIDE-style
+   per-side total clock + increment (the faithful model, not the per-turn
+   cap); loss-on-time game-over reason added.
 4. **Per-side language (EN/IT)** — **most open UX**: per-side *UI* language
    (two players, one screen?) vs commentary vs announcements.
 5. **AI commentary + multilingual TTS** — which LLM, which TTS engine,
@@ -347,16 +348,20 @@ See Tier 2 above for the quick map of open decisions per item.
    endpoint configured, so the hint needs its own LLM config independent of the
    opponent's controller.
 
-3. **Turn timer**, configurable, **applying to AI and LLM players too** — so a
-   strong-but-slow engine/LLM can't simply out-think a weaker-but-faster one.
-   - *Hook:* wrap `requestAIMove()` in `Promise.race` with a wall-clock timeout;
-   on expiry either forfeit the move or force a quick fallback move.
-   - *Decision needed:* this adds a **new game-over reason (time forfeit)** —
-   `finishGame` and the result banner gain a loss-on-time case. Also note
-   engines already have internal budgets (Normal `timeMs`, Stockfish
-   `movetime`, LLM = unbounded network latency); the turn timer is a
-   wall-clock cap *above* those, with different fairness implications per
-   controller type.
+3. ~~**Turn timer**~~ — **Shipped (2026-07-05) as the chess clock (spec
+   FR-6.6 / PRD §2.1).** Implemented the faithful FIDE-style per-side total
+   clock + per-move increment (Off / Bullet 1+0 / Blitz 3+2 / Rapid 10+5 /
+   Classical 30+0, default Off) rather than the simple per-turn wall-clock
+   cap sketched below — a per-turn cap isn't how chess works, and the
+   secondary goal is partly to mirror real play. The side-to-move's clock
+   runs during its move (spectator pacing delay excluded); zero = loss on
+   time (new game-over reason). ponytail simplification kept: no
+   insufficient-mating-material-on-flagfall draw rule.
+   - *(Original sketch, retained for context: wrap `requestAIMove()` in
+   `Promise.race` with a wall-clock timeout; on expiry forfeit the move.)
+   That per-turn-cap variant remains a possible future addition if a
+   hard "no single move may exceed N seconds" guard is ever wanted on top
+   of the total clock.*
 
 4. **Per-opponent language selection** (English / Italian, extensible) — each
    side picks its own language.

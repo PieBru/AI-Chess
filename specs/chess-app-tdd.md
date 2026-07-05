@@ -231,6 +231,8 @@ loop:
 
 All applied moves — human or AI — pass through the same rules-engine validation function before touching `GameState`. This is a deliberate defensive measure: it means a bug in either AI worker can never corrupt the game (spec NFR-7.2), since an illegal move returned by a worker would simply be rejected and treated as a worker error.
 
+**Chess clock (FR-6.6):** when a time control is armed, each side carries a remaining-ms budget and the active side's clock is started at the top of `playTurn` (for the side to move) and stopped when the move is applied; the per-move increment is then added to the mover's budget. The spectator pacing delay is intentionally **outside** the start/stop window, so it does not consume either clock (it is viewing time, not thinking time). A single 100 ms `setInterval` recomputes the live remaining for display and triggers `finishGame({result, reason:'lost on time'})` the moment a side's budget hits zero — even mid-think (an in-flight worker result is then discarded via the `gameOver` guard). Checkmate/stalemate/draw detected at the loop top take precedence over a simultaneous flag. ponytail simplification: no FIDE "opponent lacks mating material → draw" arbiter rule on flagfall.
+
 **Pause / Stop (FR-6.4):** both act at the game-loop level on the next iteration boundary. *Pause* cancels the pending `spectatorSpeed` pacing delay and holds before requesting the next AI move (Resume clears it); *Stop* sends `{type:'stop'}` to any in-flight worker search and ends the game. An already-in-flight search is bounded by its own time/depth budget (§4.3 / §5.3), so worst case the current move completes within budget before the loop halts — no unbounded blocking.
 
 ## 9. Performance considerations

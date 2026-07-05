@@ -120,6 +120,8 @@
     padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: .95rem;
   }
   #start-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .timecontrol-label { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 14px; font-size: .85rem; color: var(--text-dim); }
+  .timecontrol-label select { padding: 6px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: .85rem; }
   .error-msg { color: var(--danger); font-size: .85rem; margin-top: 10px; }
   .error-msg[hidden] { display: none; }
 
@@ -239,6 +241,17 @@
   }
   #status-line { font-weight: 600; }
   #status-line.check { color: var(--danger); }
+
+  /* Chess clocks (Appendix B #3): FIDE-style per-side total time + increment.
+     Default hidden; shown only when a time control is selected at setup. */
+  .clocks { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+  .clock { display: flex; justify-content: space-between; align-items: baseline;
+           padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px;
+           background: var(--panel-2); }
+  .clock-side { font-size: .75rem; color: var(--text-dim); font-family: var(--font-body); }
+  .clock-time { font-family: var(--font-mono); font-size: 1.45rem; font-weight: 700; letter-spacing: 1px; }
+  .clock.active { border-color: var(--brass); background: rgba(201,162,75,.12); }
+  .clock.low .clock-time { color: var(--danger); }   /* < 10 s: urgency */
   #move-history {
     list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
     font-family: var(--font-mono); font-size: .82rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
@@ -404,6 +417,15 @@
         <p class="hint side-hint">Makes moves via the board UI.</p>
       </div>
     </div>
+    <label class="timecontrol-label">Time control
+      <select id="timecontrol-select">
+        <option value="off" selected>Off</option>
+        <option value="bullet">Bullet (1+0)</option>
+        <option value="blitz">Blitz (3+2)</option>
+        <option value="rapid">Rapid (10+5)</option>
+        <option value="classical">Classical (30+0)</option>
+      </select>
+    </label>
     <button id="start-btn">Start Game</button>
     <p id="setup-error" class="error-msg" hidden></p>
     <p class="hint setup-links" style="margin-top:1em;font-size:0.85em">
@@ -433,6 +455,10 @@
     </div>
     <aside class="side-panel">
       <div id="status-line">White to move</div>
+      <div id="clocks" class="clocks" hidden>
+        <div class="clock" id="clock-white-row"><span class="clock-side">White</span><span class="clock-time" id="clock-white-time">—</span></div>
+        <div class="clock" id="clock-black-row"><span class="clock-side">Black</span><span class="clock-time" id="clock-black-time">—</span></div>
+      </div>
       <div id="spectator-controls" class="spectator-controls" hidden>
         <label class="speed-label">Speed
           <select id="speed-select">
@@ -1643,14 +1669,15 @@ function requestMove(fen, difficulty) {
     else if (quality === 'inaccuracy') playReaction('shocked');
   }
 
-  // ---- Preferences (sound + spectator speed) ----
+  // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
   }
+  let timeControlPref = 'off';   // setup-screen selection key, persisted
   (function restorePrefs() {
     const p = loadPrefs();
     if (!p) return;
@@ -1658,10 +1685,13 @@ function requestMove(fen, difficulty) {
     showCoords = !!p.coords;
     reactionsEnabled = !!p.reactions;
     spectatorSpeed = ['veryslow','slow','normal','fast','instant'].includes(p.speed) ? p.speed : 'normal';
+    timeControlPref = ['off','bullet','blitz','rapid','classical'].includes(p.timeControl) ? p.timeControl : 'off';
     soundToggleEl.checked = soundEnabled;
     coordsToggleEl.checked = showCoords;
     reactionsToggleEl.checked = reactionsEnabled;
     speedSelectEl.value = spectatorSpeed;
+    const tcSel = document.getElementById('timecontrol-select');
+    if (tcSel) tcSel.value = timeControlPref;
   })();
   soundToggleEl.addEventListener('change', () => {
     soundEnabled = soundToggleEl.checked;
@@ -1682,6 +1712,11 @@ function requestMove(fen, difficulty) {
   });
   speedSelectEl.addEventListener('change', () => {
     spectatorSpeed = speedSelectEl.value;
+    savePrefs();
+  });
+  const timeControlSelectEl = document.getElementById('timecontrol-select');
+  timeControlSelectEl.addEventListener('change', () => {
+    timeControlPref = timeControlSelectEl.value;
     savePrefs();
   });
 
@@ -1821,6 +1856,13 @@ function requestMove(fen, difficulty) {
     capturedByWhite = [];
     capturedByBlack = [];
     lastResult = '*';
+    // Chess clock: read the chosen time control; clocks start at full budget.
+    // playTurn() starts White's clock ticking at its top.
+    timeControl = readTimeControlFromSetup();
+    clocks = timeControl ? { white: timeControl.initialMs, black: timeControl.initialMs } : null;
+    clockActiveSide = null;
+    document.getElementById('clocks').hidden = !timeControl;
+    renderClocks();
     exitReplayMode();
     pauseBtn.textContent = 'Pause';
     document.getElementById('setup-screen').hidden = true;
@@ -2288,6 +2330,10 @@ function requestMove(fen, difficulty) {
   });
 
   function playHumanMove(move) {
+    const moverColor = gameState.turn;   // captured before applyMove flips it
+    clockStop();   // freeze the human's clock, then add the per-move increment
+    if (timeControl) clocks[clockSideKey(moverColor)] += timeControl.incrementMs;
+    renderClocks();
     const legal = Rules.genLegalMoves(gameState);
     const san = Rules.toSAN(gameState, move, legal);
     gameState = Rules.applyMove(gameState, move);
@@ -2334,6 +2380,83 @@ function requestMove(fen, difficulty) {
   // since play then naturally paces on that human's own moves.
   const SPEED_DELAYS = { veryslow: 12000, slow: 9000, normal: 7000, fast: 2500, instant: 0 };   // ms between AI-vs-AI moves (additive on top of engine think time)
 
+  // ---- Chess clock (Appendix B #3) ----
+  // FIDE-style per-side TOTAL time budget + per-move increment (like a real
+  // chess clock), not a per-turn cap. The side-to-move's clock runs while
+  // its move is being decided (human deliberation or engine think); the
+  // spectator pacing delay does NOT count (that is viewing time, not
+  // thinking time). A clock hitting zero = loss on time (flagfall).
+  // ponytail: no "opponent has insufficient material to mate -> draw"
+  // arbiter rule; simple loss on time. Add Rules.matingMaterial? if needed.
+  const TIME_CONTROLS = {
+    off:        null,
+    bullet:     { initialMs:    60000, incrementMs: 0    },   // 1+0
+    blitz:      { initialMs:   180000, incrementMs: 2000 },   // 3+2
+    rapid:      { initialMs:   600000, incrementMs: 5000 },   // 10+5
+    classical:  { initialMs:  1800000, incrementMs: 0    },   // 30+0
+  };
+  let timeControl = null;          // active {initialMs, incrementMs} or null
+  let clocks = null;               // {white: ms, black: ms} remaining, or null
+  let clockActiveSide = null;      // 'white' | 'black' whose clock is running, or null
+  let clockStartStamp = 0;         // performance.now() when the running segment began
+  let clockTickerId = null;        // setInterval handle for live display + flagfall
+  function clockSideKey(color) { return color === Rules.WHITE ? 'white' : 'black'; }
+  function formatClock(ms) {
+    ms = Math.max(0, ms);
+    const totalSec = Math.floor(ms / 1000);
+    const m = Math.floor(totalSec / 60), s = totalSec % 60;
+    if (totalSec < 10) return m + ':' + String(s).padStart(2, '0') + '.' + Math.floor((ms % 1000) / 100);   // tenths under 10s
+    return m + ':' + String(s).padStart(2, '0');
+  }
+  function renderClocks() {
+    if (!clocks) return;
+    for (const side of ['white', 'black']) {
+      const remaining = clockActiveSide === side ? clocks[side] - (performance.now() - clockStartStamp) : clocks[side];
+      document.getElementById('clock-' + side + '-time').textContent = formatClock(remaining);
+      const row = document.getElementById('clock-' + side + '-row');
+      row.classList.toggle('active', clockActiveSide === side);
+      row.classList.toggle('low', remaining < 10000);
+    }
+  }
+  function clockStart(color) {
+    if (!clocks) return;
+    clockStop();                       // flush any in-flight segment (defensive)
+    clockActiveSide = clockSideKey(color);
+    clockStartStamp = performance.now();
+    ensureClockTicker();
+    renderClocks();
+  }
+  function clockStop() {
+    if (!clocks || clockActiveSide == null) return;
+    clocks[clockActiveSide] -= performance.now() - clockStartStamp;
+    clockActiveSide = null;
+    renderClocks();
+  }
+  function ensureClockTicker() {
+    if (clockTickerId != null) return;
+    clockTickerId = setInterval(() => {
+      if (!clocks || gameOver || replayMode || paused || clockActiveSide == null) return;
+      const remaining = clocks[clockActiveSide] - (performance.now() - clockStartStamp);
+      if (remaining <= 0) {
+        clocks[clockActiveSide] = 0;
+        const loser = clockActiveSide;     // = side to move
+        clockActiveSide = null;
+        finishGame({ result: loser === 'white' ? '0-1' : '1-0', reason: 'lost on time' });
+        return;
+      }
+      renderClocks();
+    }, 100);
+  }
+  function stopClockTicker() {
+    if (clockTickerId != null) { clearInterval(clockTickerId); clockTickerId = null; }
+    clockActiveSide = null;
+  }
+  function readTimeControlFromSetup() {
+    const sel = document.getElementById('timecontrol-select');
+    const preset = TIME_CONTROLS[sel && sel.value];
+    return preset ? { initialMs: preset.initialMs, incrementMs: preset.incrementMs } : null;
+  }
+
   // Bumped by startGame() so an AI move still being computed for a PREVIOUS
   // game (e.g. superseded mid-thought by Rematch) can recognize it's stale
   // once its awaited call resolves, instead of applying itself to the new
@@ -2351,6 +2474,8 @@ function requestMove(fen, difficulty) {
     const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
+
+    clockStart(gameState.turn);   // side-to-move's clock now runs (human deliberation or engine think)
 
     const sideConfig = gameState.turn === Rules.WHITE ? matchConfig.white : matchConfig.black;
     if (sideConfig.type === 'human') {
@@ -2414,6 +2539,9 @@ function requestMove(fen, difficulty) {
       const legal = Rules.genLegalMoves(gameState);
       const san = Rules.toSAN(gameState, move, legal);
       const quality = classifyQuality(evalCp, bestEvalCp, gameState.turn);
+      clockStop();   // freeze the mover's clock, then add the per-move increment
+      if (timeControl) clocks[clockSideKey(gameState.turn)] += timeControl.incrementMs;
+      renderClocks();
       gameState = Rules.applyMove(gameState, move);
       lastMove = move;
       recordCapture(move);
@@ -2516,6 +2644,7 @@ function requestMove(fen, difficulty) {
     thinkingEl.hidden = true;
     spectatorControlsEl.hidden = true;
     selectedSquare = null; legalFromSelected = [];
+    stopClockTicker();   // freeze clocks at game end
     render();
     const reason = status.reason || 'game over';
     resultBanner.hidden = false;
