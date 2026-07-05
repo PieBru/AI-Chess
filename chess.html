@@ -1654,15 +1654,29 @@ function requestMove(fen, difficulty) {
   }
   // Map a move-quality tag to a crowd reaction. 'good' is silent — the crowd
   // only reacts to the notable (brilliance or errors), to avoid constant noise.
-  function playReactionForQuality(quality, move) {
+  function playReactionForQuality(quality, move, evalCp) {
     if (!reactionsEnabled || !quality) return;
-    // Spectator reactions are reserved for tactically notable moments — a
-    // capture — so a strong match (where 'best' fires almost every move)
-    // doesn't drown the game in constant applause/boo. Quiet positional
-    // moves get no crowd reaction.
-    // ponytail: capture-gate is the simplest 'earned' rule; a per-side
-    // underdog/leader factor could refine it later without changing this.
     if (!move || !move.captured) return;
+
+    // ---- Crowd enthusiasm model ----
+    // An impartial crowd grows more invested as the game deepens. The
+    // drama of a move is measured by: captured piece value (1 .. 9),
+    // the change in evaluation (swing, in pawns), and a quality premium
+    // for notable moments. A linear threshold decays with ply count so
+    // the crowd is quiet early (only queen/rook captures fire) and on
+    // edge by the endgame (any capture gets a reaction).
+    const plyCount = moveHistory.length;   // total plies so far (current already pushed)
+    const prevEval = plyCount >= 2 && typeof moveHistory[plyCount - 2]?.evalCp === 'number' ? moveHistory[plyCount - 2].evalCp : 0;
+    const swing = Math.abs(evalCp - prevEval) / 100;          // in pawns
+    const capturedVal = CAPTURE_VALUE[move.captured] || 0;     // 1 .. 9
+    const qualityBonus = quality === 'good' ? 0 : 1;           // any notable tag adds drama
+    const drama = capturedVal + swing + qualityBonus;          // total drama in pawn-equivalents
+
+    // Threshold: starts ~5 (ply 0), decays linearly to ~1 (ply 80+).
+    // wrap at min 1 so routine pawn trades in deep endgame still fire.
+    const threshold = Math.max(1, 5 - plyCount / 20);
+    if (drama < threshold) return;
+
     if (quality === 'best') playReaction('applause');
     else if (quality === 'blunder') playReaction('boo');
     else if (quality === 'mistake') playReaction('disappointment');
@@ -2551,7 +2565,7 @@ function requestMove(fen, difficulty) {
       renderCapturedTray();
       render();
       playMoveSound(move);
-      playReactionForQuality(quality, move);   // spectator reactions: only on captures (earned, not every move)
+      playReactionForQuality(quality, move, evalCp);   // spectator reactions: drama-threshold-gated capture events
     } catch (err) {
       thinkingEl.hidden = true;
       gameOver = true;
