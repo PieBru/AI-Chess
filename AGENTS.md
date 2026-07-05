@@ -231,32 +231,30 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 
 ---
 
-## Appendix A — Documented features NOT yet implemented
+## Appendix A — (formerly) deferred features — now shipped
 
-> **Read this before trusting any doc or user-facing page at face value.**
-> These six items are described in spec/PRD but **absent from `chess.html`**.
-> They are promised, not shipped. Treat the current build as a partial v0.
+> **Status (2026-07-05): all six items below are implemented in `chess.html`.**
+> This appendix previously tracked documented-but-unshipped features; they are
+> now live, so the doc-vs-code gap it warned about is closed. The spec FRs
+> (FR-5.3, FR-6.4, FR-7.2) and PRD sections (§2.3, §2.4, §5.4, §6) were never
+> downgraded, so no standing needed restoring — only this notice and the
+> PRD §8.1 sound row were updated.
 
-| # | Feature | Doc source | Code status |
+| # | Feature | Doc source | Implementation note |
 |---|---|---|---|
-| 1 | **Pause/Stop AI-vs-AI** | spec FR-6.4, PRD §2.3 | Missing — AI-vs-AI auto-plays via `playTurn()` recursion; no pause/stop controls |
-| 2 | **Spectator speed control** (Normal/Fast/Instant) | PRD §2.3, traceability table ("Speed control is new") | Missing |
-| 3 | **"Rematch" action** (same config) | PRD §2.4 | Missing — only "New game" |
-| 4 | **Rich summary panel** (per-side quality breakdown + "who played cleaner") | PRD §2.4 / §5.4 | Missing — only a one-line result banner: `Result: 1-0 (checkmate)` |
-| 5 | **Captured-piece tray** | spec FR-5.3 | Missing — `Move` objects record captures but nothing renders a tray |
-| 6 | **Sound effects + off-by-default toggle** | PRD §6, §8 ("toggle in v1") | Missing entirely |
+| 1 | **Pause/Stop AI-vs-AI** | spec FR-6.4, PRD §2.3 | Spectator-only control bar. Pause halts the loop after the in-flight move; Stop ends the game with reason "stopped by spectator" (result `*`). Generation tracking prevents a move computed for a superseded game (e.g. via Rematch) from leaking into a new one. |
+| 2 | **Spectator speed control** (Normal/Fast/Instant) | PRD §2.3 | Select inserts a 700/200/0 ms pause between AI-vs-AI moves; persisted to `localStorage`. |
+| 3 | **"Rematch" action** (same config) | PRD §2.4 | Same controllers, straight into a new game — no setup-screen detour. |
+| 4 | **Rich summary panel** | PRD §2.4 / §5.4 | Per-side quality breakdown (best/good/inaccuracy/mistake/blunder + average centipawn loss) and a "who played cleaner" verdict. Human moves are not engine-scored, so the panel says so honestly rather than treating them as perfect. |
+| 5 | **Captured-piece tray** | spec FR-5.3 | Glyphs sorted queen→pawn with a small material-advantage badge. |
+| 6 | **Sound effects + off-by-default toggle** | PRD §6, §8 | Synthesized via Web Audio (no external assets — closes PRD §8.1's "assets deferred" open item). Off by default; toggle persists locally. |
 
-**Disposition (pending product decision — build vs. defer):**
-- #1 and #5 are **spec FRs** (not PRD nice-to-haves) and are small/high-value
-  if AI-vs-AI spectating is a real use case — strongest candidates to build.
-- #3 is trivial (~5 lines).
-- #4 most directly serves the "evaluate intelligence" goal but is the most
-  code.
-- #2 and #6 are genuinely optional.
-
-Until resolved, do not describe any of #1–6 as working in docs or user pages,
-and don't write tests/claims that assume them. If you implement one, strike it
-from this appendix, restore its spec/PRD standing, and update PRD §8.1.
+**Judgment calls where docs were silent:**
+- Pause/Stop/Speed render only in true AI-vs-AI spectating (both sides
+  non-human), not in mixed human/AI games.
+- Stop records result `*` (not a win/loss), per the spectator-aborts-game case.
+- "Who played cleaner" is decided by average centipawn loss, with an honest
+  caveat when one or both sides lack engine data (human moves).
 
 ---
 
@@ -321,9 +319,10 @@ users. Each would need a spec FR + PRD/TDD section before implementation.
      dedicated commentary endpoint? (b) TTS engine choice (native vs. hosted);
      (c) profile/language selector UI; (d) **latency** — commentary per move
      adds wall-clock delay and must not block the game loop or AI-vs-AI pacing
-     (generate async, queue/decay if moves come faster than speech); (e) this
-     builds on **Appendix A #6 (sound) which isn't implemented at all yet** —
-     audio output is a missing foundation to lay first.
+     (generate async, queue/decay if moves come faster than speech); (e) the
+     audio-output foundation now exists — Appendix A #6 shipped a synthesized
+     Web Audio path with an off-by-default toggle, which TTS commentary can
+     build on.
 
 6. **Configurable LLM reasoning/thinking level**, from none up to the max the
    model allows (e.g. reasoning-effort / thinking-budget knobs, or a
@@ -370,8 +369,8 @@ users. Each would need a spec FR + PRD/TDD section before implementation.
      both against the single-file/no-fetch grain. Likely answer: synthesize
      simple tones for the milder tags and accept limited expressiveness, or
      treat sampled SFX as the one exception that fetches from a CDN (like
-     Stockfish). Also gates on Appendix A #6 (sound foundation not built yet)
-     and can share the audio-output plumbing with B #5 (TTS commentary).
+     Stockfish). The sound foundation (Appendix A #6) is now built, so this
+     can share the audio-output plumbing with B #5 (TTS commentary).
 
 When one of these is chosen for implementation: move it out of this appendix,
 write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
