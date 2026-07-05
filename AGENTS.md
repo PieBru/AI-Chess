@@ -384,9 +384,9 @@ See Tier 2 above for the quick map of open decisions per item.
      (c) profile/language selector UI; (d) **latency** — commentary per move
      adds wall-clock delay and must not block the game loop or AI-vs-AI pacing
      (generate async, queue/decay if moves come faster than speech); (e) the
-     audio-output foundation now exists — Appendix A #6 shipped a synthesized
-     Web Audio path with an off-by-default toggle, which TTS commentary can
-     build on.
+     audio-output foundation now exists — Appendix A #6 ships sampled piece
+     sounds (CC0) and Appendix B #8 ships sampled crowd reactions (Pixabay
+     License), all `HTMLAudioElement`-based, which TTS commentary can build on.
 
 6. **Configurable LLM reasoning/thinking level**, from none up to the max the
    model allows (e.g. reasoning-effort / thinking-budget knobs, or a
@@ -411,22 +411,18 @@ See Tier 2 above for the quick map of open decisions per item.
    in-progress game, with save-as-PGN before discard (wired to FR-8.2). The
    originally-open save-on-confirm branch is now live since #1 shipped.
 
-8. **Move-evaluation SFX** — play a sound keyed off the move-quality tag
-   (e.g. applause for `best`, a "Boooo" for `blunder`). Pure entertainment,
-   reinforcing the quality tags audibly for players and spectators.
-   - *Hook:* `classifyQuality` already returns the tag per move — trigger a
-     cue from the same point tags are rendered. Off-by-default toggle per
-     PRD §6 / §8 (Appendix A #6).
-   - *Decisions needed:* the **sound-source tradeoff** is the real question:
-     (a) **synthesized via native `AudioContext`** (Web Audio) — zero-
-     dependency, fits the single-file stance, but synthesized applause/boo is
-     limited in expressiveness; (b) **sampled clips** (real applause/boo) are
-     expressive but either bloat the file as base64 or require a network fetch,
-     both against the single-file/no-fetch grain. Likely answer: synthesize
-     simple tones for the milder tags and accept limited expressiveness, or
-     treat sampled SFX as the one exception that fetches from a CDN (like
-     Stockfish). The sound foundation (Appendix A #6) is now built, so this
-     can share the audio-output plumbing with B #5 (TTS commentary).
+8. **~~Move-evaluation SFX~~ — SHIPPED** (2026-07-05, then upgraded to
+   sampled 2026-07-05). Crowd reactions keyed off the move-quality tag:
+   `best`→ applause, `blunder`→ boo, `mistake`→ disappointment,
+   `inaccuracy`→ shocked, checkmate→ cheer. Off-by-default "Spectator
+   reactions" toggle (own opt-in), distinct from the move/capture sounds.
+   - *Sound source:* **sampled** real crowd reactions under the **Pixabay
+     License** (no attribution, commercial OK, GPL-3.0-compatible), embedded
+     as base64 data URIs in a `#reaction-clips-src` block (~171 KB raw /
+     ~228 KB base64 for 5 clips). The earlier synthesized Web Audio version
+     (overlapping noise-burst "claps") sounded like static and was replaced
+     after playtest feedback. No `AudioContext` remains — all audio is now
+     `HTMLAudioElement`-based.
 
 When one of these is chosen for implementation: move it out of this appendix,
 write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
