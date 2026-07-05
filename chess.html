@@ -417,8 +417,12 @@
         <p class="hint side-hint">Makes moves via the board UI.</p>
       </div>
     </div>
-    <label class="timecontrol-label">Time control
-      <select id="timecontrol-select">
+    <label class="timecontrol-label" title="Each side gets a total time budget for the whole game + a per-move increment added after each move (FIDE-style chess clock). The side-to-move's clock runs while they think; zero = loss on time.
+
+Bullet 1+0: 1 min total, no increment. Blitz 3+2: 3 min + 2 s/move. Rapid 10+5: 10 min + 5 s/move. Classical 30+0: 30 min total, no increment.
+
+Default Off = no clock.">Time control
+      <select id="timecontrol-select" title="Bullet=1min+0, Blitz=3min+2s/move, Rapid=10min+5s/move, Classical=30min+0, Off=no clock">
         <option value="off" selected>Off</option>
         <option value="bullet">Bullet (1+0)</option>
         <option value="blitz">Blitz (3+2)</option>
