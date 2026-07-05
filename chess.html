@@ -1599,15 +1599,28 @@ function requestMove(fen, difficulty) {
   // by default, unlocked by its own opt-in gesture.
   let reactionsEnabled = false;
   const REACTION_CLIPS = JSON.parse(document.getElementById('reaction-clips-src').textContent);
+  const REACTION_FADE_MS = 400;   // graceful tail so clips decay instead of cutting off
   const reactionClipEls = {};
   function playReaction(kind) {
     if (!reactionsEnabled || !REACTION_CLIPS[kind]) return;
     if (!reactionClipEls[kind]) {
       const el = new Audio(REACTION_CLIPS[kind]);
       el.preload = 'auto';
+      // Linear fade-out over the last REACTION_FADE_MS. rAF (not the coarse
+      // ~4 Hz 'timeupdate' event) gives a smooth 60 fps ramp to silence.
+      const fadeSec = REACTION_FADE_MS / 1000;
+      const tick = () => {
+        if (!el.paused && !el.ended && isFinite(el.duration) && el.duration > 0) {
+          const rem = el.duration - el.currentTime;
+          el.volume = rem < fadeSec ? Math.max(0, rem / fadeSec) : 1;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
       reactionClipEls[kind] = el;
     }
     const el = reactionClipEls[kind];
+    el.volume = 1;
     el.currentTime = 0;
     el.play().catch(() => {});   // ignore autoplay rejection pre-opt-in
   }
