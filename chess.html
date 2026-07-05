@@ -333,6 +333,7 @@
   <div class="setup-card">
     <h2>New Game</h2>
     <p class="hint">Choose who controls each side, then start.</p>
+    <p id="file-warning" class="error-msg" hidden><strong>Opened via file://</strong> — Grandmaster (Stockfish) can't load from a local file. <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>, or serve this folder over HTTP (run <code>python3 -m http.server</code> here, then open <code>http://localhost:8000/chess.html</code>). Human vs Human / Normal still work here.</p>
     <div class="side-configs">
       <div class="side-config" data-side="white">
         <h3><span class="swatch w"></span> White</h3>
@@ -393,6 +394,10 @@
     </div>
     <button id="start-btn">Start Game</button>
     <p id="setup-error" class="error-msg" hidden></p>
+    <p class="hint" style="margin-top:1em;font-size:0.85em">
+      <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>
+      · <a href="https://github.com/PieBru/AI-Chess" target="_blank" rel="noopener">Source &amp; docs on GitHub</a>
+    </p>
   </div>
 </section>
 
@@ -2402,6 +2407,12 @@ function requestMove(fen, difficulty) {
 
   // Initial idle board preview behind the setup screen.
   buildBoardDOM();
+
+  // If opened via file://, warn that Grandmaster (Stockfish Worker) won't load,
+  // and point to the hosted version / local-server workaround.
+  if (location.protocol === 'file:') {
+    document.getElementById('file-warning').hidden = false;
+  }
 })();
 </script>
 </body>
