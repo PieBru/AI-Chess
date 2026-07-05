@@ -99,6 +99,9 @@
     background: var(--panel); color: var(--text); border: 1px solid var(--line);
   }
   .hint { color: var(--text-dim); font-size: .8rem; margin: 6px 0 0; min-height: 1.2em; }
+  /* Setup-screen external links: brass (accent) so they read clearly on dark. */
+  .setup-links a { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; }
+  .setup-links a:hover { color: var(--text); }
 
   .llm-config { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
   .llm-config[hidden] { display: none; }
@@ -396,7 +399,7 @@
     </div>
     <button id="start-btn">Start Game</button>
     <p id="setup-error" class="error-msg" hidden></p>
-    <p class="hint" style="margin-top:1em;font-size:0.85em">
+    <p class="hint setup-links" style="margin-top:1em;font-size:0.85em">
       <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>
       · <a href="https://github.com/PieBru/AI-Chess" target="_blank" rel="noopener">Source &amp; docs on GitHub</a>
     </p>
