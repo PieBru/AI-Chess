@@ -243,6 +243,52 @@
   }
   .controls button:hover { border-color: var(--brass); }
 
+  /* ---- Spectator controls (AI-vs-AI only) ---- */
+  .spectator-controls {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: .8rem;
+  }
+  .spectator-controls[hidden] { display: none; }
+  .spectator-controls .speed-label {
+    display: flex; align-items: center; gap: 6px; color: var(--text-dim);
+  }
+  .spectator-controls select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 6px; font-size: .8rem;
+  }
+  .spectator-controls button {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    padding: 5px 10px; border-radius: 6px; font-size: .8rem;
+  }
+  .spectator-controls button:hover { border-color: var(--brass); }
+
+  /* ---- Captured-piece tray ---- */
+  .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: 1.05rem; }
+  .captured-row { display: flex; align-items: center; gap: 6px; }
+  .captured-label { color: var(--text-dim); font-size: .68rem; min-width: 88px; font-family: var(--font-body); }
+  .captured-pieces { flex: 1; letter-spacing: 2px; min-height: 1.3em; }
+  .material-diff {
+    color: var(--good); font-family: var(--font-mono); font-size: .78rem;
+    min-width: 1.8em; text-align: right;
+  }
+
+  /* ---- Sound toggle ---- */
+  .sound-toggle {
+    display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: .78rem;
+  }
+  .sound-toggle input { accent-color: var(--brass); }
+
+  /* ---- Rich summary panel ---- */
+  .summary-headline { font-weight: 600; margin-bottom: 8px; }
+  .summary-sides { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .summary-side { padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
+  .summary-side:last-child { border-bottom: none; padding-bottom: 0; }
+  .summary-side strong { display: block; font-size: .8rem; margin-bottom: 3px; }
+  .summary-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 3px; }
+  .summary-avgloss, .summary-empty { color: var(--text-dim); font-size: .78rem; }
+  .summary-verdict { font-weight: 600; color: var(--brass); font-size: .85rem; }
+
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: var(--danger); color: #fff; padding: 10px 18px; border-radius: 8px;
@@ -351,13 +397,38 @@
     </div>
     <aside class="side-panel">
       <div id="status-line">White to move</div>
+      <div id="spectator-controls" class="spectator-controls" hidden>
+        <label class="speed-label">Speed
+          <select id="speed-select">
+            <option value="normal">Normal</option>
+            <option value="fast">Fast</option>
+            <option value="instant">Instant</option>
+          </select>
+        </label>
+        <button id="pause-btn" type="button">Pause</button>
+        <button id="stop-btn" type="button">Stop</button>
+      </div>
+      <div id="captured-tray" class="captured-tray">
+        <div class="captured-row">
+          <span class="captured-label">White captured</span>
+          <span class="captured-pieces" id="captured-white-pieces">—</span>
+          <span class="material-diff" id="material-diff-white"></span>
+        </div>
+        <div class="captured-row">
+          <span class="captured-label">Black captured</span>
+          <span class="captured-pieces" id="captured-black-pieces">—</span>
+          <span class="material-diff" id="material-diff-black"></span>
+        </div>
+      </div>
       <ol id="move-history"></ol>
       <div class="result-banner" id="result-banner" hidden></div>
       <div class="controls">
         <button id="flip-btn">Flip board</button>
         <button id="resign-btn">Resign</button>
+        <button id="rematch-btn">Rematch</button>
         <button id="new-game-btn">New game</button>
       </div>
+      <label class="sound-toggle"><input type="checkbox" id="sound-toggle"> Sound effects</label>
     </aside>
   </div>
 </section>
@@ -1377,6 +1448,11 @@ function requestMove(fen, difficulty) {
   let boardFlipped = false;
   let gameOver = false;
   let pendingPromotion = null;
+  let paused = false;                 // AI-vs-AI auto-play suspended by spectator
+  let capturedByWhite = [];           // piece-type ints White has captured (i.e. Black's losses)
+  let capturedByBlack = [];
+  let soundEnabled = false;           // off by default, per PRD §6/§8
+  let spectatorSpeed = 'normal';      // 'normal' | 'fast' | 'instant', AI-vs-AI pacing
 
   const boardEl = document.getElementById('board');
   const statusEl = document.getElementById('status-line');
@@ -1388,6 +1464,15 @@ function requestMove(fen, difficulty) {
   const promoOverlay = document.getElementById('promo-overlay');
   const resultBanner = document.getElementById('result-banner');
   const toastEl = document.getElementById('toast');
+  const spectatorControlsEl = document.getElementById('spectator-controls');
+  const speedSelectEl = document.getElementById('speed-select');
+  const pauseBtn = document.getElementById('pause-btn');
+  const stopBtn = document.getElementById('stop-btn');
+  const capturedWhiteEl = document.getElementById('captured-white-pieces');
+  const capturedBlackEl = document.getElementById('captured-black-pieces');
+  const materialDiffWhiteEl = document.getElementById('material-diff-white');
+  const materialDiffBlackEl = document.getElementById('material-diff-black');
+  const soundToggleEl = document.getElementById('sound-toggle');
 
   function setThinkingDetail(text) { if (!thinkingEl.hidden) thinkingTextEl.textContent = text; }
 
@@ -1396,6 +1481,85 @@ function requestMove(fen, difficulty) {
     toastEl.hidden = false;
     setTimeout(() => { toastEl.hidden = true; }, 6000);
   }
+
+  function isSpectatorMode() {
+    return matchConfig.white.type !== 'human' && matchConfig.black.type !== 'human';
+  }
+
+  // ---- Sound effects (Appendix A #6) ----
+  // Synthesized via Web Audio — zero dependencies, fits the single-file
+  // stance. Off by default; only makes sound once the person opts in,
+  // and only ever runs after that opt-in gesture has unlocked the
+  // AudioContext (autoplay policies require a user gesture).
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+    }
+    return audioCtx;
+  }
+  function beep(freq, duration, type, gainVal, delay) {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const t0 = ctx.currentTime + (delay || 0);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(gainVal, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.02);
+  }
+  function playSound(kind) {
+    if (!soundEnabled) return;
+    if (kind === 'move') beep(440, 0.07, 'triangle', 0.10);
+    else if (kind === 'capture') beep(220, 0.11, 'square', 0.12);
+    else if (kind === 'check') { beep(700, 0.09, 'sawtooth', 0.11); beep(880, 0.11, 'sawtooth', 0.09, 0.08); }
+    else if (kind === 'gameover') { beep(523.25, 0.14, 'sine', 0.13); beep(659.25, 0.14, 'sine', 0.13, 0.14); beep(783.99, 0.24, 'sine', 0.13, 0.28); }
+  }
+  // Plays the right cue for a just-applied move. Called after gameState
+  // has already advanced, so Rules.gameStatus reflects the position the
+  // move produced (check/checkmate on the mover's opponent).
+  function playMoveSound(move) {
+    if (!soundEnabled) return;
+    const status = Rules.gameStatus(gameState);
+    if (status.over) return; // finishGame() plays its own cue
+    if (status.check) playSound('check');
+    else if (move.capture) playSound('capture');
+    else playSound('move');
+  }
+
+  // ---- Preferences (sound + spectator speed) ----
+  const PREFS_KEY = 'onefile-chess-prefs-v1';
+  function savePrefs() {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed })); } catch (e) {}
+  }
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
+  }
+  (function restorePrefs() {
+    const p = loadPrefs();
+    if (!p) return;
+    soundEnabled = !!p.sound;
+    spectatorSpeed = p.speed === 'fast' || p.speed === 'instant' ? p.speed : 'normal';
+    soundToggleEl.checked = soundEnabled;
+    speedSelectEl.value = spectatorSpeed;
+  })();
+  soundToggleEl.addEventListener('change', () => {
+    soundEnabled = soundToggleEl.checked;
+    savePrefs();
+    // Unlock/resume the AudioContext right on the opt-in gesture.
+    if (soundEnabled) {
+      const ctx = getAudioCtx();
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+    }
+  });
+  speedSelectEl.addEventListener('change', () => {
+    spectatorSpeed = speedSelectEl.value;
+    savePrefs();
+  });
 
   // ---- Setup screen wiring ----
   // Setup selections persist on this computer so a restart proposes the
@@ -1484,17 +1648,25 @@ function requestMove(fen, difficulty) {
   });
 
   function startGame() {
+    gameGeneration++;
     gameState = Rules.newGame();
     moveHistory = [];
     selectedSquare = null;
     legalFromSelected = [];
     lastMove = null;
     gameOver = false;
+    paused = false;
+    capturedByWhite = [];
+    capturedByBlack = [];
+    pauseBtn.textContent = 'Pause';
     document.getElementById('setup-screen').hidden = true;
     document.getElementById('game-screen').hidden = false;
     resultBanner.hidden = true;
+    resultBanner.innerHTML = '';
+    spectatorControlsEl.hidden = !isSpectatorMode();
     buildBoardDOM();
     render();
+    renderCapturedTray();
     updateEvalBar(0);
     playTurn();
   }
@@ -1502,6 +1674,11 @@ function requestMove(fen, difficulty) {
   document.getElementById('new-game-btn').addEventListener('click', () => {
     document.getElementById('game-screen').hidden = true;
     document.getElementById('setup-screen').hidden = false;
+  });
+  // Rematch (Appendix A #3): same matchConfig, straight back into a fresh
+  // game — skips the setup screen entirely.
+  document.getElementById('rematch-btn').addEventListener('click', () => {
+    startGame();
   });
   document.getElementById('flip-btn').addEventListener('click', () => {
     boardFlipped = !boardFlipped;
@@ -1512,6 +1689,32 @@ function requestMove(fen, difficulty) {
     if (gameOver) return;
     const winner = gameState.turn === Rules.WHITE ? 'Black' : 'White';
     finishGame({ result: gameState.turn === Rules.WHITE ? '0-1' : '1-0', reason: 'resignation' });
+  });
+
+  // ---- Pause/Stop AI-vs-AI (Appendix A #1) ----
+  // Only shown in spectator mode (both sides non-human). A click during an
+  // in-flight engine call can't interrupt that call, so pausing/stopping
+  // takes effect once the current move finishes computing — playTurn()
+  // checks `paused`/`gameOver` right after that point.
+  pauseBtn.addEventListener('click', () => {
+    if (gameOver) return;
+    paused = !paused;
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    if (paused) {
+      statusEl.textContent = 'Pausing — finishing the current move…';
+    } else if (thinkingEl.hidden) {
+      // The loop had actually halted (not just mid-computation) — restart
+      // it. If a move is still being computed, that in-flight playTurn()
+      // call will see `paused` is now false on its own and continue,
+      // so calling playTurn() again here would race it.
+      playTurn();
+    }
+  });
+  stopBtn.addEventListener('click', () => {
+    if (gameOver) return;
+    paused = false;
+    pauseBtn.textContent = 'Pause';
+    finishGame({ result: '*', reason: 'stopped by spectator' });
   });
 
   // ---- Board rendering ----
@@ -1686,16 +1889,58 @@ function requestMove(fen, difficulty) {
     const san = Rules.toSAN(gameState, move, legal);
     gameState = Rules.applyMove(gameState, move);
     lastMove = move;
+    recordCapture(move);
     moveHistory.push({ san, evalCp: null, bestEvalCp: null, quality: null });
     selectedSquare = null; legalFromSelected = [];
     renderHistory();
+    renderCapturedTray();
     render();
+    playMoveSound(move);
     playTurn();
   }
+
+  // ---- Captured-piece tray (Appendix A #5) ----
+  function recordCapture(move) {
+    if (!move.capture) return;
+    if (move.color === Rules.WHITE) capturedByWhite.push(move.captured);
+    else capturedByBlack.push(move.captured);
+  }
+
+  const CAPTURE_VALUE = { 1: 1, 2: 3, 3: 3, 4: 5, 5: 9, 6: 0 };
+  const CAPTURE_SORT_ORDER = [5, 4, 3, 2, 1]; // queen..pawn, conventional tray ordering
+
+  function renderCapturedTray() {
+    function piecesText(list, glyphColorSuffix) {
+      const sorted = list.slice().sort((a, b) => CAPTURE_SORT_ORDER.indexOf(a) - CAPTURE_SORT_ORDER.indexOf(b));
+      return sorted.map(t => PIECE_GLYPHS[t + glyphColorSuffix]).join(' ') || '—';
+    }
+    // White's tray shows the (black) pieces it captured, and vice versa.
+    capturedWhiteEl.textContent = piecesText(capturedByWhite, 'b');
+    capturedBlackEl.textContent = piecesText(capturedByBlack, 'w');
+
+    const whiteValue = capturedByWhite.reduce((sum, t) => sum + CAPTURE_VALUE[t], 0);
+    const blackValue = capturedByBlack.reduce((sum, t) => sum + CAPTURE_VALUE[t], 0);
+    const diff = whiteValue - blackValue;
+    materialDiffWhiteEl.textContent = diff > 0 ? '+' + diff : '';
+    materialDiffBlackEl.textContent = diff < 0 ? '+' + (-diff) : '';
+  }
+
+  // ---- Spectator speed control (Appendix A #2) ----
+  // Wall-clock pause inserted between AI-vs-AI moves so a human spectator
+  // can follow along; irrelevant (and skipped) whenever a human is playing,
+  // since play then naturally paces on that human's own moves.
+  const SPEED_DELAYS = { normal: 700, fast: 200, instant: 0 };
+
+  // Bumped by startGame() so an AI move still being computed for a PREVIOUS
+  // game (e.g. superseded mid-thought by Rematch) can recognize it's stale
+  // once its awaited call resolves, instead of applying itself to the new
+  // game in progress.
+  let gameGeneration = 0;
 
   // ---- Game loop ----
   async function playTurn() {
     if (gameOver) return;
+    const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
 
@@ -1715,6 +1960,10 @@ function requestMove(fen, difficulty) {
     try {
       result = await requestAIMove(sideConfig);
     } catch (err) {
+      // A Rematch/New Game during the awaited call above already moved on
+      // to a different game — abandon this stale attempt quietly rather
+      // than declaring the NEW game over.
+      if (myGeneration !== gameGeneration) return;
       if (sideConfig.type === 'llm') {
         // LLM calls fail for all sorts of transient reasons (rate limits,
         // network blips, an occasional unparseable reply). Rather than end
@@ -1724,8 +1973,10 @@ function requestMove(fen, difficulty) {
         showToast('LLM move failed (' + err.message + ') — used a fallback move instead.');
         try {
           const fallback = await requestNormalMove(Rules.toFEN(gameState), 3);
+          if (myGeneration !== gameGeneration) return;
           result = { move: fallback.move, evalCp: fallback.evalCp, bestEvalCp: fallback.bestEvalCp };
         } catch (fallbackErr) {
+          if (myGeneration !== gameGeneration) return;
           thinkingEl.hidden = true;
           gameOver = true;
           showToast('Fallback move also failed — start a new game to continue.');
@@ -1741,6 +1992,11 @@ function requestMove(fen, difficulty) {
       }
     }
 
+    // A Stop/Resign ended THIS game, or a Rematch/New Game already started
+    // a different one, while the engine call above was in flight — don't
+    // let a stale move sneak in either way.
+    if (myGeneration !== gameGeneration || gameOver) { thinkingEl.hidden = true; return; }
+
     try {
       const { move, evalCp, bestEvalCp } = result;
       const legal = Rules.genLegalMoves(gameState);
@@ -1748,10 +2004,13 @@ function requestMove(fen, difficulty) {
       const quality = classifyQuality(evalCp, bestEvalCp, gameState.turn);
       gameState = Rules.applyMove(gameState, move);
       lastMove = move;
+      recordCapture(move);
       moveHistory.push({ san, evalCp, bestEvalCp, quality });
       updateEvalBar(evalCp);
       renderHistory();
+      renderCapturedTray();
       render();
+      playMoveSound(move);
     } catch (err) {
       thinkingEl.hidden = true;
       gameOver = true;
@@ -1760,18 +2019,95 @@ function requestMove(fen, difficulty) {
     }
 
     thinkingEl.hidden = true;
+
+    if (paused) {
+      statusEl.textContent = 'Paused — click Resume to continue.';
+      return;
+    }
+
+    if (isSpectatorMode()) {
+      const delay = SPEED_DELAYS[spectatorSpeed] != null ? SPEED_DELAYS[spectatorSpeed] : SPEED_DELAYS.normal;
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+    }
     playTurn();
+  }
+
+  // ---- Rich summary panel (Appendix A #4) ----
+  const QUALITY_ORDER = ['best', 'good', 'inaccuracy', 'mistake', 'blunder'];
+  const QUALITY_LABELS = { best: 'best', good: 'good', inaccuracy: 'inaccuracies', mistake: 'mistakes', blunder: 'blunders' };
+
+  // Per-side breakdown from moveHistory. Quality is only ever set for
+  // engine-evaluated (non-human) moves — see playHumanMove — so a
+  // human-controlled side is reported as "no evaluation" rather than
+  // silently scored as perfect.
+  function computeSideSummary(sideKey) {
+    const isWhiteSide = sideKey === 'white';
+    const mover = isWhiteSide ? Rules.WHITE : Rules.BLACK;
+    const recs = moveHistory.filter((r, i) => (i % 2 === 0) === isWhiteSide);
+    const evaluated = recs.filter(r => r.quality);
+    const counts = {};
+    QUALITY_ORDER.forEach(t => { counts[t] = 0; });
+    let totalLoss = 0;
+    evaluated.forEach(r => {
+      counts[r.quality]++;
+      const loss = mover === Rules.WHITE ? (r.bestEvalCp - r.evalCp) : (r.evalCp - r.bestEvalCp);
+      totalLoss += Math.max(0, loss);
+    });
+    return {
+      plies: recs.length,
+      evaluatedPlies: evaluated.length,
+      counts,
+      avgLoss: evaluated.length ? totalLoss / evaluated.length : null,
+      isHuman: matchConfig[sideKey].type === 'human',
+    };
+  }
+
+  function summarySideBlock(label, s) {
+    if (s.plies === 0) {
+      return '<div class="summary-side"><strong>' + label + '</strong><div class="summary-empty">No moves played.</div></div>';
+    }
+    if (s.evaluatedPlies === 0) {
+      const why = s.isHuman ? 'human-played — no engine evaluation.' : 'no evaluation available.';
+      return '<div class="summary-side"><strong>' + label + '</strong><div class="summary-empty">' + why + '</div></div>';
+    }
+    const tagsHtml = QUALITY_ORDER
+      .filter(t => s.counts[t] > 0)
+      .map(t => '<span class="quality-tag quality-' + t + '">' + s.counts[t] + ' ' + QUALITY_LABELS[t] + '</span>')
+      .join(' ');
+    const coverage = s.evaluatedPlies < s.plies ? ' (' + s.evaluatedPlies + '/' + s.plies + ' moves evaluated)' : '';
+    return '<div class="summary-side"><strong>' + label + '</strong><div class="summary-tags">' + tagsHtml +
+      '</div><div class="summary-avgloss">Avg. loss: ' + s.avgLoss.toFixed(0) + ' cp' + coverage + '</div></div>';
+  }
+
+  function summaryVerdict(white, black) {
+    if (white.avgLoss == null && black.avgLoss == null) return 'No engine evaluation available to compare.';
+    if (white.avgLoss == null || black.avgLoss == null) return 'Only one side has engine-evaluated moves — not a fair comparison.';
+    if (Math.abs(white.avgLoss - black.avgLoss) < 1) return 'Both sides played about equally cleanly.';
+    return (white.avgLoss < black.avgLoss ? 'White' : 'Black') + ' played the cleaner game.';
+  }
+
+  function renderSummary(status, reason) {
+    const white = computeSideSummary('white');
+    const black = computeSideSummary('black');
+    resultBanner.innerHTML =
+      '<div class="summary-headline">Result: ' + status.result + ' (' + reason + ')</div>' +
+      '<div class="summary-sides">' + summarySideBlock('White', white) + summarySideBlock('Black', black) + '</div>' +
+      '<div class="summary-verdict">' + summaryVerdict(white, black) + '</div>';
   }
 
   function finishGame(status) {
     gameOver = true;
+    paused = false;
+    pauseBtn.textContent = 'Pause';
     thinkingEl.hidden = true;
+    spectatorControlsEl.hidden = true;
     selectedSquare = null; legalFromSelected = [];
     render();
     const reason = status.reason || 'game over';
     resultBanner.hidden = false;
-    resultBanner.textContent = 'Result: ' + status.result + ' (' + reason + ')';
+    renderSummary(status, reason);
     statusEl.textContent = 'Game over — ' + reason;
+    playSound('gameover');
   }
 
   // Initial idle board preview behind the setup screen.
