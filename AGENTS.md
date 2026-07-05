@@ -256,12 +256,56 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 - "Who played cleaner" is decided by average centipawn loss, with an honest
   caveat when one or both sides lack engine data (human moves).
 
+### What remains unbuilt (two tiers)
+
+With Appendix A closed, exactly two categories of unbuilt work remain. The
+registers named here are the **source of truth**; this section is a map so
+agents don't re-derive it from a code scan. Do not duplicate the rows into
+AGENTS.md — link to the register, or it will drift (§7).
+
+**Tier 1 — Deferred-but-specified (in PRD §8.1).** Specced as FRs/PRD
+features, product decisions made, deliberately not coded. Build when the
+re-open trigger fires; no new design questions to resolve first.
+
+| Feature | Spec/PRD ref | Re-open trigger |
+|---|---|---|
+| In-session AI-vs-AI result tally | PRD §4, §8 | A user asks for a session scoreboard |
+| PGN export / accounts / sharing | PRD §4, spec NG2 | v1.1 candidate; a concrete export need surfaces (relaxes NG2) |
+| Drag-and-drop move input | spec FR-5.2, A11.4 | Confirmed before locking UX post-launch (code is click-to-move only today) |
+| Multi-threaded Stockfish WASM | spec A11.3, TDD §5.2 | Deployment host confirmed to serve COOP/COEP headers |
+
+**Tier 2 — Future ideas needing decisions (Appendix B below).** Not specced,
+not promised, each carries open product questions. Build none of these until
+the listed decisions are made and a spec FR + PRD/TDD section exists. Quick
+map of the open blockers (full detail in Appendix B):
+
+1. **Save/load/replay (PGN)** — reopens spec NG2/FR-8.1; needs a storage target.
+2. **LLM single hint** — needs its own LLM config (humans have no endpoint
+   today) + a definition of the hint budget.
+3. **Turn timer** — adds a new game-over reason (time forfeit); fairness
+   differs per controller type.
+4. **Per-side language (EN/IT)** — **most open UX**: per-side *UI* language
+   (two players, one screen?) vs commentary vs announcements.
+5. **AI commentary + multilingual TTS** — which LLM, which TTS engine,
+   latency/pacing, profile selector. Audio foundation now exists (Appendix A #6).
+6. **Configurable LLM reasoning level** — param mapping is
+   endpoint/model-specific; needs a capability probe; interacts with #3.
+7. **Confirm destructive actions** (New game / Resign) — confirm-only piece
+   ships now with zero open questions; the save-on-confirm branch gates on #1.
+8. **Move-evaluation SFX** — sound-source tradeoff (synthesized vs sampled);
+   can share audio plumbing with #5.
+
+**Lowest-friction next builds:** Tier 1 drag-and-drop is fully specified;
+Tier 2 #7 (confirm dialogs) is the only future idea with no open product
+question and ships in ~5 lines.
+
 ---
 
 ## Appendix B — Future feature ideas (not started; for planning only)
 
 Recorded so they aren't forgotten. None are specced, designed, or promised to
 users. Each would need a spec FR + PRD/TDD section before implementation.
+See Tier 2 above for the quick map of open decisions per item.
 
 1. **Save / load / replay a game session** (completed or in-progress),
    including **replay from step N**.
