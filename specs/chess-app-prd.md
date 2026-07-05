@@ -133,7 +133,7 @@ Single source of truth for anything pushed past v1. Each item keeps the door ope
 | ~~Drag-and-drop move input~~ | spec FR-5.2, A11.4 | **Shipped (2026-07-05):** click + drag share one resolver (`attemptMoveTo`); invalid drops snap back | n/a |
 | ~~Sound effects default + assets~~ | PRD §6, spec A11.5 | **Shipped (2026-07-05):** off-by-default Web Audio toggle, synthesized (no external assets), persisted. Resolves the §8 "asset choice" open question by avoiding assets entirely. | Only if synthesized tones prove too limited and a real sound set is wanted |
 | Multi-threaded Stockfish WASM | spec A11.3, §12; TDD §5.2 | v1.1 upgrade, header-gated | Deployment host confirmed to serve COOP/COEP |
-| ~~Full offline Grandmaster mode~~ | spec NG3 | **Done** — the Stockfish bundle is vendored in the repo (GPL-3.0, NFR-5.2), so Grandmaster works out of the box, offline and on the live site | n/a |
+| ~~Full offline Grandmaster mode~~ | spec NG3 | **Done** — the Stockfish bundle is vendored in the repo (GPL-3.0, NFR-5.2), so Grandmaster runs fully offline once served over HTTP (no internet download); `file://` is not supported for GM because browsers block its Worker (NFR-5.2) | n/a |
 | Move-quality tag thresholds + ELO mapping | PRD §5.4, spec A11.1 | Not blocking; tuned post-launch | Playtest data available |
 
 None of the above blocks v1 scope (spec FR/AC set, PRD §5 UX). All are additive and reversible.

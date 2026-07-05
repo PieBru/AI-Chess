@@ -1618,7 +1618,7 @@ function requestMove(fen, difficulty) {
   const SIDE_HINTS = {
     human: 'Makes moves via the board UI.',
     normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
-    grandmaster: 'Stockfish. Full strength. Requires an internet connection to load.',
+    grandmaster: 'Stockfish. Full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
     llm: 'Calls an OpenAI-compatible chat endpoint and plays whichever legal move it picks.',
   };
   // Shared by click handling and restore-from-storage so both take the same path.
@@ -1662,6 +1662,10 @@ function requestMove(fen, difficulty) {
       const selected = cfgEl.querySelector('.opt-btn.selected');
       const type = selected ? selected.dataset.type : 'human';
       const entry = { type };
+      if (type === 'grandmaster' && location.protocol === 'file:') {
+        const msg = side[0].toUpperCase() + side.slice(1) + ': Grandmaster cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.';
+        errors.push(msg);
+      }
       if (type === 'normal') {
         entry.difficulty = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
       } else if (type === 'llm') {
@@ -1678,6 +1682,10 @@ function requestMove(fen, difficulty) {
     if (errors.length) {
       errorEl.textContent = errors.join(' ');
       errorEl.hidden = false;
+      // A modal is maximally obvious — toasts/inline text are easy to miss.
+      if (location.protocol === 'file:' && Object.values(config).some(c => c.type === 'grandmaster')) {
+        alert(errors.join('\n'));
+      }
       return;
     }
     errorEl.hidden = true;
@@ -2262,9 +2270,13 @@ function requestMove(fen, difficulty) {
       } else {
         thinkingEl.hidden = true;
         gameOver = true;
-        showToast(sideConfig.type === 'grandmaster'
-          ? 'Grandmaster mode needs an internet connection to load Stockfish. Start a new game to try a different setup.'
-          : 'The AI ran into a problem — start a new game to continue.');
+        const gmMsg = 'Could not load Stockfish. If you opened chess.html as a file:// URL, browsers block its Worker — serve the folder over HTTP instead (run `python3 -m http.server` here, then open http://localhost:8000/chess.html). Otherwise make sure the stockfish-18-lite-single.{js,wasm} files sit next to chess.html.';
+        if (sideConfig.type === 'grandmaster') {
+          showToast(gmMsg);
+          alert(gmMsg);   // modal: a failed engine load is a hard block — make it unmissable
+        } else {
+          showToast('The AI ran into a problem — start a new game to continue.');
+        }
         return;
       }
     }

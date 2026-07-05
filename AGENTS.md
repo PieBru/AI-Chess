@@ -49,8 +49,8 @@ docs/                         # User-facing pages (blog / guide / kids, EN + IT)
 
 No `package.json`, no build tooling, no test runner — by design. The project
 is **GPL-3.0** and **vendors** the Stockfish runtime (the two sibling files
-above) so Grandmaster works out of the box, offline, including on the live
-site (spec §12.4). See §6 and §8.
+above) so Grandmaster runs offline from the local bundle — but note it must
+be **served over HTTP**, not opened via `file://` (see §8). See §6 and §8.
 
 ---
 
@@ -69,7 +69,9 @@ site (spec §12.4). See §6 and §8.
   (`stockfish-18-lite-single.{js,wasm}`) and loaded as a local Worker (CDN
   fallback kept). Single-threaded
   on purpose: no COOP/COEP/`SharedArrayBuffer` requirement, so the file works
-  via `file://` or any static host. Multi-threading is a deferred upgrade
+  on any static host. (`file://` works for Human/Normal play, but NOT for
+  Grandmaster — browsers block `new Worker()` from a `file://` page; see §8.)
+  Multi-threading is a deferred upgrade
   (spec A11.3 / §13, TDD §5.2).
 - **Hand-rolled 0x88 rules engine** (`Rules` namespace) — legal move
   generation, FEN/SAN, check/checkmate/stalemate, draws (threefold, fifty-move,
@@ -207,19 +209,26 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 
 ## 8. Running & testing
 
-- **Run:** open `chess.html` in a browser (or `firefox chess.html`). No server
-  required; works via `file://`. Human-vs-Human and Human-vs-Normal need no
-  network. LLM-Assisted needs the network (the configured endpoint).
+- **Run:** open `chess.html` in a browser. Human-vs-Human and Human-vs-Normal
+  work via `file://` with no server and no network. **Grandmaster (Stockfish)
+  does NOT work via `file://`** — browsers block `new Worker()` from a `file://`
+  page (same-origin policy on local files), and the Normal engine only dodges
+  this because it runs from an inline Blob URL. To use Grandmaster, serve the
+  folder over HTTP (e.g. `python3 -m http.server`, then open
+  `http://localhost:8000/chess.html`); it then runs fully offline from the
+  vendored local bundle, no internet required. LLM-Assisted needs the network
+  (the configured endpoint).
 - **Grandmaster / Stockfish:** the two-file Stockfish bundle is **committed
   to the repo** next to `chess.html`:
   - `stockfish-18-lite-single.js` (~20 KB loader)
   - `stockfish-18-lite-single.wasm` (~7 MB; NNUE compiled in)
   The project is GPL-3.0, so vendoring the GPL Stockfish binary is consistent
-  (spec §12.4). Grandmaster therefore works **out of the box — fully offline
-  and on the live site** — with no extra download. The loader tries the local
-  bundle first, then a CDN fallback; the CDN backstop is currently broken
-  (jsDelivr refuses the >150 MB npm package with HTTP 403), but the committed
-  local bundle makes that irrelevant.
+  (spec §12.4). Over HTTP, Grandmaster runs **fully offline from this local
+  bundle** — no extra download, no internet. The loader also has a CDN
+  fallback; the CDN backstop is currently broken (jsDelivr refuses the
+  >150 MB npm package with HTTP 403), but the committed local bundle makes
+  that irrelevant. The one hard requirement is HTTP (not `file://`) serving,
+  because the Stockfish Worker can't be created from a `file://` page.
 - **Test:** there is **no in-repo test runner**. Validation done so far:
   - Perft-style rules-engine checks and Normal-engine search checks (run
     ad-hoc, e.g. via `node` extracting the inline scripts).
