@@ -279,7 +279,9 @@ not promised, each carries open product questions. Build none of these until
 the listed decisions are made and a spec FR + PRD/TDD section exists. Quick
 map of the open blockers (full detail in Appendix B):
 
-1. **Save/load/replay (PGN)** — reopens spec NG2/FR-8.1; needs a storage target.
+1. ~~**Save/load/replay (PGN)**~~ — **shipped (2026-07-05)** as spec FR-8.2:
+   PGN download + view-only replay (First/Prev/Next/Last). Standard start
+   position only; loaded games don't resume engine play.
 2. **LLM single hint** — needs its own LLM config (humans have no endpoint
    today) + a definition of the hint budget.
 3. **Turn timer** — adds a new game-over reason (time forfeit); fairness
@@ -290,14 +292,15 @@ map of the open blockers (full detail in Appendix B):
    latency/pacing, profile selector. Audio foundation now exists (Appendix A #6).
 6. **Configurable LLM reasoning level** — param mapping is
    endpoint/model-specific; needs a capability probe; interacts with #3.
-7. **Confirm destructive actions** (New game / Resign) — confirm-only piece
-   ships now with zero open questions; the save-on-confirm branch gates on #1.
+7. ~~**Confirm destructive actions**~~ — **shipped (2026-07-05)** as spec
+   FR-6.5: native `confirm()` on New game/Rematch/Resign during an in-progress
+   game, with save-as-PGN before discard (wired to the shipped FR-8.2 export).
 8. **Move-evaluation SFX** — sound-source tradeoff (synthesized vs sampled);
    can share audio plumbing with #5.
 
-**Lowest-friction next builds:** Tier 1 drag-and-drop is fully specified;
-Tier 2 #7 (confirm dialogs) is the only future idea with no open product
-question and ships in ~5 lines.
+**Lowest-friction next build:** Tier 1 drag-and-drop is fully specified
+(spec FR-5.2) and unblocked — the clear next pick. Among Tier 2, #2 (LLM
+hint) is the highest-value but needs a config decision first.
 
 ---
 
@@ -307,15 +310,15 @@ Recorded so they aren't forgotten. None are specced, designed, or promised to
 users. Each would need a spec FR + PRD/TDD section before implementation.
 See Tier 2 above for the quick map of open decisions per item.
 
-1. **Save / load / replay a game session** (completed or in-progress),
-   including **replay from step N**.
-   - *Hook:* `moveHistory` already records every ply (SAN + move + evals) —
-     serialization is straightforward; replay = rebuild state from `START_FEN`
-     by applying moves 1..N, then park the game loop. PGN is the natural format
-     (already a v1.1 candidate in PRD §8.1).
-   - *Decision needed:* this **reopens spec NG2 / FR-8.1** (no cross-session
-     persistence is currently a hard non-goal). Pick a storage target
-     (`localStorage`, file download/upload) and explicitly relax NG2.
+> **Shipped out of this appendix (kept as placeholders so cross-refs stay
+> stable):** #1 save/load/replay → spec FR-8.2; #7 confirm destructive
+> actions → spec FR-6.5.
+
+1. **Save / load / replay a game session** — **SHIPPED (2026-07-05)** as
+   spec FR-8.2: PGN download + view-only replay (First/Prev/Next/Last),
+   standard start position only, loaded games don't resume engine play.
+   Original open question (NG2/FR-8.1 relaxation) resolved by narrowing those
+   to bar *automatic* persistence only; user-initiated file I/O is permitted.
 
 2. **LLM-assisted single hint** requestable by a human player, with a
    **budget capped by the chosen game level**.
@@ -386,18 +389,10 @@ See Tier 2 above for the quick map of open decisions per item.
      which interacts with Appendix B #3 (turn timer) — a reasoning-capped LLM
      under a timer is a distinct fairness scenario worth defining together.
 
-7. **Confirm destructive actions** (New game, Resign), with an option to save
-   the current game on confirm. Today both buttons are immediate and
-   non-reversible — a stray click/keystroke ends or discards an in-progress
-   game. Add a confirmation step; if a game is in progress, offer to save it
-   first (ties into Appendix B #1 save/load).
-   - *Hook:* interpose a confirm dialog before `finishGame` (Resign) and
-     before returning to the setup screen (New game); the save-offer branch
-     reuses B #1's serialization once it exists.
-   - *Decisions needed:* (a) confirmation UX — native `confirm()` is the
-     zero-dependency lazy default; an inline modal is nicer but more code;
-     (b) the save-offer only makes sense once B #1 lands, so this splits into
-     a standalone confirm-now piece and a save-on-confirm piece gated on B #1.
+7. **Confirm destructive actions** — **SHIPPED (2026-07-05)** as spec
+   FR-6.5: native `confirm()` on New game/Rematch/Resign during an
+   in-progress game, with save-as-PGN before discard (wired to FR-8.2). The
+   originally-open save-on-confirm branch is now live since #1 shipped.
 
 8. **Move-evaluation SFX** — play a sound keyed off the move-quality tag
    (e.g. applause for `best`, a "Boooo" for `blunder`). Pure entertainment,

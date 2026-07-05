@@ -263,6 +263,20 @@
   }
   .spectator-controls button:hover { border-color: var(--brass); }
 
+  /* ---- Replay controls (loaded PGN, view-only) ---- */
+  .replay-controls {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    flex-wrap: wrap; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font-size: .85rem;
+  }
+  .replay-controls[hidden] { display: none; }
+  .replay-controls button {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    padding: 5px 10px; border-radius: 6px; font-size: .8rem;
+  }
+  .replay-controls button:hover { border-color: var(--brass); }
+  .replay-controls .replay-counter { color: var(--text-dim); min-width: 3.5em; text-align: center; }
+
   /* ---- Captured-piece tray ---- */
   .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: 1.05rem; }
   .captured-row { display: flex; align-items: center; gap: 6px; }
@@ -422,12 +436,22 @@
       </div>
       <ol id="move-history"></ol>
       <div class="result-banner" id="result-banner" hidden></div>
+      <div class="replay-controls" id="replay-controls" hidden>
+        <button id="replay-first" type="button">⏮ Start</button>
+        <button id="replay-prev" type="button">◀ Prev</button>
+        <span class="replay-counter" id="replay-counter"></span>
+        <button id="replay-next" type="button">Next ▶</button>
+        <button id="replay-last" type="button">End ⏭</button>
+      </div>
       <div class="controls">
         <button id="flip-btn">Flip board</button>
         <button id="resign-btn">Resign</button>
         <button id="rematch-btn">Rematch</button>
+        <button id="save-pgn-btn">Save PGN</button>
+        <button id="load-pgn-btn">Load PGN</button>
         <button id="new-game-btn">New game</button>
       </div>
+      <input type="file" id="pgn-file-input" accept=".pgn,application/x-chess-pgn,text/plain" hidden>
       <label class="sound-toggle"><input type="checkbox" id="sound-toggle"> Sound effects</label>
     </aside>
   </div>
@@ -1453,6 +1477,11 @@ function requestMove(fen, difficulty) {
   let capturedByBlack = [];
   let soundEnabled = false;           // off by default, per PRD §6/§8
   let spectatorSpeed = 'normal';      // 'normal' | 'fast' | 'instant', AI-vs-AI pacing
+  let lastResult = '*';               // PGN result tag: set by finishGame, '*' while in progress
+  let replayMode = false;             // viewing a loaded game; board/inputs frozen, step controls shown
+  let replayStates = null;            // precomputed state after each ply (index 0 = start position)
+  let replayHist = [];                // {san, move, ...} records for the loaded game
+  let replayPly = 0;                  // current ply shown (0..replayStates.length-1)
 
   const boardEl = document.getElementById('board');
   const statusEl = document.getElementById('status-line');
@@ -1473,6 +1502,8 @@ function requestMove(fen, difficulty) {
   const materialDiffWhiteEl = document.getElementById('material-diff-white');
   const materialDiffBlackEl = document.getElementById('material-diff-black');
   const soundToggleEl = document.getElementById('sound-toggle');
+  const replayControlsEl = document.getElementById('replay-controls');
+  const replayCounterEl = document.getElementById('replay-counter');
 
   function setThinkingDetail(text) { if (!thinkingEl.hidden) thinkingTextEl.textContent = text; }
 
@@ -1658,6 +1689,8 @@ function requestMove(fen, difficulty) {
     paused = false;
     capturedByWhite = [];
     capturedByBlack = [];
+    lastResult = '*';
+    exitReplayMode();
     pauseBtn.textContent = 'Pause';
     document.getElementById('setup-screen').hidden = true;
     document.getElementById('game-screen').hidden = false;
@@ -1671,13 +1704,31 @@ function requestMove(fen, difficulty) {
     playTurn();
   }
 
+  // ---- Confirm destructive actions (Appendix B #7) ----
+  // Native confirm() is the zero-dependency lazy default. When a real game
+  // is in progress, OK saves it as PGN first then discards; Cancel stays.
+  // ponytail: no "discard-without-save" path — add a 3-way modal if a user
+  // actually wants to throw a game away unsaved.
+  function confirmDiscardOrSave(actionLabel) {
+    if (gameOver || replayMode || moveHistory.length === 0) return true;
+    const ok = confirm('A game is in progress (' + moveHistory.length + ' moves). '
+      + actionLabel + ' will discard it.\n\n'
+      + 'OK = save as PGN then leave.   Cancel = keep playing.');
+    if (!ok) return false;
+    downloadPgn();
+    return true;
+  }
+
   document.getElementById('new-game-btn').addEventListener('click', () => {
+    if (!confirmDiscardOrSave('New game')) return;
+    exitReplayMode();
     document.getElementById('game-screen').hidden = true;
     document.getElementById('setup-screen').hidden = false;
   });
   // Rematch (Appendix A #3): same matchConfig, straight back into a fresh
   // game — skips the setup screen entirely.
   document.getElementById('rematch-btn').addEventListener('click', () => {
+    if (!confirmDiscardOrSave('Rematch')) return;
     startGame();
   });
   document.getElementById('flip-btn').addEventListener('click', () => {
@@ -1686,8 +1737,8 @@ function requestMove(fen, difficulty) {
     render();
   });
   document.getElementById('resign-btn').addEventListener('click', () => {
-    if (gameOver) return;
-    const winner = gameState.turn === Rules.WHITE ? 'Black' : 'White';
+    if (gameOver || replayMode) return;
+    if (!confirm('Resign the current game?')) return;
     finishGame({ result: gameState.turn === Rules.WHITE ? '0-1' : '1-0', reason: 'resignation' });
   });
 
@@ -1716,6 +1767,167 @@ function requestMove(fen, difficulty) {
     pauseBtn.textContent = 'Pause';
     finishGame({ result: '*', reason: 'stopped by spectator' });
   });
+
+  // ---- PGN save / load / replay (Appendix B #1) ----
+  // moveHistory already records SAN per ply, so serialization is just PGN
+  // movetext + tags. Loading replays by matching each SAN token against the
+  // legal moves of the rebuilt position (reusing toSAN as the matcher — no
+  // separate SAN parser to maintain). States are precomputed once on load so
+  // stepping is O(1) per click.
+  // ponytail: assumes standard start position (no [FEN] tag handling); add
+  // FEN support only if a use case loads custom-position games.
+  function controllerLabel(cfg) {
+    if (cfg.type === 'human') return 'Human';
+    if (cfg.type === 'normal') return 'Normal AI (Level ' + cfg.difficulty + ')';
+    if (cfg.type === 'grandmaster') return 'Grandmaster';
+    if (cfg.type === 'llm') return 'LLM-Assisted' + (cfg.model ? ' (' + cfg.model + ')' : '');
+    return cfg.type;
+  }
+
+  function buildPgn() {
+    const d = new Date();
+    const yyyymmdd = d.getFullYear() + '.'
+      + String(d.getMonth() + 1).padStart(2, '0') + '.'
+      + String(d.getDate()).padStart(2, '0');
+    const tags = [
+      '[Event "AI Chess"]',
+      '[Site "?"]',
+      '[Date "' + yyyymmdd + '"]',
+      '[White "' + controllerLabel(matchConfig.white) + '"]',
+      '[Black "' + controllerLabel(matchConfig.black) + '"]',
+      '[Result "' + lastResult + '"]',
+    ];
+    const toks = [];
+    for (let i = 0; i < moveHistory.length; i++) {
+      if (i % 2 === 0) toks.push((i / 2 + 1) + '.');
+      toks.push(moveHistory[i].san);
+    }
+    toks.push(lastResult);
+    return tags.join('\n') + '\n\n' + toks.join(' ') + '\n';
+  }
+
+  function downloadPgn() {
+    if (moveHistory.length === 0) { showToast('Nothing to save yet — no moves played.'); return; }
+    const pgn = buildPgn();
+    const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+    a.href = url; a.download = 'ai-chess-' + ts + '.pgn';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Parse PGN movetext into bare SAN tokens (strip tags, comments,
+  // variations, NAGs, move numbers, results). Nested variations are unwound
+  // by repeating the innermost-paren strip until stable.
+  function parsePgnMovetext(pgn) {
+    let text = pgn.replace(/\[[^\]]*\]/g, ' ');       // [Tag "..."] lines
+    text = text.replace(/\$\d+/g, ' ');                // NAGs ($1, $2, …)
+    text = text.replace(/\{[^}]*\}/g, ' ');            // { … } block comments
+    text = text.replace(/;[^\n]*/g, ' ');              // ; … line comments
+    let prev;
+    do { prev = text; text = text.replace(/\([^()]*\)/g, ' '); } while (text !== prev);
+    text = text.replace(/\d+\.+/g, ' ');               // move numbers (1. 12...)
+    text = text.replace(/(1-0|0-1|1\/2-1\/2|\*)/g, ' '); // result tokens
+    return text.split(/\s+/).filter(t => t.length > 0);
+  }
+
+  // Rebuild by matching each SAN token against the legal moves of the
+  // position so far. toSAN() is reused as the matcher (strip +/# first).
+  function replayFromSanTokens(tokens) {
+    const start = Rules.newGame();
+    const states = [Rules.cloneState(start)];
+    const hist = [];
+    let state = Rules.cloneState(start);
+    for (const sanRaw of tokens) {
+      const bare = sanRaw.replace(/[+#]$/, '');
+      const legal = Rules.genLegalMoves(state);
+      const mv = legal.find(m => Rules.toSAN(state, m, legal).replace(/[+#]$/, '') === bare);
+      if (!mv) throw new Error('unrecognized move "' + sanRaw + '" at ply ' + (hist.length + 1));
+      state = Rules.applyMove(state, mv);
+      states.push(Rules.cloneState(state));
+      hist.push({ san: sanRaw, move: mv, evalCp: null, bestEvalCp: null, quality: null });
+    }
+    return { states, hist };
+  }
+
+  function enterReplayMode(states, hist) {
+    replayMode = true;
+    replayStates = states;
+    replayHist = hist;
+    replayPly = states.length - 1;        // land at the final position
+    selectedSquare = null; legalFromSelected = [];
+    thinkingEl.hidden = true;
+    spectatorControlsEl.hidden = true;
+    resultBanner.hidden = true;
+    replayControlsEl.hidden = false;
+    gotoReplayPly(replayPly);
+    showToast('Loaded ' + hist.length + ' move' + (hist.length === 1 ? '' : 's')
+      + '. Use ◀ ▶ to step, New game to exit.');
+  }
+
+  function exitReplayMode() {
+    if (!replayMode && !replayStates) return;
+    replayMode = false;
+    replayStates = null;
+    replayHist = [];
+    replayPly = 0;
+    replayControlsEl.hidden = true;
+  }
+
+  // Recompute the captured-piece trays from the move sequence up to `ply`,
+  // reusing the same capture fields live play uses (move.color/captured).
+  function recomputeCapturedUpTo(ply) {
+    capturedByWhite = []; capturedByBlack = [];
+    for (let i = 0; i < ply && i < replayHist.length; i++) {
+      const m = replayHist[i].move;
+      if (m.capture) {
+        if (m.color === Rules.WHITE) capturedByWhite.push(m.captured);
+        else capturedByBlack.push(m.captured);
+      }
+    }
+  }
+
+  function gotoReplayPly(n) {
+    if (!replayMode || !replayStates) return;
+    replayPly = Math.max(0, Math.min(n, replayStates.length - 1));
+    gameState = Rules.cloneState(replayStates[replayPly]);
+    const rec = replayPly > 0 ? replayHist[replayPly - 1] : null;
+    lastMove = rec ? { from: rec.move.from, to: rec.move.to } : null;
+    moveHistory = replayHist.slice(0, replayPly);   // history panel reflects current ply
+    selectedSquare = null; legalFromSelected = [];
+    recomputeCapturedUpTo(replayPly);
+    render();
+    renderHistory();
+    renderCapturedTray();
+    replayCounterEl.textContent = replayPly + ' / ' + (replayStates.length - 1);
+  }
+
+  document.getElementById('save-pgn-btn').addEventListener('click', downloadPgn);
+  document.getElementById('load-pgn-btn').addEventListener('click', () => {
+    document.getElementById('pgn-file-input').click();
+  });
+  document.getElementById('pgn-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';                  // allow re-selecting the same file later
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const tokens = parsePgnMovetext(text);
+      if (tokens.length === 0) { showToast('No moves found in that PGN.'); return; }
+      const { states, hist } = replayFromSanTokens(tokens);
+      lastResult = (text.match(/\[Result\s+"([^"]*)"\]/) || [])[1] || '*';
+      moveHistory = hist;                  // so a re-Save round-trips the loaded game
+      enterReplayMode(states, hist);
+    } catch (err) {
+      showToast('Could not load PGN: ' + err.message);
+    }
+  });
+  document.getElementById('replay-first').addEventListener('click', () => gotoReplayPly(0));
+  document.getElementById('replay-prev').addEventListener('click', () => gotoReplayPly(replayPly - 1));
+  document.getElementById('replay-next').addEventListener('click', () => gotoReplayPly(replayPly + 1));
+  document.getElementById('replay-last').addEventListener('click', () => gotoReplayPly(replayStates.length - 1));
 
   // ---- Board rendering ----
   function squareIndexToDisplay(sq) {
@@ -1835,7 +2047,7 @@ function requestMove(fen, difficulty) {
 
   // ---- Human move input ----
   function onSquareClick(sq) {
-    if (gameOver || pendingPromotion) return;
+    if (gameOver || replayMode || pendingPromotion) return;
     const sideConfig = gameState.turn === Rules.WHITE ? matchConfig.white : matchConfig.black;
     if (sideConfig.type !== 'human') return;
 
@@ -1939,7 +2151,7 @@ function requestMove(fen, difficulty) {
 
   // ---- Game loop ----
   async function playTurn() {
-    if (gameOver) return;
+    if (gameOver || replayMode) return;
     const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
@@ -2097,6 +2309,7 @@ function requestMove(fen, difficulty) {
 
   function finishGame(status) {
     gameOver = true;
+    lastResult = status.result || '*';
     paused = false;
     pauseBtn.textContent = 'Pause';
     thinkingEl.hidden = true;

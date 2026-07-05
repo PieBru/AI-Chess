@@ -129,7 +129,7 @@ Single source of truth for anything pushed past v1. Each item keeps the door ope
 | Feature | Source | Decision | Re-open trigger |
 |---|---|---|---|
 | In-session AI-vs-AI result tally | PRD §4, §8 | Defer past v1 | Spectator flow ships and a user asks for a session scoreboard |
-| PGN export / accounts / sharing | PRD §4, spec NG2 | v1.1 candidate | Evaluation goal surfaces a concrete export need |
+| ~~PGN export / accounts / sharing~~ | PRD §4, spec NG2 | **Shipped (2026-07-05):** user-initiated PGN export (download) + import (view-only replay via First/Prev/Next/Last). Not accounts/sharing and not automatic persistence — NG2/FR-8.1 narrowed to permit file I/O only. | Accounts/ratings or server-side sharing, if a real sharing need surfaces |
 | Drag-and-drop move input | spec FR-5.2, A11.4 | Nice-to-have, defer | Confirmed before locking UX flows post-launch |
 | ~~Sound effects default + assets~~ | PRD §6, spec A11.5 | **Shipped (2026-07-05):** off-by-default Web Audio toggle, synthesized (no external assets), persisted. Resolves the §8 "asset choice" open question by avoiding assets entirely. | Only if synthesized tones prove too limited and a real sound set is wanted |
 | Multi-threaded Stockfish WASM | spec A11.3, §12; TDD §5.2 | v1.1 upgrade, header-gated | Deployment host confirmed to serve COOP/COEP |

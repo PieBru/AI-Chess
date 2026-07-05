@@ -43,7 +43,7 @@ Both engines run inside a **Web Worker** so the UI thread never blocks during se
 ## 3. Non-goals (out of scope for v1)
 
 - **NG1.** Online multiplayer / networked play between two browsers.
-- **NG2.** User accounts, persistent rating, or game history across sessions.
+- **NG2.** User accounts, persistent rating, or *automatic* game history across sessions. (Does not bar user-initiated PGN export/import — FR-8.2 — which is the user's explicit file choice, not silent persistence.)
 - **NG3.** Inlining Stockfish into the single HTML file itself (as base64/inlined WASM). The Stockfish runtime ships as **sibling files committed to the repo** (NFR-5.2), not inlined into `chess.html` — keeps the HTML editable and small.
 - **NG4.** Mobile-native app packaging (the deliverable is a web page; responsive layout is in scope, native app is not).
 - **NG5.** Voice control, puzzles, tutorials, or opening-explorer features.
@@ -113,13 +113,34 @@ All Human/AI combinations must be supported without special-casing in the rules 
 - FR-6.2 Resign (available to a human player, ends game with the opponent as winner).
 - FR-6.3 Flip board.
 - FR-6.4 Pause/stop AI-vs-AI games (since these run unattended).
+- FR-6.5 Destructive actions are confirmed. New Game, Rematch, and Resign
+  during an in-progress game prompt a native `confirm()`; if the action would
+  discard an in-progress game with moves, OK saves it as a PGN file first
+  (FR-8.2) then proceeds, Cancel keeps playing. Resign only confirms (it
+  completes the game, which can then be saved from the summary).
 
 ### FR-7. Game status & notation
 - FR-7.1 Persistent status line reflecting game state: whose turn, check, checkmate, stalemate, draw (with reason).
 - FR-7.2 On game end, display the result (1-0, 0-1, ½-½) and reason.
 
 ### FR-8. Persistence
-- FR-8.1 No persistence requirement in v1: refreshing the page resets to the setup screen. (Explicitly listed here, not left implicit, since "save game" is a common assumption to challenge in the PRD.)
+- FR-8.1 No *automatic* persistence of game state in v1: refreshing the page
+  resets to the setup screen. (Explicitly listed here, not left implicit, since
+  "save game" is a common assumption to challenge in the PRD.) This bars
+  automatic cross-session game history/ratings/accounts (NG2) **only**; it does
+  not bar user-initiated file export/import (FR-8.2), which is the user's
+  explicit choice and stays out of browser storage.
+- FR-8.2 **PGN export/import (user-initiated).** At any point the user may
+  download the current game as a `.pgn` file (movetext + tags, including
+  `White`/`Black` controller labels and `Result`), and may load a `.pgn` file
+  to replay it in a **view-only mode**: the board is reconstructed from the
+  standard start position by matching each SAN token against the legal moves
+  of the rebuilt position (no separate SAN parser — `toSAN` is reused as the
+  matcher, with `+`/`#` stripped), states are precomputed once on load, and
+  First/Prev/Next/Last controls step through plies. Loaded games do not
+  resume engine/AI play (controllers are not carried by PGN); start a new game
+  to play again. Custom-position games via a `[FEN]` tag are not supported in
+  v1 (standard start only).
 
 ### FR-9. AI — LLM-Assisted mode
 - FR-9.1 On selecting LLM-Assisted for a side, the user supplies, per side: an **API base URL** (OpenAI-compatible, stored as `apiBase`), an optional **API key** (blank works for local servers like Ollama / LM Studio), and a **Model** name. Both `apiBase` and `model` are required to start. The two sides may use different endpoints/models.
