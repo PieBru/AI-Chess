@@ -1,0 +1,2 @@
+# Playwright CLI runtime artifacts (screenshots, console logs, traces)
+.playwright-cli/
