@@ -318,7 +318,7 @@
   .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: .9rem;
                    max-height: 3.6em; overflow: hidden; }   /* bounded so a long capture string can't wrap-grow over the move list below */
   .captured-row { display: flex; align-items: center; gap: 6px; }
-  .captured-label { color: var(--text-dim); font-size: .68rem; min-width: 64px; font-family: var(--font-body); }
+  .captured-label { color: var(--text-dim); font-size: .68rem; min-width: 92px; white-space: nowrap; font-family: var(--font-body); }
   .captured-pieces { flex: 1; letter-spacing: 1px; line-height: 1.15; min-height: 1.15em; }
   .material-diff {
     color: var(--good); font-family: var(--font-mono); font-size: .78rem;
@@ -517,12 +517,12 @@ Default Off = no clock.">Time control
       </div>
       <div id="captured-tray" class="captured-tray">
         <div class="captured-row">
-          <span class="captured-label">White captured</span>
+          <span class="captured-label">Captured by White</span>
           <span class="captured-pieces" id="captured-white-pieces">—</span>
           <span class="material-diff" id="material-diff-white"></span>
         </div>
         <div class="captured-row">
-          <span class="captured-label">Black captured</span>
+          <span class="captured-label">Captured by Black</span>
           <span class="captured-pieces" id="captured-black-pieces">—</span>
           <span class="material-diff" id="material-diff-black"></span>
         </div>
