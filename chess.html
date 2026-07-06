@@ -260,6 +260,7 @@
   .clock.low .clock-time { color: var(--danger); }   /* < 10 s: urgency */
   #move-history {
     list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
+    min-height: 220px;   /* floor so the move list can't collapse to one row when the side panel fills with other sections; it scrolls internally once exceeded */
     font-family: var(--font-mono); font-size: .82rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
   #move-history li { padding: 3px 2px; display: flex; gap: 6px; align-items: baseline; }
