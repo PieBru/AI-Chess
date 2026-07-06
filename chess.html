@@ -424,7 +424,7 @@
           </select>
         </div>
         <div class="llm-config" hidden>
-          <label>API base URL</label>
+          <label>API base URL <span class="hint-inline">with or without <code>/chat/completions</code></span></label>
           <input type="text" class="llm-api-base" placeholder="https://api.openai.com/v1">
           <label>API key <span class="hint-inline">(optional for local servers)</span></label>
           <input type="password" class="llm-api-key" placeholder="sk-...">
@@ -465,7 +465,7 @@
           </select>
         </div>
         <div class="llm-config" hidden>
-          <label>API base URL</label>
+          <label>API base URL <span class="hint-inline">with or without <code>/chat/completions</code></span></label>
           <input type="text" class="llm-api-base" placeholder="https://api.openai.com/v1">
           <label>API key <span class="hint-inline">(optional for local servers)</span></label>
           <input type="password" class="llm-api-key" placeholder="sk-...">
@@ -1584,8 +1584,45 @@ function requestMove(fen, difficulty) {
   // "OFF LINE (<reason>)". Reads the field values live so it tests exactly
   // what Start will use. Sends only { model, messages } (no hyperparams) for
   // the same reason callLLM does — reasoning models 400 on unknown params.
+  // Normalize a user-entered API base URL: trim, drop any trailing slash,
+  // and drop a trailing /chat/completions so pasting the FULL endpoint URL
+  // (as e.g. Google's docs/curl show it) works the same as entering the bare
+  // base. Root-cause fix for the common "verify fails" where the base gets a
+  // doubled /chat/completions → 404. One function, every read site uses it.
+  function normalizeApiBase(raw) {
+    return raw.trim().replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
+  }
+
+  // One-shot LLM endpoint probe: sends a trivial chat-completion and reports
+  // ok/off-line, catching everything (fetch rejection, HTTP status, missing
+  // content) so callers only check .ok. Two entry points share it: the
+  // interactive "Verify" button (verifySideLlm) and the automatic pre-start
+  // gate (Start handler) — one probe, no duplicate logic.
+  async function probeLlm({ apiBase, apiKey, model }) {
+    if (!apiBase || !model) return { ok: false, reason: 'enter API base URL and model first' };
+    try {
+      const res = await fetch(apiBase + '/chat/completions', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, apiKey ? { Authorization: 'Bearer ' + apiKey } : {}),
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word: ok' }] }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+        return content ? { ok: true } : { ok: false, reason: '200 but no message content' };
+      }
+      return { ok: false, reason: 'HTTP ' + res.status };
+    } catch (err) {
+      // Mixed-content (HTTPS page → HTTP endpoint) gets a clear label; other
+      // fetch rejections (CORS/DNS/unreachable) surface as the raw message,
+      // the most informative thing the browser gives.
+      const reason = (location.protocol === 'https:' && apiBase.startsWith('http:')) ? 'mixed content' : (err.message || 'network error');
+      return { ok: false, reason };
+    }
+  }
+
   async function verifySideLlm(cfgEl, btn, statusEl) {
-    const apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
+    const apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
     const apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
     const model = cfgEl.querySelector('.llm-model').value.trim();
     statusEl.hidden = false;
@@ -1598,34 +1635,10 @@ function requestMove(fen, difficulty) {
     statusEl.textContent = 'Checking…';
     btn.disabled = true;
     try {
-      const res = await fetch(apiBase + '/chat/completions', {
-        method: 'POST',
-        headers: Object.assign(
-          { 'Content-Type': 'application/json' },
-          apiKey ? { Authorization: 'Bearer ' + apiKey } : {}
-        ),
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word: ok' }] }),
-      });
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-        statusEl.classList.add(content ? 'ok' : 'off');
-        statusEl.textContent = content ? 'On line' : 'OFF LINE (200 but no message content)';
-      } else {
-        statusEl.classList.add('off');
-        statusEl.textContent = 'OFF LINE (HTTP ' + res.status + ')';
-      }
-    } catch (err) {
-      statusEl.classList.add('off');
-      // Mixed-content block (HTTPS page → HTTP endpoint) gets a clear label;
-      // other network failures (CORS/DNS/unreachable) surface as the raw
-      // error message, which is the most informative thing the browser gives.
-      statusEl.textContent = (location.protocol === 'https:' && apiBase.startsWith('http:'))
-        ? 'OFF LINE (mixed content)'
-        : 'OFF LINE (' + (err.message || 'network error') + ')';
-    } finally {
-      btn.disabled = false;
-    }
+      const r = await probeLlm({ apiBase, apiKey, model });
+      statusEl.classList.add(r.ok ? 'ok' : 'off');
+      statusEl.textContent = r.ok ? 'On line' : 'OFF LINE (' + r.reason + ')';
+    } finally { btn.disabled = false; }
   }
 
   // Selectable system prompts for the LLM-Assisted controller (PRD-style
@@ -2088,7 +2101,7 @@ function requestMove(fen, difficulty) {
           if (location.protocol === 'file:') errors.push(side[0].toUpperCase() + side.slice(1) + ': Grandmaster (difficulty 6) cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.');
         } else entry.difficulty = diff;
       } else if (type === 'llm') {
-        entry.apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
+        entry.apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
         entry.apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
         entry.model = cfgEl.querySelector('.llm-model').value.trim();
         entry.systemPrompt = cfgEl.querySelector('.llm-prompt').value.trim();
@@ -2171,11 +2184,57 @@ function requestMove(fen, difficulty) {
     });
   })();
 
-  document.getElementById('start-btn').addEventListener('click', () => {
+  // Gather every configured LLM side's endpoint creds from the live (possibly
+  // hidden) panes, for the pre-start probe. Empty-field sides are skipped here
+  // so they fall through to the per-mode validation's clearer message.
+  function llmProbeInputs() {
+    const out = [];
+    document.querySelectorAll('.side-config').forEach(cfgEl => {
+      const sel = cfgEl.querySelector('.opt-btn.selected');
+      if (sel && sel.dataset.type === 'llm') {
+        const apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
+        const model = cfgEl.querySelector('.llm-model').value.trim();
+        if (apiBase && model) {
+          out.push({ side: cfgEl.dataset.side, cfgEl, apiBase,
+            apiKey: cfgEl.querySelector('.llm-api-key').value.trim(), model });
+        }
+      }
+    });
+    return out;
+  }
+
+  document.getElementById('start-btn').addEventListener('click', async () => {
+    const startBtn = document.getElementById('start-btn');
+    const errorEl = document.getElementById('setup-error');
+    errorEl.hidden = true;
+    // Pre-start gate: probe every LLM side before leaving the setup screen.
+    // The manual "Verify" button is for interactive API-key trial; this is the
+    // same probe run automatically so a dead endpoint never reaches the board.
+    // Each result is mirrored into the side's own verify-llm-status dot.
+    const probeInputs = llmProbeInputs();
+    if (probeInputs.length) {
+      const prevText = startBtn.textContent;
+      startBtn.disabled = true; startBtn.textContent = 'Verifying…';
+      try {
+        const results = await Promise.all(probeInputs.map(async (i) => {
+          const r = await probeLlm(i);
+          const statusEl = i.cfgEl.querySelector('.verify-llm-status');
+          if (statusEl) {
+            statusEl.hidden = false;
+            statusEl.className = 'verify-llm-status ' + (r.ok ? 'ok' : 'off');
+            statusEl.textContent = r.ok ? 'On line' : 'OFF LINE (' + r.reason + ')';
+          }
+          return [i.side, r];
+        }));
+        const probeErrs = results
+          .filter(([, r]) => !r.ok)
+          .map(([s, r]) => s[0].toUpperCase() + s.slice(1) + ' (LLM-AI): endpoint off line — ' + r.reason);
+        if (probeErrs.length) { errorEl.textContent = probeErrs.join(' '); errorEl.hidden = false; return; }
+      } finally { startBtn.disabled = false; startBtn.textContent = prevText; }
+    }
     if (setupSeriesMode === 'tournament') { startTournament(); return; }   // gauntlet sets the AI opponent per level
     if (setupSeriesMode === 'match') { startMatch(); return; }            // head-to-head between the two configured sides
     const { config, errors } = readSideConfigs();
-    const errorEl = document.getElementById('setup-error');
     if (errors.length) {
       errorEl.textContent = errors.join(' ');
       errorEl.hidden = false;
@@ -3054,7 +3113,7 @@ function requestMove(fen, difficulty) {
         llmSide = cfgEl.dataset.side;
         llmConfig = {
           type: 'llm',
-          apiBase: cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, ''),
+          apiBase: normalizeApiBase(cfgEl.querySelector('.llm-api-base').value),
           apiKey: cfgEl.querySelector('.llm-api-key').value.trim(),
           model: cfgEl.querySelector('.llm-model').value.trim(),
           systemPrompt: cfgEl.querySelector('.llm-prompt').value.trim(),
