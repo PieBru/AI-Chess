@@ -1509,7 +1509,13 @@ function requestMove(fen, difficulty) {
             { 'Content-Type': 'application/json' },
             sideConfig.apiKey ? { Authorization: 'Bearer ' + sideConfig.apiKey } : {}
           ),
-          body: JSON.stringify({ model: sideConfig.model, messages, temperature: 0.2 }),
+          // No temperature/top_p/frequency_penalty: reasoning models (o1/o3/o4,
+          // R1, Gemini-thinking, Claude-thinking) 400 on non-reasoning params,
+          // and some third-party OpenAI-compatible servers reject unknown params.
+          // Sending them would make a reasoning model fail every move and fall
+          // back — poisoning eval results for a fault that isn't the model's.
+          // Rely on provider defaults (cf. LLM-Chess, Apr 2026).
+          body: JSON.stringify({ model: sideConfig.model, messages }),
         });
         if (res.ok) {
           const data = await res.json();
