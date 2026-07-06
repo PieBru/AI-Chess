@@ -1467,19 +1467,50 @@ function requestMove(fen, difficulty) {
   }
 
   async function callLLM(sideConfig, messages) {
-    const res = await fetch(sideConfig.apiBase + '/chat/completions', {
-      method: 'POST',
-      headers: Object.assign(
-        { 'Content-Type': 'application/json' },
-        sideConfig.apiKey ? { Authorization: 'Bearer ' + sideConfig.apiKey } : {}
-      ),
-      body: JSON.stringify({ model: sideConfig.model, messages, temperature: 0.2 }),
-    });
-    if (!res.ok) throw new Error('LLM endpoint returned HTTP ' + res.status);
-    const data = await res.json();
-    const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    if (!content) throw new Error('LLM response had no message content');
-    return content.trim();
+    const deadline = Date.now() + 300000;   // retry for up to 5 min total
+    let delay = 1000;   // start at 1s, double each time, cap 60s
+    let lastError = null;
+
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(sideConfig.apiBase + '/chat/completions', {
+          method: 'POST',
+          headers: Object.assign(
+            { 'Content-Type': 'application/json' },
+            sideConfig.apiKey ? { Authorization: 'Bearer ' + sideConfig.apiKey } : {}
+          ),
+          body: JSON.stringify({ model: sideConfig.model, messages, temperature: 0.2 }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+          if (!content) throw new Error('LLM response had no message content');
+          return content.trim();
+        }
+        // Retry 429 (rate limit) and 5xx (server error) with exponential
+        // backoff; throw immediately on other 4xx (wrong auth, not found,
+        // bad request — these won't resolve on retry).
+        if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
+          lastError = new Error('HTTP ' + res.status + ' — retrying');
+        } else {
+          throw new Error('LLM endpoint returned HTTP ' + res.status + ' (not retried)');
+        }
+      } catch (err) {
+        // Network errors (CORS, DNS, unreachable) — retry if under budget
+        if (err.message && err.message.includes('not retried')) throw err;
+        // Mixed-content block (HTTPS page → HTTP endpoint) is permanent —
+        // don't spin retries for 5 minutes.
+        if (location.protocol === 'https:' && sideConfig.apiBase.startsWith('http:')) {
+          throw new Error('LLM call failed: HTTPS page cannot fetch from HTTP endpoint. Use an HTTPS LLM URL, or serve this app locally via HTTP.');
+        }
+        lastError = err;
+      }
+      if (Date.now() >= deadline) break;
+      const wait = Math.min(delay, deadline - Date.now());
+      await new Promise(r => setTimeout(r, wait));
+      delay = Math.min(delay * 2, 60000);
+    }
+    throw new Error('LLM call failed after exhausting retries: ' + lastError.message.replace(' — retrying', ''));
   }
 
   function llmEndpointErrorHint(apiBase) {
