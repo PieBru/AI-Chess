@@ -2700,6 +2700,14 @@ function requestMove(fen, difficulty) {
     const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
+    // Tournament safety net: cap games at TOURNAMENT_MAX_PLY half-moves so an
+    // unattended engine/LLM game can't loop forever (we don't yet detect
+    // threefold repetition). Counts as a draw, mirroring the LLM-Chess
+    // benchmark's 200-move cap.
+    if (tournament && moveHistory.length >= TOURNAMENT_MAX_PLY) {
+      finishGame({ over: true, result: '½-½', reason: 'move limit (' + TOURNAMENT_MAX_PLY + ' half-moves) reached' });
+      return;
+    }
 
     clockStart(gameState.turn);   // side-to-move's clock now runs (human deliberation or engine think)
 
@@ -2898,6 +2906,7 @@ function requestMove(fen, difficulty) {
     1: '1 Random', 2: '2 Easy', 3: '3 Medium', 4: '4 Hard', 5: '5 Expert',
     6: '6 GM (Elo 1350)', 7: '7 GM (Elo 1800)', 8: '8 GM (Elo 2200)', 9: '9 GM (full)',
   };
+  const TOURNAMENT_MAX_PLY = 200;   // safety cap: a tournament game is a draw at 200 half-moves (100/player), mirroring the LLM-Chess benchmark. Prevents unattended engine/LLM games from looping forever (we don't yet detect threefold repetition).
   function oppositeSide(sideKey) { return sideKey === 'white' ? 'black' : 'white'; }
   function tournamentAiConfig(level) {
     if (level >= GM_LEVEL) return { type: 'grandmaster', difficulty: level, elo: GRANDMASTER_ELO_LEVELS[level] };
@@ -3009,11 +3018,15 @@ function requestMove(fen, difficulty) {
     const t = tournament;
     if (tournamentStopped) { renderTournamentResults(); return; }
     if (t.gameInLevel < 3) { tournamentNextGame(); return; }
-    // 3 games played at this level — check for a decisive 3-0 sweep.
+    // 3 games played at this level. Decide whether to climb or stop.
+    // Adaptive gauntlet (cf. LLM-Chess): a decisive LLM win means "go UP to find
+    // the ceiling"; a decisive AI win means "found the LLM's floor — stop".
+    // Mixed results also climb (we play only 3 games/level, so a 2-1/1-2 split
+    // isn't enough to pin the rating — keep searching for a decisive level).
     const row = t.results.find(r => r.level === t.level);
-    const swept = row && (row.llmWins === 3 || row.aiWins === 3);
-    if (swept || t.level >= 9) { renderTournamentResults(); return; }
-    // No sweep and higher levels remain — climb to the next difficulty.
+    const aiSwept = row && row.aiWins === 3;   // LLM lost every game → this is its floor
+    if (aiSwept || t.level >= 9) { renderTournamentResults(); return; }
+    // LLM swept OR mixed, and higher levels remain → climb to the next difficulty.
     t.level++; t.gameInLevel = 0;
     tournamentNextGame();
   }
@@ -3030,9 +3043,11 @@ function requestMove(fen, difficulty) {
     if (tournamentStopped) return 'stopped by user';
     const last = t.results[t.results.length - 1];
     if (!last) return 'no rounds completed';
-    if (last.llmWins === 3) return 'LLM swept ' + TOURNAMENT_LEVEL_NAMES[last.level];
-    if (last.aiWins === 3) return 'stopped at ' + TOURNAMENT_LEVEL_NAMES[last.level] + ' (AI swept)';
-    if (last.level >= 9) return 'completed all levels (no sweep at top)';
+    if (last.aiWins === 3) return 'stopped at ' + TOURNAMENT_LEVEL_NAMES[last.level] + ' (LLM lost all 3 — found its floor)';
+    if (last.level >= 9) {
+      if (last.llmWins === 3) return 'LLM swept every level up to ' + TOURNAMENT_LEVEL_NAMES[last.level] + ' (ceiling not found — top strength reached)';
+      return 'completed all levels (mixed at top level)';
+    }
     return 'ended';
   }
 
@@ -3103,6 +3118,8 @@ function requestMove(fen, difficulty) {
     const avgLatency = t.llm.moves ? (t.llm.latencyMs / t.llm.moves / 1000).toFixed(1) : '0';
     const avgTokens = t.llm.moves ? Math.round(t.llm.completionTokens / t.llm.moves) : 0;
     lines.push('Games: ' + t.games + ' · avg ' + avgMoves + ' moves/game · avg LLM latency ' + avgLatency + ' s/move · ' + avgTokens + ' completion tokens/move');
+    lines.push('');
+    lines.push('Methodology: single-turn constrained choice (board + full legal-move list given each move), one corrective retry then local fallback. This is a simpler protocol than LLM-Chess\'s multi-turn agentic Game Duration, so our instruction-following % is not directly comparable to theirs. Elo is anchored to Stockfish UCI_Elo (a different pool from their Dragon/chess.com calibration); the MLE method is the same.');
     return lines.join('\n');
   }
 
