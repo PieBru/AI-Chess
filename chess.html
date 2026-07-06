@@ -528,57 +528,57 @@ Default Off = no clock.">Time control
       <div id="thinking" hidden><span class="spinner"></span><span id="thinking-text"></span></div>
     </div>
     <aside class="side-panel">
-      <div id="status-line">White to move</div>
-      <div id="clocks" class="clocks" hidden>
+      <div id="status-line" title="Whose turn it is, plus any check, checkmate, stalemate or draw state — updates after every move.">White to move</div>
+      <div id="clocks" class="clocks" hidden title="FIDE-style chess clocks: each side's total remaining time, with an increment added after every move. The side-to-move's clock runs on its turn; reaching zero loses on time. Shown only when a time control is set at setup.">
         <div class="clock" id="clock-white-row"><span class="clock-side">White</span><span class="clock-time" id="clock-white-time">—</span></div>
         <div class="clock" id="clock-black-row"><span class="clock-side">Black</span><span class="clock-time" id="clock-black-time">—</span></div>
       </div>
       <div id="spectator-controls" class="spectator-controls" hidden>
-        <label class="speed-label">Speed
-          <select id="speed-select">
-            <option value="veryslow">Very slow</option>
-            <option value="slow">Slow</option>
-            <option value="normal">Normal</option>
-            <option value="fast">Fast</option>
-            <option value="instant">Instant</option>
+        <label class="speed-label" title="Delay inserted between moves when spectating AI vs AI / AI vs LLM. Remembered across sessions.">Speed
+          <select id="speed-select" title="Pause between auto-played moves — Very slow for studying, Instant to rush through.">
+            <option value="veryslow" title="12 000 ms (12 s) between moves">Very slow</option>
+            <option value="slow" title="9 000 ms (9 s) between moves">Slow</option>
+            <option value="normal" title="7 000 ms (7 s) between moves">Normal</option>
+            <option value="fast" title="2 500 ms (2.5 s) between moves">Fast</option>
+            <option value="instant" title="0 ms — plays as fast as the engines compute">Instant</option>
           </select>
         </label>
-        <button id="pause-btn" type="button">Pause</button>
-        <button id="stop-btn" type="button">Stop</button>
+        <button id="pause-btn" type="button" title="Pause the auto-play loop. Takes effect once the move currently being computed finishes; click again to resume.">Pause</button>
+        <button id="stop-btn" type="button" title="End the current game — or, in a tournament/match, the whole series — early with no winner (recorded as stopped). Partial series results are kept.">Stop</button>
       </div>
       <div id="captured-tray" class="captured-tray">
         <div class="captured-row">
-          <span class="captured-label">Captured by White</span>
-          <span class="captured-pieces" id="captured-white-pieces">—</span>
-          <span class="material-diff" id="material-diff-white"></span>
+          <span class="captured-label" title="Black pieces taken by White, shown strongest first (queen → pawn).">Captured by White</span>
+          <span class="captured-pieces" id="captured-white-pieces" title="The black pieces White has captured so far.">—</span>
+          <span class="material-diff" id="material-diff-white" title="White's net material lead (+) or deficit (−) in points."></span>
         </div>
         <div class="captured-row">
-          <span class="captured-label">Captured by Black</span>
-          <span class="captured-pieces" id="captured-black-pieces">—</span>
-          <span class="material-diff" id="material-diff-black"></span>
+          <span class="captured-label" title="White pieces taken by Black, shown strongest first (queen → pawn).">Captured by Black</span>
+          <span class="captured-pieces" id="captured-black-pieces" title="The white pieces Black has captured so far.">—</span>
+          <span class="material-diff" id="material-diff-black" title="Black's net material lead (+) or deficit (−) in points."></span>
         </div>
       </div>
-      <ol id="move-history"></ol>
-      <div class="result-banner" id="result-banner" hidden></div>
-      <div class="replay-controls" id="replay-controls" hidden>
-        <button id="replay-first" type="button">⏮ Start</button>
-        <button id="replay-prev" type="button">◀ Prev</button>
-        <span class="replay-counter" id="replay-counter"></span>
-        <button id="replay-next" type="button">Next ▶</button>
-        <button id="replay-last" type="button">End ⏭</button>
+      <ol id="move-history" title="Moves in algebraic notation (SAN), paired White | Black, each tagged by quality (best / good / inaccuracy / mistake / blunder) judged by the local engine."></ol>
+      <div class="result-banner" id="result-banner" hidden title="The game outcome and how it ended (checkmate, resignation, stalemate, time, draw…). Shown when the game finishes."></div>
+      <div class="replay-controls" id="replay-controls" hidden title="Step through a loaded PGN game (view-only — engines don't resume). Shown after Load PGN.">
+        <button id="replay-first" type="button" title="Jump to the starting position.">⏮ Start</button>
+        <button id="replay-prev" type="button" title="Step back one half-move.">◀ Prev</button>
+        <span class="replay-counter" id="replay-counter" title="Current ply / total plies in the replayed game."></span>
+        <button id="replay-next" type="button" title="Step forward one half-move.">Next ▶</button>
+        <button id="replay-last" type="button" title="Jump to the final position.">End ⏭</button>
       </div>
       <div class="controls">
-        <button id="flip-btn">Flip board</button>
-        <button id="resign-btn">Resign</button>
-        <button id="rematch-btn">Rematch</button>
-        <button id="save-pgn-btn">Save PGN</button>
-        <button id="load-pgn-btn">Load PGN</button>
-        <button id="new-game-btn">New game</button>
+        <button id="flip-btn" title="Flip the board so the other colour sits at the bottom.">Flip board</button>
+        <button id="resign-btn" title="Concede — the side to move loses. Asks for confirmation.">Resign</button>
+        <button id="rematch-btn" title="Start a fresh game with the same sides and settings (skips setup). Asks for confirmation if a game is in progress.">Rematch</button>
+        <button id="save-pgn-btn" title="Download this game as a PGN file (standard portable game notation).">Save PGN</button>
+        <button id="load-pgn-btn" title="Open a PGN file from disk to replay it move-by-move (view-only; doesn't resume engine play).">Load PGN</button>
+        <button id="new-game-btn" title="Leave this game and return to setup. Asks for confirmation and offers to save as PGN first.">New game</button>
       </div>
       <input type="file" id="pgn-file-input" accept=".pgn,application/x-chess-pgn,text/plain" hidden>
-      <label class="sound-toggle"><input type="checkbox" id="coords-toggle"> Show coordinates (a–h, 1–8)</label>
-      <label class="sound-toggle"><input type="checkbox" id="sound-toggle"> Sound effects</label>
-      <label class="sound-toggle"><input type="checkbox" id="reactions-toggle"> Spectator reactions (applause / boo)</label>
+      <label class="sound-toggle" title="Show file (a–h) and rank (1–8) labels around the board. Remembered across sessions."><input type="checkbox" id="coords-toggle"> Show coordinates (a–h, 1–8)</label>
+      <label class="sound-toggle" title="Play move, capture, check and game-end sounds. Off by default; remembered across sessions."><input type="checkbox" id="sound-toggle"> Sound effects</label>
+      <label class="sound-toggle" title="Play crowd reactions (applause on strong moves/captures, boo on blunders) during AI vs AI games. Off by default; separate from the move sounds."><input type="checkbox" id="reactions-toggle"> Spectator reactions (applause / boo)</label>
     </aside>
   </div>
 </section>
