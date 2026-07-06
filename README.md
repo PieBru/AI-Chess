@@ -51,7 +51,15 @@ User-facing pages (blog, player's guide, kids): see [`docs/`](docs/).
 
 ## Development environment
 
-This project was developed fully locally on **Arch Linux**, driven by the [**pi** coding agent](https://pi.dev) backed by a self-hosted **llama.cpp** server running **Qwen-3.6-27B_UD-Q8 by Unsloth** — no cloud APIs involved. (Part of the point: an empirical benchmark for self-hosted LLM inferencing and agentic software engineering.)
+**The entire project — code and all documentation — was developed using only open-source tools, including the LLM.** The main components of the development system:
+
+- **[Arch Linux](https://archlinux.org/)** — the development OS.
+- **[pi](https://pi.dev)** — the coding agent that drove the work.
+- **[Feynman](https://github.com/companion-inc/feynman)** skills — for deep-research and other design tasks.
+- **[YAGNI](https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it)** methodology, enforced by **[ponytail](https://github.com/DietrichGebert/ponytail)** — keeping every change the shortest working diff.
+- **ssh + [tmux](https://github.com/tmux/tmux)** — persistent remote coding sessions.
+
+The LLM backing `pi` was a **self-hosted [llama.cpp](https://github.com/ggml-org/llama.cpp)** server running **Qwen-3.6-27B_UD-Q8 by Unsloth** — no cloud APIs involved. Part of the point: this project is itself an empirical benchmark for self-hosted LLM inferencing and agentic software engineering.
 
 ## License
 
