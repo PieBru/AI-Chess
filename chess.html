@@ -462,7 +462,7 @@ Default Off = no clock.">Time control
         <option value="classical">Classical (30+0)</option>
       </select>
     </label>
-    <label class="timecontrol-label" id="tournament-toggle-label" hidden title="Play the LLM side in a best-of-3 round against each AI difficulty — an adaptive gauntlet from Random up to Grandmaster (full) that finds the LLM's level. Results + diagnostics auto-save to a timestamped file. Runs without a chess clock."><input type="checkbox" id="tournament-toggle"> Tournament mode (LLM gauntlet vs all AI levels)</label>
+    <label class="timecontrol-label" id="tournament-toggle-label" hidden title="Play the LLM side in a best-of-3 round against each AI difficulty — an adaptive gauntlet from Random up to Grandmaster (full) that finds the LLM's level. Results + diagnostics auto-save to a timestamped file. Runs without a chess clock."><input type="checkbox" id="tournament-toggle"> Tournament mode (LLM gauntlet vs all Browser-AI levels)</label>
     <div class="start-row">
       <button id="start-btn">Start Game</button>
     </div>
@@ -1765,20 +1765,25 @@ function requestMove(fen, difficulty) {
   // by default, unlocked by its own opt-in gesture.
   let reactionsEnabled = false;
   const REACTION_CLIPS = JSON.parse(document.getElementById('reaction-clips-src').textContent);
-  const REACTION_FADE_MS = 400;   // graceful tail so clips decay instead of cutting off
+  const REACTION_FADE_MS = 900;   // graceful tail: a longer, curved decay so clips trail off instead of cutting off
   const reactionClipEls = {};
   function playReaction(kind) {
     if (!reactionsEnabled || !REACTION_CLIPS[kind]) return;
     if (!reactionClipEls[kind]) {
       const el = new Audio(REACTION_CLIPS[kind]);
       el.preload = 'auto';
-      // Linear fade-out over the last REACTION_FADE_MS. rAF (not the coarse
-      // ~4 Hz 'timeupdate' event) gives a smooth 60 fps ramp to silence.
-      const fadeSec = REACTION_FADE_MS / 1000;
+      // Smooth fade-out over the clip's tail. Quadratic curve (x*x) reads as
+      // an even fade to the ear, which hears loudness logarithmically — a
+      // linear amplitude ramp instead sounds like it holds loud then drops.
+      // Capped at 40% of the clip so a short reaction isn't over-faded.
+      // rAF (60 fps, not the coarse ~4 Hz 'timeupdate') ramps smoothly to silence.
+      const baseFade = REACTION_FADE_MS / 1000;
       const tick = () => {
         if (!el.paused && !el.ended && isFinite(el.duration) && el.duration > 0) {
+          const fadeSec = Math.min(baseFade, el.duration * 0.4);
           const rem = el.duration - el.currentTime;
-          el.volume = rem < fadeSec ? Math.max(0, rem / fadeSec) : 1;
+          const x = rem < fadeSec ? Math.max(0, rem / fadeSec) : 1;
+          el.volume = x * x;
         }
         requestAnimationFrame(tick);
       };
