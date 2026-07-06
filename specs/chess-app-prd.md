@@ -138,5 +138,6 @@ Single source of truth for anything pushed past v1. Each item keeps the door ope
 | Multi-threaded Stockfish WASM | spec A11.3, §12; TDD §5.2 | v1.1 upgrade, header-gated | Deployment host confirmed to serve COOP/COEP |
 | ~~Full offline Grandmaster mode~~ | spec NG3 | **Done** — the Stockfish bundle is vendored in the repo (GPL-3.0, NFR-5.2), so Grandmaster runs fully offline once served over HTTP (no internet download); `file://` is not supported for GM because browsers block its Worker (NFR-5.2) | n/a |
 | Move-quality tag thresholds + ELO mapping | PRD §5.4, spec A11.1 | Not blocking; tuned post-launch | Playtest data available |
+| **Threefold-repetition draw detection** | spec FR-1.3 | **Not implemented.** Fifty-move + insufficient-material draws work; threefold does not. Tournament games are capped at 200 half-moves → draw (FR-9.6) as an interim safety net against infinite loops; human/AI games use the existing stop controls. | A human/AI game is observed looping indefinitely via repeated positions, or a user expects full FIDE draw rules |
 
 None of the above blocks v1 scope (spec FR/AC set, PRD §5 UX). All are additive and reversible.
