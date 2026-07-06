@@ -71,6 +71,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
 - FR-1.1 Legal move generation for all pieces, including castling (kingside/queenside, with all legality conditions: king/rook unmoved, no intervening pieces, king not in/through/into check), en passant, and pawn promotion (must prompt for piece choice when a human promotes; AI selects programmatically).
 - FR-1.2 Check, checkmate, and stalemate detection.
 - FR-1.3 Draw detection: fifty-move rule and insufficient material are implemented. **Threefold repetition is NOT yet implemented** (deferred — see PRD §8.1); as an interim safety net, tournament games are capped at 200 half-moves → draw (FR-9.6), and human/AI games can be stopped via the existing controls.
+- FR-1.4 **Configurable move limit (game-length cap):** the setup screen offers a **Move limit** selector (Off / 40 / 60 / 80 / 100 / 150 / 200 full moves, default Off, persisted). When set, a single game is auto-drawn at that many full moves (half-moves × 2) — a user-controlled safety net, since the fifty-move rule (FR-1.3) only fires after 100 *consecutive* quiet plies, which engine games can dodge with periodic captures/pawn moves. Off = rely on the fifty-move rule and natural endings. In Match mode the selector is shown and the cap is the lesser of the user limit and the 200-half-move safety net (so it can only tighten FR-9.7, never raise it); in Tournament mode the selector is hidden and the fixed 200-half-move cap applies.
 - FR-1.4 A move is only committed to the game state if fully legal; illegal move attempts by a human are rejected with visual feedback and do not change state.
 - FR-1.5 The engine must produce a FEN string for any position and standard algebraic notation (SAN) for any move, since both AI tiers and the move-history UI depend on them.
 
@@ -147,7 +148,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
 
 ### FR-7. Game status & notation
 - FR-7.1 Persistent status line reflecting game state: whose turn, check, checkmate, stalemate, draw (with reason).
-- FR-7.2 On game end, display the result (1-0, 0-1, ½-½) and reason. Reasons include checkmate, stalemate, draw (fifty-move/insufficient material/agreement — threefold not yet implemented, see FR-1.3), resignation, and — when the chess clock is enabled (FR-6.6) — loss on time.
+- FR-7.2 On game end, display the result (1-0, 0-1, ½-½) and reason. Reasons include checkmate, stalemate, draw (fifty-move/insufficient material/agreement — threefold not yet implemented, see FR-1.3), move-limit draw (FR-1.4), resignation, and — when the chess clock is enabled (FR-6.6) — loss on time.
 
 ### FR-8. Persistence
 - FR-8.1 No *automatic* persistence of game state in v1: refreshing the page

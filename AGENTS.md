@@ -177,6 +177,7 @@ completionTokens }`), re-validates every AI move through the rules engine
 before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 `playTurn()` recursing at the loop tail. Setup screen captures per-side
 `ControllerConfig`; `matchConfig` is the live `{white, black}` pair.
+Game-end, checked at the top of each `playTurn()`: checkmate / stalemate / insufficient material / fifty-move rule (all via `gameStatus`), plus a **move-limit draw** — a user-set cap (spec FR-1.4, default Off) in single games, tightened to the 200-half-move safety net in series (Tournament/Match).
 
 **Cross-cutting features wired into the loop / UI:**
 - **Chess clock** (FR-6.6): optional FIDE-style per-side total clock +

@@ -401,7 +401,18 @@
           <option value="40">40</option>
         </select>
       </label>
-      <label class="timecontrol-label tc-right" title="Each side gets a total time budget for the whole game + a per-move increment added after each move (FIDE-style chess clock). The side-to-move's clock runs while they think; zero = loss on time.
+      <label class="timecontrol-label tc-right" id="movelimit-label" title="Maximum full moves (White+Black = 1 move) before the game is auto-drawn — a safety net against very long games. Off = no cap (relies on the fifty-move rule and natural endings). Tournament games always keep their fixed 100-move cap.">Move limit
+        <select id="movelimit-select">
+          <option value="off" selected>Off</option>
+          <option value="40">40</option>
+          <option value="60">60</option>
+          <option value="80">80</option>
+          <option value="100">100</option>
+          <option value="150">150</option>
+          <option value="200">200</option>
+        </select>
+      </label>
+      <label class="timecontrol-label" title="Each side gets a total time budget for the whole game + a per-move increment added after each move (FIDE-style chess clock). The side-to-move's clock runs while they think; zero = loss on time.
 
 Bullet 1+0: 1 min total, no increment. Blitz 3+2: 3 min + 2 s/move. Rapid 10+5: 10 min + 5 s/move. Classical 30+0: 30 min total, no increment.
 
@@ -1937,12 +1948,13 @@ function requestMove(fen, difficulty) {
   // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
   }
   let timeControlPref = 'off';   // setup-screen selection key, persisted
+  let moveLimitPref = 'off';      // setup-screen selection key ('off' or a full-move count), persisted
   (function restorePrefs() {
     const p = loadPrefs();
     if (!p) return;
@@ -1951,12 +1963,15 @@ function requestMove(fen, difficulty) {
     reactionsEnabled = !!p.reactions;
     spectatorSpeed = ['veryslow','slow','normal','fast','instant'].includes(p.speed) ? p.speed : 'normal';
     timeControlPref = ['off','bullet','blitz','rapid','classical'].includes(p.timeControl) ? p.timeControl : 'off';
+    moveLimitPref = ['off','40','60','80','100','150','200'].includes(p.moveLimit) ? p.moveLimit : 'off';
     soundToggleEl.checked = soundEnabled;
     coordsToggleEl.checked = showCoords;
     reactionsToggleEl.checked = reactionsEnabled;
     speedSelectEl.value = spectatorSpeed;
     const tcSel = document.getElementById('timecontrol-select');
     if (tcSel) tcSel.value = timeControlPref;
+    const mlSel = document.getElementById('movelimit-select');
+    if (mlSel) mlSel.value = moveLimitPref;
   })();
   soundToggleEl.addEventListener('change', () => {
     soundEnabled = soundToggleEl.checked;
@@ -1982,6 +1997,11 @@ function requestMove(fen, difficulty) {
   const timeControlSelectEl = document.getElementById('timecontrol-select');
   timeControlSelectEl.addEventListener('change', () => {
     timeControlPref = timeControlSelectEl.value;
+    savePrefs();
+  });
+  const moveLimitSelectEl = document.getElementById('movelimit-select');
+  moveLimitSelectEl.addEventListener('change', () => {
+    moveLimitPref = moveLimitSelectEl.value;
     savePrefs();
   });
 
@@ -2143,6 +2163,8 @@ function requestMove(fen, difficulty) {
     });
     document.querySelector('.side-configs').classList.toggle('one-side', isTournament);
     timeControlSelectEl.closest('label').hidden = isTournament;
+    const mlLabel = document.getElementById('movelimit-label');
+    if (mlLabel) mlLabel.hidden = isTournament;   // tournament keeps its fixed 200-ply cap; move-limit is a single/match option
     const noClock = setupSeriesMode !== 'single' && llmCount > 0;   // clock disabled only with an LLM side (slow inference / retries)
     timeControlSelectEl.disabled = noClock;
     timeControlSelectEl.title = noClock
@@ -2985,12 +3007,14 @@ function requestMove(fen, difficulty) {
     const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
-    // Series safety net: cap games at TOURNAMENT_MAX_PLY half-moves so an
-    // unattended engine/LLM game can't loop forever (we don't yet detect
-    // threefold repetition). Counts as a draw, mirroring the LLM-Chess
-    // benchmark's 200-move cap.
-    if (seriesActive() && moveHistory.length >= TOURNAMENT_MAX_PLY) {
-      finishGame({ over: true, result: '1/2-1/2', reason: 'move limit (' + TOURNAMENT_MAX_PLY + ' half-moves) reached' });
+    // Move limit: a user-set cap on game length (single games). In a series
+    // (tournament/match) it can only tighten the fixed 200-half-move safety
+    // net (which can't trust a human to hit Stop); Off = rely on the fifty-
+    // move rule. ply = full moves × 2.
+    const mlPly = moveLimitPref === 'off' ? Infinity : parseInt(moveLimitPref, 10) * 2;
+    const capPly = seriesActive() ? Math.min(mlPly, TOURNAMENT_MAX_PLY) : mlPly;
+    if (capPly !== Infinity && moveHistory.length >= capPly) {
+      finishGame({ over: true, result: '1/2-1/2', reason: 'move limit (' + capPly + ' half-moves) reached' });
       return;
     }
 
