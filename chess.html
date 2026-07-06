@@ -139,6 +139,7 @@
   .timecontrol-label select { padding: 6px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: .85rem; }
   .series-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 0; }
   .series-mode-row .timecontrol-label { justify-content: flex-start; margin-top: 0; }
+  .series-mode-row .tc-right { margin-left: auto; }
   .error-msg { color: var(--danger); font-size: .85rem; margin-top: 10px; }
   .error-msg[hidden] { display: none; }
 
@@ -400,6 +401,19 @@
           <option value="40">40</option>
         </select>
       </label>
+      <label class="timecontrol-label tc-right" title="Each side gets a total time budget for the whole game + a per-move increment added after each move (FIDE-style chess clock). The side-to-move's clock runs while they think; zero = loss on time.
+
+Bullet 1+0: 1 min total, no increment. Blitz 3+2: 3 min + 2 s/move. Rapid 10+5: 10 min + 5 s/move. Classical 30+0: 30 min total, no increment.
+
+Default Off = no clock.">Time control
+      <select id="timecontrol-select" title="Bullet=1min+0, Blitz=3min+2s/move, Rapid=10min+5s/move, Classical=30min+0, Off=no clock">
+        <option value="off" selected>Off</option>
+        <option value="bullet">Bullet (1+0)</option>
+        <option value="blitz">Blitz (3+2)</option>
+        <option value="rapid">Rapid (10+5)</option>
+        <option value="classical">Classical (30+0)</option>
+      </select>
+    </label>
     </div>
     <div class="side-configs">
       <div class="side-config" data-side="white">
@@ -485,19 +499,6 @@
         <p class="hint side-hint">Makes moves via the board UI.</p>
       </div>
     </div>
-    <label class="timecontrol-label" title="Each side gets a total time budget for the whole game + a per-move increment added after each move (FIDE-style chess clock). The side-to-move's clock runs while they think; zero = loss on time.
-
-Bullet 1+0: 1 min total, no increment. Blitz 3+2: 3 min + 2 s/move. Rapid 10+5: 10 min + 5 s/move. Classical 30+0: 30 min total, no increment.
-
-Default Off = no clock.">Time control
-      <select id="timecontrol-select" title="Bullet=1min+0, Blitz=3min+2s/move, Rapid=10min+5s/move, Classical=30min+0, Off=no clock">
-        <option value="off" selected>Off</option>
-        <option value="bullet">Bullet (1+0)</option>
-        <option value="blitz">Blitz (3+2)</option>
-        <option value="rapid">Rapid (10+5)</option>
-        <option value="classical">Classical (30+0)</option>
-      </select>
-    </label>
     <div class="start-row">
       <button id="start-btn">Start Game</button>
     </div>
