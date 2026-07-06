@@ -2143,10 +2143,10 @@ function requestMove(fen, difficulty) {
     });
     document.querySelector('.side-configs').classList.toggle('one-side', isTournament);
     timeControlSelectEl.closest('label').hidden = isTournament;
-    const noClock = setupSeriesMode !== 'single';
+    const noClock = setupSeriesMode !== 'single' && llmCount > 0;   // clock disabled only with an LLM side (slow inference / retries)
     timeControlSelectEl.disabled = noClock;
     timeControlSelectEl.title = noClock
-      ? 'No clock in ' + setupSeriesMode + ' mode — the AI isn\'t penalized for slow inference or retries.'
+      ? 'No clock with an LLM side — it isn\'t penalized for slow inference or retries.'
       : TC_TITLE;
     document.getElementById('start-btn').textContent =
       setupSeriesMode === 'tournament' ? 'Run tournament'
@@ -3477,12 +3477,15 @@ function requestMove(fen, difficulty) {
       errorEl.textContent = 'Match mode needs two non-human sides.'; errorEl.hidden = false; return;
     }
     const games = parseInt(document.getElementById('match-games').value, 10) || 10;
+    // Clock allowed only when neither side is an LLM (LLMs aren't penalized for slow inference/retries).
+    const matchTimeControl = (config.white.type === 'llm' || config.black.type === 'llm') ? null : readTimeControlFromSetup();
     match = {
       games, played: 0,
       cfgA: config.white, cfgB: config.black,                 // A = configured White, B = configured Black (identity fixed; colors alternate)
       labelA: matchSideLabel(config.white), labelB: matchSideLabel(config.black),
       winsA: 0, draws: 0, winsB: 0,
       startedAt: new Date(), totalPlies: 0,
+      timeControl: matchTimeControl,
       stats: { A: newSideStats(), B: newSideStats() },
     };
     matchStopped = false;
@@ -3499,8 +3502,9 @@ function requestMove(fen, difficulty) {
     matchConfig = {};
     matchConfig[aIsWhite ? 'white' : 'black'] = m.cfgA;
     matchConfig[aIsWhite ? 'black' : 'white'] = m.cfgB;
-    timeControl = null; clocks = null;                        // no clock in match games
-    document.getElementById('clocks').hidden = true;
+    timeControl = m.timeControl;
+    clocks = timeControl ? { white: timeControl.initialMs, black: timeControl.initialMs } : null;
+    document.getElementById('clocks').hidden = !timeControl;
     gameGeneration++;
     gameState = Rules.newGame();
     moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;

@@ -253,7 +253,7 @@ Browser-AI/Stockfish side is allowed too. The user picks an **even game
 count** (6 / 10 / 20 / 40, default 10); Start becomes "Run match". It plays
 that many games between the two configured sides as-is — **no level sweep**
 (that's the gauntlet's job, §4.6) — **colors alternating each game** so each
-side plays White exactly N/2 times. No chess clock; same 200-ply cap,
+side plays White exactly N/2 times. Chess clock **optional when neither side is an LLM** (disabled if either side is an LLM, which isn't penalized for slow inference/retries); same 200-ply cap,
 spectator pacing / Pause / Stop, and LLM retry/fallback as a normal game.
 
 The output is a **relative** strength ranking (NOT absolute Elo — there's no
