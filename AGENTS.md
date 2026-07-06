@@ -209,9 +209,12 @@ before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
   threshold — the crowd starts quiet and grows invested).
 
 ### 4.6 Tournament mode (LLM gauntlet) — FR-9.6
-When exactly one side is LLM-AI, a "Tournament mode" checkbox appears beside
-the Time control; checking it turns the Start button into "Run tournament".
-It plays a **3-game round** between the LLM and the AI at each difficulty (1–9)
+The setup screen's **Mode selector** (Single game / Tournament / Match —
+§4.7) offers **Tournament** when exactly one side is LLM-AI; choosing it turns
+the Start button into "Run tournament". (Replaces the earlier "Tournament
+mode" checkbox; the selector also hosts Match mode. Tournament and Match both
+grey out the Time control — they run without a chess clock.) It plays a
+**3-game round** between the LLM and the AI at each difficulty (1–9)
 using an **adaptive gauntlet** (aligned with LLM-Chess's level-selection
 heuristic): after each round, if the **AI swept** (LLM lost all 3) the
 tournament **stops** — that level is the LLM's floor; otherwise (LLM swept
@@ -241,6 +244,49 @@ auto-saved to `tournament-{model}-{yyyymmdd-hhmmss}.txt`:
   instruction-following % is not directly comparable; our Elo pool (Stockfish
   `UCI_Elo`) differs from theirs (Dragon/chess.com) though the MLE method is
   identical.
+
+### 4.7 Match mode (best-of-N head-to-head) — FR-9.7
+The Mode selector offers **Match** when **both sides are non-human** — the
+headline use case is two LLM-AI sides (different models/endpoints, or the same
+model with different personas to A/B-test system prompts), but a
+Browser-AI/Stockfish side is allowed too. The user picks an **even game
+count** (6 / 10 / 20 / 40, default 10); Start becomes "Run match". It plays
+that many games between the two configured sides as-is — **no level sweep**
+(that's the gauntlet's job, §4.6) — **colors alternating each game** so each
+side plays White exactly N/2 times. No chess clock; same 200-ply cap,
+spectator pacing / Pause / Stop, and LLM retry/fallback as a normal game.
+
+The output is a **relative** strength ranking (NOT absolute Elo — there's no
+anchor, unlike the gauntlet's Stockfish-Elo MLE), shown and auto-saved to
+`match-{labelA}-vs-{labelB}-{yyyymmdd-hhmmss}.txt`:
+- **Result:** W-draw-L from side A's perspective (A = configured White, B =
+  configured Black; identity fixed, colors alternate), plus each side's score.
+- **Relative Elo difference:** `Δ = −400·log10(1/scoreA − 1)` (the standard
+  logistic expected-score formula `E=1/(1+10^(−Δ/400))` used in engine testing
+  — a *gap*, not a rating; not comparable to the gauntlet's anchored Elo or to
+  FIDE). `scoreA` = wins + ½·draws over N. A shutout reports the gap as
+  unbounded.
+- **Likelihood of Superiority (LOS):** the Bayesian posterior `P(A truly
+  stronger)` from decisive games only (draws carry no superiority signal),
+  uniform prior → `Beta(W+1, L+1)`, `LOS = Σⱼ C(W+L+1, j)·0.5^(W+L+1)`; as a
+  %, >95% conventional "significant". All-draws → "inconclusive".
+- **Per-side diagnostics:** move-quality buckets (§4.5) for **both** sides
+  (the match scores every non-human side, so a head-to-head is fair regardless
+  of controller type — not LLM-only like the gauntlet); LLM sides additionally
+  get IF% / avg latency / avg completion tokens. Side labels are
+  `model [persona]` for LLMs (so same-model/different-prompt matches read
+  clearly), else the engine name.
+- **Methodology footnote:** relative (not absolute) Elo; LOS definition;
+  single-turn constrained-choice; small N is noisy (N≥20 recommended).
+
+**Why two modes:** the gauntlet (§4.6) answers *"how strong is this LLM?"*
+(absolute Elo via the Stockfish ladder); Match answers *"which of these two is
+stronger, and by how much?"* (relative Elo + LOS). The two share the game loop
+behind a **series dispatch** layer (`seriesActive`/`seriesRecordResult`/…
+route to whichever of `tournament`/`match` is running) so spectator pacing,
+pause/stop, the 200-ply cap, and the results file are common to both.
+Non-goal: absolute per-side Elo from a match (needs an anchor — use the
+gauntlet).
 
 ---
 
@@ -363,6 +409,11 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 - **Tournament gauntlet (FR-9.6)** with adaptive climb, **LLM-Chess-style Elo
   estimate** (MLE), instruction-following / quality / efficiency diagnostics,
   methodology footnote, auto-saved results file.
+- **Match mode (FR-9.7)** — best-of-N head-to-head between the two configured
+  sides (LLM-vs-LLM, or LLM-vs-AI), giving a **relative** ranking: Elo
+  *difference* (logistic from score) + LOS (Bayesian P(one side stronger)) +
+  per-side diagnostics. Shares the game loop with the gauntlet behind a series
+  dispatch layer. No absolute Elo (no anchor — that's the gauntlet).
 - **LLM system-prompt selection** (5 personas + custom) and the
   **no-hyperparameter request body** (`{ model, messages }`).
 - **PGN save/replay (FR-8.2)**, **confirm destructive actions (FR-6.5)**,

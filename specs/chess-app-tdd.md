@@ -236,6 +236,8 @@ All applied moves — human or AI — pass through the same rules-engine validat
 
 **Pause / Stop (FR-6.4):** both act at the game-loop level on the next iteration boundary. *Pause* cancels the pending `spectatorSpeed` pacing delay and holds before requesting the next AI move (Resume clears it); *Stop* sends `{type:'stop'}` to any in-flight worker search and ends the game. An already-in-flight search is bounded by its own time/depth budget (§4.3 / §5.3), so worst case the current move completes within budget before the loop halts — no unbounded blocking.
 
+**Series dispatch (FR-9.6 / FR-9.7):** the auto-play "series" modes (Tournament gauntlet, Match) share the game loop. At most one of `tournament` / `match` is active; the loop's series hooks (`seriesActive`, `seriesRecordResult`, `seriesAdvance`, `seriesRenderResults`, `seriesRecordMove`, `seriesRenderProgress`) route to whichever is running, so the loop body stays single-branch. Both modes: colors alternate each game, no chess clock, 200-ply draw cap, spectator pacing + Pause/Stop, timestamped results file. Tournament adds the adaptive level sweep + a Stockfish-`UCI_Elo`-anchored MLE **absolute**-Elo estimate (and scores only its single LLM side); Match adds a fixed best-of-N between the two configured sides with a **relative** Elo difference (logistic from score) + LOS (Bayesian, decisive games), scoring **both** sides' move quality so a head-to-head is fair regardless of controller type. Non-goal: absolute Elo from a match (no anchor).
+
 ## 9. Performance considerations
 
 - Normal engine at Difficulty 5 is the most expensive path; must be profiled to confirm it lands within the 3–5s budget on mid-range hardware, not just high-end dev machines.

@@ -135,6 +135,8 @@
   .tournament-results-headline { font-family: var(--font-body); font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
   .timecontrol-label { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 14px; font-size: .85rem; color: var(--text-dim); cursor: pointer; }
   .timecontrol-label select { padding: 6px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: .85rem; }
+  .series-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; }
+  .series-mode-row .timecontrol-label { justify-content: flex-start; margin-top: 0; }
   .error-msg { color: var(--danger); font-size: .85rem; margin-top: 10px; }
   .error-msg[hidden] { display: none; }
 
@@ -374,7 +376,23 @@
     <h2>New Game</h2>
     <p class="hint">Choose who controls each side, then start.</p>
     <p id="file-warning" class="error-msg" hidden><strong>Opened via file://</strong> — Grandmaster (Stockfish) can't load from a local file. <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>, or serve this folder over HTTP (run <code>python3 -m http.server</code> here, then open <code>http://localhost:8000/chess.html</code>). Human vs Human / Normal still work here.</p>
-    <label class="timecontrol-label" id="tournament-toggle-label" hidden title="Play the LLM side in a best-of-3 round against each AI difficulty — an adaptive gauntlet from Random up to Grandmaster (full) that finds the LLM's level. Results + diagnostics auto-save to a timestamped file. Runs without a chess clock."><input type="checkbox" id="tournament-toggle"> Tournament mode (LLM gauntlet vs all Browser-AI levels)</label>
+    <div class="series-mode-row">
+      <label class="timecontrol-label">Mode
+        <select id="series-mode" title="Single game: one game between the two sides. Tournament: the LLM plays an adaptive gauntlet vs every Browser-AI level (finds its level, Stockfish-Elo-anchored). Match: a best-of-N head-to-head between the two configured sides (relative strength ranking). Tournament and Match run without a chess clock.">
+          <option value="single">Single game</option>
+          <option value="tournament">Tournament (gauntlet)</option>
+          <option value="match">Match (head-to-head)</option>
+        </select>
+      </label>
+      <label class="timecontrol-label" id="match-games-label" hidden title="Games in the match (colors alternate each game). More games = a more stable strength estimate; N>=20 recommended.">Games
+        <select id="match-games">
+          <option value="6">6</option>
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="40">40</option>
+        </select>
+      </label>
+    </div>
     <div class="side-configs">
       <div class="side-config" data-side="white">
         <h3><span class="swatch w"></span> White</h3>
@@ -1744,6 +1762,9 @@ function requestMove(fen, difficulty) {
   // level 9 (Grandmaster full).
   let tournament = null;   // { level, gameInLevel, results:[{level,w,l,d}], llmSide, llmConfig }
   let tournamentStopped = false;
+  let match = null;        // best-of-N head-to-head: { games, played, cfgA, cfgB, labelA/B, winsA/draws/winsB, stats:{A,B} }
+  let matchStopped = false;
+  let setupSeriesMode = 'single';   // setup-screen pick: 'single' | 'tournament' | 'match'
 
   const boardEl = document.getElementById('board');
   const statusEl = document.getElementById('status-line');
@@ -1973,7 +1994,7 @@ function requestMove(fen, difficulty) {
     cfgEl.querySelector('.llm-config').hidden = type !== 'llm';
     updateSideHint(cfgEl, type);
     updateFileWarning();
-    updateTournamentOption();
+    updateSeriesMode();
   }
   // Hint reflects the chosen controller, and — for Normal — the selected
   // difficulty (levels 6+ = Grandmaster variants).
@@ -2008,30 +2029,73 @@ function requestMove(fen, difficulty) {
 
   // Show the Tournament mode option only when exactly one side is LLM-AI
   // (the gauntlet needs one LLM side to test).
-  function updateTournamentOption() {
-    const llmCount = Array.from(document.querySelectorAll('.side-config')).filter(cfg => {
-      const selected = cfg.querySelector('.opt-btn.selected');
-      return selected && selected.dataset.type === 'llm';
-    }).length;
-    const toggleLabel = document.getElementById('tournament-toggle-label');
-    const toggle = document.getElementById('tournament-toggle');
-    toggleLabel.hidden = llmCount !== 1;
-    if (toggleLabel.hidden) toggle.checked = false;   // clear a stale check when the LLM side is removed
-    syncStartButton();
+  // Mode selector drives setup availability + the Start button label.
+  // Tournament needs exactly one LLM side; Match needs two non-human sides.
+  // Tournament and Match both run without a chess clock.
+  const TC_TITLE = timeControlSelectEl.title;
+  function updateSeriesMode() {
+    const types = Array.from(document.querySelectorAll('.side-config')).map(cfg => {
+      const sel = cfg.querySelector('.opt-btn.selected');
+      return sel ? sel.dataset.type : 'human';
+    });
+    const llmCount = types.filter(t => t === 'llm').length;
+    const nonHuman = types.filter(t => t !== 'human').length;
+    const sel = document.getElementById('series-mode');
+    sel.querySelector('option[value="tournament"]').disabled = llmCount !== 1;
+    sel.querySelector('option[value="match"]').disabled = nonHuman !== 2;
+    // fall back to single if the chosen mode is no longer satisfiable
+    if (setupSeriesMode === 'tournament' && llmCount !== 1) setupSeriesMode = 'single';
+    if (setupSeriesMode === 'match' && nonHuman !== 2) setupSeriesMode = 'single';
+    sel.value = setupSeriesMode;
+    document.getElementById('match-games-label').hidden = setupSeriesMode !== 'match';
+    const noClock = setupSeriesMode !== 'single';
+    timeControlSelectEl.disabled = noClock;
+    timeControlSelectEl.title = noClock
+      ? 'No clock in ' + setupSeriesMode + ' mode — the AI isn\'t penalized for slow inference or retries.'
+      : TC_TITLE;
+    document.getElementById('start-btn').textContent =
+      setupSeriesMode === 'tournament' ? 'Run tournament'
+      : setupSeriesMode === 'match' ? 'Run match' : 'Start Game';
   }
-  // Tournaments run without a clock (the LLM isn't penalized for slow
-  // inference/retries), so grey out the Time control pick and say why.
-  let _tcOrigTitle = null;
-  function syncStartButton() {
-    const tournamentOn = document.getElementById('tournament-toggle').checked;
-    document.getElementById('start-btn').textContent = tournamentOn ? 'Run tournament' : 'Start Game';
-    if (_tcOrigTitle === null) _tcOrigTitle = timeControlSelectEl.title;
-    timeControlSelectEl.disabled = tournamentOn;
-    timeControlSelectEl.title = tournamentOn
-      ? 'No clock in tournament mode — the LLM isn\'t penalized for slow inference or retries.'
-      : _tcOrigTitle;
+  document.getElementById('series-mode').addEventListener('change', e => { setupSeriesMode = e.target.value; updateSeriesMode(); });
+
+  // Shared config builder for single-game Start and Match (DRY: one source for
+  // reading + validating the two side configs). Adds `persona` (the preset key)
+  // so match labels can distinguish same-model/different-prompt sides.
+  function readSideConfigs() {
+    const config = {}; const errors = [];
+    document.querySelectorAll('.side-config').forEach(cfgEl => {
+      const side = cfgEl.dataset.side;
+      const selected = cfgEl.querySelector('.opt-btn.selected');
+      const type = selected ? selected.dataset.type : 'human';
+      const entry = { type };
+      if (type === 'normal') {
+        const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
+        if (diff >= GM_LEVEL) {
+          entry.type = 'grandmaster'; entry.difficulty = diff; entry.elo = GRANDMASTER_ELO_LEVELS[diff];
+          if (location.protocol === 'file:') errors.push(side[0].toUpperCase() + side.slice(1) + ': Grandmaster (difficulty 6) cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.');
+        } else entry.difficulty = diff;
+      } else if (type === 'llm') {
+        entry.apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
+        entry.apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
+        entry.model = cfgEl.querySelector('.llm-model').value.trim();
+        entry.systemPrompt = cfgEl.querySelector('.llm-prompt').value.trim();
+        entry.persona = cfgEl.querySelector('.llm-prompt-select').value;
+        if (!entry.apiBase || !entry.model) errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-AI needs at least an API base URL and a model name.');
+        else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) errors.push(side[0].toUpperCase() + side.slice(1) + ': The API base URL is HTTP, but this page is accessed over HTTPS — browsers block mixed-content requests. Use an HTTPS API base URL, or serve this app locally via HTTP.');
+      }
+      config[side] = entry;
+    });
+    return { config, errors };
   }
-  document.getElementById('tournament-toggle').addEventListener('change', syncStartButton);
+  // Short label for a side in match output: "model [persona]" for LLMs (so
+  // same-model/different-prompt matches are legible), else the engine name.
+  function matchSideLabel(cfg) {
+    if (cfg.type === 'llm') return cfg.model + ' [' + (cfg.persona || 'custom') + ']';
+    if (cfg.type === 'grandmaster') return 'Stockfish ' + (cfg.elo != null ? cfg.elo : 'full');
+    if (cfg.type === 'normal') return 'Browser-AI L' + cfg.difficulty;
+    return cfg.type;
+  }
 
   document.querySelectorAll('.side-config').forEach(cfgEl => {
     cfgEl.querySelectorAll('.opt-btn').forEach(btn => {
@@ -2096,43 +2160,9 @@ function requestMove(fen, difficulty) {
   })();
 
   document.getElementById('start-btn').addEventListener('click', () => {
-    if (!document.getElementById('tournament-toggle-label').hidden &&
-        document.getElementById('tournament-toggle').checked) {
-      startTournament();   // gauntlet sets the AI opponent per level; bypass regular side validation
-      return;
-    }
-    const config = {};
-    const errors = [];
-    document.querySelectorAll('.side-config').forEach(cfgEl => {
-      const side = cfgEl.dataset.side;
-      const selected = cfgEl.querySelector('.opt-btn.selected');
-      const type = selected ? selected.dataset.type : 'human';
-      const entry = { type };
-      if (type === 'normal') {
-        const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
-        if (diff >= GM_LEVEL) {            // 6+ = Grandmaster (full or Elo-limited)
-          entry.type = 'grandmaster';
-          entry.difficulty = diff;
-          entry.elo = GRANDMASTER_ELO_LEVELS[diff];
-          if (location.protocol === 'file:') {
-            errors.push(side[0].toUpperCase() + side.slice(1) + ': Grandmaster (difficulty 6) cannot run from a file:// URL — browsers block its Stockfish Worker. Serve the folder over HTTP (run `python3 -m http.server` here, then open http://localhost:8000/chess.html) and try again.');
-          }
-        } else {
-          entry.difficulty = diff;
-        }
-      } else if (type === 'llm') {
-        entry.apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
-        entry.apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
-        entry.model = cfgEl.querySelector('.llm-model').value.trim();
-        entry.systemPrompt = cfgEl.querySelector('.llm-prompt').value.trim();
-        if (!entry.apiBase || !entry.model) {
-          errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-AI needs at least an API base URL and a model name.');
-        } else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) {
-          errors.push(side[0].toUpperCase() + side.slice(1) + ': The API base URL is HTTP, but this page is accessed over HTTPS — browsers block mixed-content requests. Use an HTTPS API base URL, or serve this app locally via HTTP.');
-        }
-      }
-      config[side] = entry;
-    });
+    if (setupSeriesMode === 'tournament') { startTournament(); return; }   // gauntlet sets the AI opponent per level
+    if (setupSeriesMode === 'match') { startMatch(); return; }            // head-to-head between the two configured sides
+    const { config, errors } = readSideConfigs();
     const errorEl = document.getElementById('setup-error');
     if (errors.length) {
       errorEl.textContent = errors.join(' ');
@@ -2198,8 +2228,8 @@ function requestMove(fen, difficulty) {
   }
 
   document.getElementById('new-game-btn').addEventListener('click', () => {
-    if (tournament && !confirm('A tournament is in progress. Stop it and start a new game?')) return;
-    tournament = null; tournamentStopped = false;
+    if (seriesActive() && !confirm('A series is in progress. Stop it and start a new game?')) return;
+    endActiveSeries();
     if (!confirmDiscardOrSave('New game')) return;
     exitReplayMode();
     document.getElementById('game-screen').hidden = true;
@@ -2208,8 +2238,8 @@ function requestMove(fen, difficulty) {
   // Rematch (Appendix A #3): same matchConfig, straight back into a fresh
   // game — skips the setup screen entirely.
   document.getElementById('rematch-btn').addEventListener('click', () => {
-    if (tournament && !confirm('A tournament is in progress. Stop it and start a new game?')) return;
-    tournament = null; tournamentStopped = false;
+    if (seriesActive() && !confirm('A series is in progress. Stop it and start a new game?')) return;
+    endActiveSeries();
     if (!confirmDiscardOrSave('Rematch')) return;
     startGame();
   });
@@ -2245,9 +2275,9 @@ function requestMove(fen, difficulty) {
   });
   stopBtn.addEventListener('click', () => {
     if (gameOver) return;
-    if (tournament) {
-      tournamentStopped = true;
-      finishGame({ result: '*', reason: 'tournament stopped' });
+    if (seriesActive()) {
+      if (tournament) tournamentStopped = true; else matchStopped = true;
+      finishGame({ result: '*', reason: 'series stopped' });
       return;
     }
     paused = false;
@@ -2526,7 +2556,7 @@ function requestMove(fen, difficulty) {
     }
 
     if (!status.over) {
-      if (tournament) { renderTournamentProgress(); }
+      if (seriesActive()) seriesRenderProgress();
       else {
         const sideName = gameState.turn === Rules.WHITE ? 'White' : 'Black';
         statusEl.textContent = (status.check ? sideName + ' is in check — ' : '') + sideName + ' to move';
@@ -2791,11 +2821,11 @@ function requestMove(fen, difficulty) {
     const myGeneration = gameGeneration;
     const status = Rules.gameStatus(gameState);
     if (status.over) { finishGame(status); return; }
-    // Tournament safety net: cap games at TOURNAMENT_MAX_PLY half-moves so an
+    // Series safety net: cap games at TOURNAMENT_MAX_PLY half-moves so an
     // unattended engine/LLM game can't loop forever (we don't yet detect
     // threefold repetition). Counts as a draw, mirroring the LLM-Chess
     // benchmark's 200-move cap.
-    if (tournament && moveHistory.length >= TOURNAMENT_MAX_PLY) {
+    if (seriesActive() && moveHistory.length >= TOURNAMENT_MAX_PLY) {
       finishGame({ over: true, result: '1/2-1/2', reason: 'move limit (' + TOURNAMENT_MAX_PLY + ' half-moves) reached' });
       return;
     }
@@ -2832,7 +2862,7 @@ function requestMove(fen, difficulty) {
         try {
           const fallback = await requestNormalMove(Rules.toFEN(gameState), 3);
           if (myGeneration !== gameGeneration) return;
-          if (tournament && sideConfig.type === 'llm') recordLlmFallback();
+          if (seriesActive() && sideConfig.type === 'llm') seriesRecordLlmFallback(sideConfig);
           result = { move: fallback.move, evalCp: fallback.evalCp, bestEvalCp: fallback.bestEvalCp };
         } catch (fallbackErr) {
           if (myGeneration !== gameGeneration) return;
@@ -2865,7 +2895,7 @@ function requestMove(fen, difficulty) {
       const legal = Rules.genLegalMoves(gameState);
       const san = Rules.toSAN(gameState, move, legal);
       const quality = classifyQuality(evalCp, bestEvalCp, gameState.turn);
-      if (tournament && sideConfig.type === 'llm') recordLlmMove(result.llmRetries || 0, quality, result.latencyMs || 0, result.completionTokens || 0);
+      if (seriesActive() && sideConfig.type !== 'human') seriesRecordMove(sideConfig, result.llmRetries || 0, quality, result.latencyMs || 0, result.completionTokens || 0);
       clockStop();   // freeze the mover's clock, then add the per-move increment
       if (timeControl) clocks[clockSideKey(gameState.turn)] += timeControl.incrementMs;
       renderClocks();
@@ -2979,10 +3009,10 @@ function requestMove(fen, difficulty) {
     statusEl.textContent = 'Game over — ' + reason;
     playSound('gameover');
     if (status.reason === 'checkmate') playReaction('cheer');   // crowd erupts on checkmate
-    if (tournament) {
-      tournamentRecordResult(status);
-      if (tournamentStopped) renderTournamentResults();
-      else setTimeout(tournamentAdvance, 4000);   // let the spectator read the game result, then continue
+    if (seriesActive()) {
+      seriesRecordResult(status);
+      if (seriesStopped()) seriesRenderResults();
+      else setTimeout(seriesAdvance, 4000);   // let the spectator read the game result, then continue
     }
   }
 
@@ -3239,6 +3269,222 @@ function requestMove(fen, difficulty) {
     const d = new Date();
     const p = n => String(n).padStart(2, '0');
     return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
+  // ---- Series dispatch ----
+  // At most one of {tournament, match} is active. These route the game loop's
+  // series hooks to whichever is running, so the loop stays single-branch.
+  // Tournament internals are untouched; match is a parallel implementation
+  // behind the same dispatch.
+  function seriesActive() { return !!(tournament || match); }
+  function seriesStopped() { return !!(tournamentStopped || matchStopped); }
+  function endActiveSeries() { tournament = null; tournamentStopped = false; match = null; matchStopped = false; }
+  function seriesRenderProgress() { if (tournament) renderTournamentProgress(); else if (match) renderMatchProgress(); }
+  function seriesRecordResult(status) { if (tournament) tournamentRecordResult(status); else if (match) matchRecordResult(status); }
+  function seriesAdvance() { if (tournament) tournamentAdvance(); else if (match) matchAdvance(); }
+  function seriesRenderResults() { if (tournament) renderTournamentResults(); else if (match) renderMatchResults(); }
+  function seriesRecordLlmFallback(sideConfig) { if (tournament) recordLlmFallback(); else if (match) recordMatchLlmFallback(sideConfig); }
+  // Record every non-human move's quality (and, for LLMs, IF/latency/tokens).
+  // Tournament only scores its single LLM side (unchanged); match scores BOTH
+  // sides so a head-to-head is fair regardless of controller type.
+  function seriesRecordMove(sideConfig, retries, quality, latencyMs, tokens) {
+    if (tournament) { if (sideConfig.type === 'llm') recordLlmMove(retries, quality, latencyMs, tokens); }
+    else if (match) {
+      if (sideConfig.type === 'llm') recordMatchLlmMove(sideConfig, retries, quality, latencyMs, tokens);
+      else recordMatchAiMove(sideConfig, quality);
+    }
+  }
+
+  // ---- Match mode (best-of-N head-to-head between the two configured sides) ----
+  // A RELATIVE-strength ranking: Elo DIFFERENCE (logistic from score) + LOS
+  // (Bayesian P(one side truly stronger)) + per-side diagnostics. No absolute
+  // Elo (no anchor — that's the gauntlet's job). Colors alternate each game;
+  // no chess clock; same 200-ply cap, spectator pacing, pause/stop, and
+  // timestamped results file as the tournament.
+  function newSideStats() {
+    return { firstTry: 0, retried: 0, fallback: 0, moves: 0, latencyMs: 0, completionTokens: 0,
+             quality: { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 } };
+  }
+  function startMatch() {
+    const { config, errors } = readSideConfigs();
+    const errorEl = document.getElementById('setup-error');
+    if (errors.length) { errorEl.textContent = errors.join(' '); errorEl.hidden = false; return; }
+    if (config.white.type === 'human' || config.black.type === 'human') {
+      errorEl.textContent = 'Match mode needs two non-human sides.'; errorEl.hidden = false; return;
+    }
+    const games = parseInt(document.getElementById('match-games').value, 10) || 10;
+    match = {
+      games, played: 0,
+      cfgA: config.white, cfgB: config.black,                 // A = configured White, B = configured Black (identity fixed; colors alternate)
+      labelA: matchSideLabel(config.white), labelB: matchSideLabel(config.black),
+      winsA: 0, draws: 0, winsB: 0,
+      startedAt: new Date(), totalPlies: 0,
+      stats: { A: newSideStats(), B: newSideStats() },
+    };
+    matchStopped = false;
+    errorEl.hidden = true;
+    document.getElementById('setup-screen').hidden = true;
+    document.getElementById('game-screen').hidden = false;
+    resultBanner.hidden = true; resultBanner.innerHTML = '';
+    matchNextGame();
+  }
+  function matchNextGame() {
+    if (!match || matchStopped) return;
+    const m = match;
+    const aIsWhite = (m.played % 2 === 0);                    // alternate colors each game
+    matchConfig = {};
+    matchConfig[aIsWhite ? 'white' : 'black'] = m.cfgA;
+    matchConfig[aIsWhite ? 'black' : 'white'] = m.cfgB;
+    timeControl = null; clocks = null;                        // no clock in match games
+    document.getElementById('clocks').hidden = true;
+    gameGeneration++;
+    gameState = Rules.newGame();
+    moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;
+    gameOver = false; paused = false;
+    capturedByWhite = []; capturedByBlack = []; lastResult = '*';
+    pauseBtn.textContent = 'Pause';
+    resultBanner.hidden = true; resultBanner.innerHTML = '';
+    spectatorControlsEl.hidden = false;
+    renderMatchProgress();
+    buildBoardDOM(); render(); renderCapturedTray(); updateEvalBar(0);
+    playTurn();
+  }
+  function matchRecordResult(status) {
+    if (!match) return;
+    if (!status.result || status.result === '*') return;       // stopped/incomplete — don't count
+    const m = match;
+    const aWasWhite = matchConfig.white === m.cfgA;            // object identity: which side was A this game
+    const aWon = (status.result === '1-0' && aWasWhite) || (status.result === '0-1' && !aWasWhite);
+    if (status.result === '1/2-1/2') m.draws++;
+    else if (aWon) m.winsA++; else m.winsB++;
+    m.played++;
+    m.totalPlies += moveHistory.length;
+  }
+  function recordMatchLlmMove(sideConfig, retries, quality, latencyMs, tokens) {
+    if (!match) return;
+    const s = sideConfig === match.cfgA ? match.stats.A : match.stats.B;
+    s.moves++;
+    if (retries === 0) s.firstTry++; else s.retried++;
+    s.latencyMs += latencyMs || 0;
+    s.completionTokens += tokens || 0;
+    if (quality && s.quality[quality] != null) s.quality[quality]++;
+  }
+  function recordMatchAiMove(sideConfig, quality) {            // Browser-AI / Stockfish: quality only
+    if (!match) return;
+    const s = sideConfig === match.cfgA ? match.stats.A : match.stats.B;
+    if (quality && s.quality[quality] != null) s.quality[quality]++;
+  }
+  function recordMatchLlmFallback(sideConfig) {
+    if (!match) return;
+    const s = sideConfig === match.cfgA ? match.stats.A : match.stats.B;
+    s.moves++; s.fallback++;
+  }
+  function matchAdvance() {
+    if (!match) return;
+    if (matchStopped || match.played >= match.games) { renderMatchResults(); return; }
+    matchNextGame();
+  }
+  function renderMatchProgress() {
+    if (!match) return;
+    const m = match;
+    statusEl.textContent = 'Match — game ' + (m.played + 1) + '/' + m.games + ' · A ' + m.winsA + '-' + m.winsB + '-' + m.draws + ' B  (A=' + m.labelA + ', W-L-draw)';
+  }
+  function matchEndReason() {
+    if (matchStopped) return 'stopped by user';
+    return 'completed ' + (match ? match.played : 0) + '/' + (match ? match.games : 0) + ' games';
+  }
+
+  // Relative-strength math (the match's "plausible ranking"). Both are cheap
+  // and standard in computer-chess engine testing (fishtest/SSDF).
+  // Elo DIFFERENCE from A's score via the logistic expected-score formula
+  // E = 1/(1+10^(-D/400))  ->  D = -400*log10(1/E - 1). No anchor needed: a
+  // gap, not an absolute rating. Returns +/-Infinity on a shutout.
+  function eloDiff(scoreA, n) {
+    if (!n) return null;
+    const e = scoreA / n;
+    if (e <= 0) return -Infinity;
+    if (e >= 1) return Infinity;
+    return -400 * Math.log10(1 / e - 1);
+  }
+  // Binomial coefficient (n small: match games <= 40).
+  function choose(n, k) {
+    if (k < 0 || k > n) return 0;
+    k = Math.min(k, n - k);
+    let r = 1;
+    for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+    return r;
+  }
+  // Likelihood of Superiority: Bayesian posterior P(A truly stronger) from the
+  // decisive games only (draws carry no superiority signal). Uniform prior ->
+  // A's win-prob posterior is Beta(W+1, L+1); LOS = P(p>0.5) =
+  // sum_{j=L+1}^{W+L+1} C(W+L+1, j) * 0.5^(W+L+1). null if no decisive games.
+  function likelihoodOfSuperiority(winsA, winsB) {
+    const W = winsA, L = winsB, n = W + L;
+    if (n === 0) return null;
+    const m = n + 1;
+    let los = 0;
+    for (let j = L + 1; j <= m; j++) los += choose(m, j) * Math.pow(0.5, m);
+    return los;
+  }
+  // One condensed diagnostics line per side.
+  function sideDiagLine(key, label, s, cfg) {
+    const q = s.quality, qtot = q.best + q.good + q.inaccuracy + q.mistake + q.blunder;
+    const parts = ['[' + key + '] ' + label];
+    if (qtot > 0) {
+      const p = k => (100 * q[k] / qtot).toFixed(0) + '%';
+      parts.push('quality ' + p('best') + '/' + p('good') + '/' + p('inaccuracy') + '/' + p('mistake') + '/' + p('blunder') + ' (b/g/i/m/B)');
+    }
+    if (cfg.type === 'llm') {
+      const tot = s.moves || 1, own = s.firstTry + s.retried;
+      parts.push('IF ' + (100 * own / tot).toFixed(0) + '% (' + s.firstTry + ' first-try, ' + s.retried + ' retried, ' + s.fallback + ' fallback)');
+      parts.push('avg ' + (s.latencyMs / tot / 1000).toFixed(1) + 's/move, ' + Math.round(s.completionTokens / tot) + ' tok/move');
+    }
+    return parts.join('  ·  ');
+  }
+  function matchSummaryText() {
+    const m = match;
+    const fmt = d => d.toISOString().slice(0, 19).replace('T', ' ');
+    const N = m.played;
+    const sA = m.winsA + 0.5 * m.draws, sB = m.winsB + 0.5 * m.draws;
+    const d = eloDiff(sA, N);
+    let diffStr;
+    if (d === null) diffStr = 'no games played';
+    else if (!isFinite(d)) diffStr = (d > 0 ? m.labelA : m.labelB) + ' won every decisive game — gap unbounded, play more games';
+    else diffStr = (d >= 0 ? m.labelA : m.labelB) + ' ~' + Math.round(Math.abs(d)) + ' Elo stronger (relative; from ' + m.labelA + "'s " + (N ? (100 * sA / N).toFixed(0) : 0) + '% score)';
+    const los = likelihoodOfSuperiority(m.winsA, m.winsB);
+    const losStr = los == null ? 'inconclusive (no decisive games)' : (100 * los).toFixed(1) + '%';
+    return [
+      'Match — ' + m.labelA + '  vs  ' + m.labelB,
+      'A = ' + m.labelA + ' (configured White)   B = ' + m.labelB + ' (configured Black); colors alternated each game.',
+      'Result: ' + m.winsA + '-' + m.draws + '-' + m.winsB + '  (W-draw-L from A), ' + N + ' games',
+      'Relative strength: ' + diffStr,
+      'Likelihood A is truly stronger (LOS): ' + losStr,
+      'Played: ' + fmt(m.startedAt) + '  →  ' + fmt(new Date()),
+      '',
+      sideDiagLine('A', m.labelA, m.stats.A, m.cfgA),
+      sideDiagLine('B', m.labelB, m.stats.B, m.cfgB),
+      '',
+      "Methodology: best-of-" + m.games + " head-to-head, colors alternating each game, no chess clock, single-turn constrained choice (board + full legal-move list given each move), one corrective retry then local fallback. Elo difference is RELATIVE (logistic from score) — no absolute anchor, so NOT comparable to the tournament's Stockfish-anchored MLE Elo. LOS is the Bayesian posterior P(A stronger) from decisive games (draws ignored). Small N makes both noisy; N>=20 recommended for a stable read.",
+    ].join('\n');
+  }
+  function renderMatchResults() {
+    const labelA = match ? match.labelA : 'A', labelB = match ? match.labelB : 'B';
+    const text = match ? matchSummaryText() : 'Match results unavailable.';
+    resultBanner.hidden = false;
+    resultBanner.innerHTML = '';
+    const pre = document.createElement('pre');
+    pre.className = 'tournament-results';
+    pre.textContent = text;
+    resultBanner.appendChild(pre);
+    statusEl.textContent = 'Match complete — ' + (match ? matchEndReason() : '.') + '  Results auto-saved.';
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    const safe = s => String(s).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'side';
+    a.href = URL.createObjectURL(blob);
+    a.download = 'match-' + safe(labelA) + '-vs-' + safe(labelB) + '-' + timestampStr() + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    match = null; matchStopped = false;
   }
 
   // Initial idle board preview behind the setup screen.
