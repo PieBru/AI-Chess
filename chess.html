@@ -2708,7 +2708,7 @@ function requestMove(fen, difficulty) {
     // threefold repetition). Counts as a draw, mirroring the LLM-Chess
     // benchmark's 200-move cap.
     if (tournament && moveHistory.length >= TOURNAMENT_MAX_PLY) {
-      finishGame({ over: true, result: '½-½', reason: 'move limit (' + TOURNAMENT_MAX_PLY + ' half-moves) reached' });
+      finishGame({ over: true, result: '1/2-1/2', reason: 'move limit (' + TOURNAMENT_MAX_PLY + ' half-moves) reached' });
       return;
     }
 
@@ -2870,7 +2870,7 @@ function requestMove(fen, difficulty) {
     const white = computeSideSummary('white');
     const black = computeSideSummary('black');
     resultBanner.innerHTML =
-      '<div class="summary-headline">Result: ' + status.result + ' (' + reason + ')</div>' +
+      '<div class="summary-headline">Result: ' + (status.result === '1/2-1/2' ? '½-½' : status.result) + ' (' + reason + ')</div>' +
       '<div class="summary-sides">' + summarySideBlock('White', white) + summarySideBlock('Black', black) + '</div>' +
       '<div class="summary-verdict">' + summaryVerdict(white, black) + '</div>';
   }
@@ -2988,7 +2988,7 @@ function requestMove(fen, difficulty) {
     const llmWon = (status.result === '1-0' && llmWasWhite) || (status.result === '0-1' && !llmWasWhite);
     let row = t.results.find(r => r.level === t.level);
     if (!row) { row = { level: t.level, llmWins: 0, aiWins: 0, draws: 0 }; t.results.push(row); }
-    if (status.result === '½-½') row.draws++;
+    if (status.result === '1/2-1/2') row.draws++;
     else if (llmWon) row.llmWins++;
     else row.aiWins++;
     t.gameInLevel++;
@@ -2997,7 +2997,7 @@ function requestMove(fen, difficulty) {
     // Elo-anchor this game if the opponent level has a known UCI_Elo (6-8).
     // Level 9 (full strength) and Normal levels 1-5 have no anchor and are excluded.
     const anchorElo = GRANDMASTER_ELO_LEVELS[t.level];
-    if (anchorElo != null) t.anchoredGames.push({ elo: anchorElo, score: status.result === '½-½' ? 0.5 : (llmWon ? 1 : 0) });
+    if (anchorElo != null) t.anchoredGames.push({ elo: anchorElo, score: status.result === '1/2-1/2' ? 0.5 : (llmWon ? 1 : 0) });
   }
 
   // Tournament LLM-move accounting (instruction-following + quality + efficiency).
