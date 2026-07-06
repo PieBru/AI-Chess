@@ -122,12 +122,9 @@
   }
   #start-btn:disabled { opacity: .5; cursor: not-allowed; }
   .start-row { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; align-items: center; }
-  #tournament-btn { background: var(--panel-2); color: var(--brass); border: 1px solid var(--brass); padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: .85rem; }
-  #tournament-btn:hover { background: rgba(201,162,75,.12); }
-  #tournament-btn[hidden] { display: none; }
   .tournament-results { font-family: var(--font-mono); font-size: .78rem; line-height: 1.55; white-space: pre; color: var(--text); background: var(--panel-2); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
   .tournament-results-headline { font-family: var(--font-body); font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
-  .timecontrol-label { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 14px; font-size: .85rem; color: var(--text-dim); }
+  .timecontrol-label { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 14px; font-size: .85rem; color: var(--text-dim); cursor: pointer; }
   .timecontrol-label select { padding: 6px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: .85rem; }
   .error-msg { color: var(--danger); font-size: .85rem; margin-top: 10px; }
   .error-msg[hidden] { display: none; }
@@ -465,9 +462,9 @@ Default Off = no clock.">Time control
         <option value="classical">Classical (30+0)</option>
       </select>
     </label>
+    <label class="timecontrol-label" id="tournament-toggle-label" hidden title="Play the LLM side in a best-of-3 round against each AI difficulty — an adaptive gauntlet from Random up to Grandmaster (full) that finds the LLM's level. Results + diagnostics auto-save to a timestamped file. Runs without a chess clock."><input type="checkbox" id="tournament-toggle"> Tournament mode (LLM gauntlet vs all AI levels)</label>
     <div class="start-row">
       <button id="start-btn">Start Game</button>
-      <button id="tournament-btn" hidden title="Play the LLM against each AI difficulty in a best-of-3 gauntlet, from Beginner up to Grandmaster (full).">Run tournament (LLM vs all)</button>
     </div>
     <p id="setup-error" class="error-msg" hidden></p>
     <p class="hint setup-links" style="margin-top:1em;font-size:0.85em">
@@ -1912,7 +1909,7 @@ function requestMove(fen, difficulty) {
     cfgEl.querySelector('.llm-config').hidden = type !== 'llm';
     updateSideHint(cfgEl, type);
     updateFileWarning();
-    updateTournamentButton();
+    updateTournamentOption();
   }
   // Hint reflects the chosen controller, and — for Normal — the selected
   // difficulty (levels 6+ = Grandmaster variants).
@@ -1945,15 +1942,24 @@ function requestMove(fen, difficulty) {
     document.getElementById('file-warning').hidden = !anyGM;
   }
 
-  // Show the tournament button only when exactly one side is LLM-Assisted
+  // Show the Tournament mode option only when exactly one side is LLM-AI
   // (the gauntlet needs one LLM side to test).
-  function updateTournamentButton() {
+  function updateTournamentOption() {
     const llmCount = Array.from(document.querySelectorAll('.side-config')).filter(cfg => {
       const selected = cfg.querySelector('.opt-btn.selected');
       return selected && selected.dataset.type === 'llm';
     }).length;
-    document.getElementById('tournament-btn').hidden = llmCount !== 1;
+    const toggleLabel = document.getElementById('tournament-toggle-label');
+    const toggle = document.getElementById('tournament-toggle');
+    toggleLabel.hidden = llmCount !== 1;
+    if (toggleLabel.hidden) toggle.checked = false;   // clear a stale check when the LLM side is removed
+    syncStartButton();
   }
+  function syncStartButton() {
+    document.getElementById('start-btn').textContent =
+      document.getElementById('tournament-toggle').checked ? 'Run tournament' : 'Start Game';
+  }
+  document.getElementById('tournament-toggle').addEventListener('change', syncStartButton);
 
   document.querySelectorAll('.side-config').forEach(cfgEl => {
     cfgEl.querySelectorAll('.opt-btn').forEach(btn => {
@@ -2009,6 +2015,11 @@ function requestMove(fen, difficulty) {
   })();
 
   document.getElementById('start-btn').addEventListener('click', () => {
+    if (!document.getElementById('tournament-toggle-label').hidden &&
+        document.getElementById('tournament-toggle').checked) {
+      startTournament();   // gauntlet sets the AI opponent per level; bypass regular side validation
+      return;
+    }
     const config = {};
     const errors = [];
     document.querySelectorAll('.side-config').forEach(cfgEl => {
@@ -2055,10 +2066,6 @@ function requestMove(fen, difficulty) {
     matchConfig = config;
     saveSetup(config);
     startGame();
-  });
-
-  document.getElementById('tournament-btn').addEventListener('click', () => {
-    startTournament();
   });
 
   function startGame() {

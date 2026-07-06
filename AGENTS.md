@@ -209,8 +209,9 @@ before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
   threshold — the crowd starts quiet and grows invested).
 
 ### 4.6 Tournament mode (LLM gauntlet) — FR-9.6
-When exactly one side is LLM-AI, a "Run tournament" action appears. It
-plays a **3-game round** between the LLM and the AI at each difficulty (1–9)
+When exactly one side is LLM-AI, a "Tournament mode" checkbox appears beside
+the Time control; checking it turns the Start button into "Run tournament".
+It plays a **3-game round** between the LLM and the AI at each difficulty (1–9)
 using an **adaptive gauntlet** (aligned with LLM-Chess's level-selection
 heuristic): after each round, if the **AI swept** (LLM lost all 3) the
 tournament **stops** — that level is the LLM's floor; otherwise (LLM swept
