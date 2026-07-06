@@ -1537,7 +1537,7 @@ function requestMove(fen, difficulty) {
         // Mixed-content block (HTTPS page → HTTP endpoint) is permanent —
         // don't spin retries for 5 minutes.
         if (location.protocol === 'https:' && sideConfig.apiBase.startsWith('http:')) {
-          throw new Error('LLM call failed: HTTPS page cannot fetch from HTTP endpoint. Use an HTTPS LLM URL, or serve this app locally via HTTP.');
+          throw new Error('LLM call failed: this page is accessed over HTTPS, so it cannot fetch from an HTTP API base URL. Use an HTTPS API base URL, or serve this app locally via HTTP.');
         }
         lastError = err;
       }
@@ -1566,7 +1566,7 @@ function requestMove(fen, difficulty) {
     // NetworkError on an HTTPS page with HTTP endpoint = mixed-content block.
     // Give the user a specific hint instead of a generic failure message.
     if (location.protocol === 'https:' && apiBase.startsWith('http:')) {
-      return ' (HTTPS page cannot fetch from HTTP endpoint. Use an HTTPS LLM url, or serve this app locally via HTTP.)';
+      return ' (This page is accessed over HTTPS, so it cannot fetch from an HTTP API base URL. Use an HTTPS API base URL, or serve this app locally via HTTP.)';
     }
     return '';
   }
@@ -2047,7 +2047,7 @@ function requestMove(fen, difficulty) {
         if (!entry.apiBase || !entry.model) {
           errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-AI needs at least an API base URL and a model name.');
         } else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) {
-          errors.push(side[0].toUpperCase() + side.slice(1) + ': The LLM endpoint is HTTP, but this page is served over HTTPS — browsers block mixed-content requests. Use an HTTPS endpoint, or serve this app locally via HTTP.');
+          errors.push(side[0].toUpperCase() + side.slice(1) + ': The API base URL is HTTP, but this page is accessed over HTTPS — browsers block mixed-content requests. Use an HTTPS API base URL, or serve this app locally via HTTP.');
         }
       }
       config[side] = entry;
@@ -2944,7 +2944,7 @@ function requestMove(fen, difficulty) {
       errorEl.hidden = false; return;
     }
     if (location.protocol === 'https:' && llmConfig.apiBase.startsWith('http:')) {
-      errorEl.textContent = 'The LLM endpoint is HTTP, but this page is HTTPS — browsers block it. Use an HTTPS endpoint or serve this app locally.';
+      errorEl.textContent = 'The API base URL is HTTP, but this page is accessed over HTTPS — browsers block it. Use an HTTPS API base URL or serve this app locally.';
       errorEl.hidden = false; return;
     }
     errorEl.hidden = true;
