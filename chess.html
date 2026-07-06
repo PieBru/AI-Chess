@@ -376,7 +376,7 @@
         <div class="difficulty-picker" hidden>
           <label>Difficulty</label>
           <select class="difficulty-select">
-            <option value="1">1 — Beginner (low)</option>
+            <option value="1">1 — Random (beginner)</option>
             <option value="2">2 — Easy (fair)</option>
             <option value="3" selected>3 — Medium (moderate)</option>
             <option value="4">4 — Hard (strong)</option>
@@ -394,6 +394,16 @@
           <input type="password" class="llm-api-key" placeholder="sk-...">
           <label>Model</label>
           <input type="text" class="llm-model" placeholder="gpt-4o-mini">
+          <label>System prompt <span class="hint-inline">(persona / thinking style)</span></label>
+          <select class="llm-prompt-select">
+            <option value="grandmaster">Grandmaster — confident + principles</option>
+            <option value="tactician">Tactician — anti-blunder checklist</option>
+            <option value="attacker">Relentless attacker</option>
+            <option value="positional">Sound positional player</option>
+            <option value="thinker">Think-then-commit (reasoning models)</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <textarea class="llm-prompt" rows="4" spellcheck="false" placeholder="Edit any preset above, or pick Custom and write your own. The reply must contain exactly one legal UCI move."></textarea>
         </div>
         <p class="hint side-hint">Makes moves via the board UI.</p>
       </div>
@@ -407,7 +417,7 @@
         <div class="difficulty-picker" hidden>
           <label>Difficulty</label>
           <select class="difficulty-select">
-            <option value="1">1 — Beginner (low)</option>
+            <option value="1">1 — Random (beginner)</option>
             <option value="2">2 — Easy (fair)</option>
             <option value="3" selected>3 — Medium (moderate)</option>
             <option value="4">4 — Hard (strong)</option>
@@ -425,6 +435,16 @@
           <input type="password" class="llm-api-key" placeholder="sk-...">
           <label>Model</label>
           <input type="text" class="llm-model" placeholder="gpt-4o-mini">
+          <label>System prompt <span class="hint-inline">(persona / thinking style)</span></label>
+          <select class="llm-prompt-select">
+            <option value="grandmaster">Grandmaster — confident + principles</option>
+            <option value="tactician">Tactician — anti-blunder checklist</option>
+            <option value="attacker">Relentless attacker</option>
+            <option value="positional">Sound positional player</option>
+            <option value="thinker">Think-then-commit (reasoning models)</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <textarea class="llm-prompt" rows="4" spellcheck="false" placeholder="Edit any preset above, or pick Custom and write your own. The reply must contain exactly one legal UCI move."></textarea>
         </div>
         <p class="hint side-hint">Makes moves via the board UI.</p>
       </div>
@@ -1494,7 +1514,7 @@ function requestMove(fen, difficulty) {
           const data = await res.json();
           const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
           if (!content) throw new Error('LLM response had no message content');
-          return content.trim();
+          return { content: content.trim(), usage: data && data.usage };
         }
         // Retry 429 (rate limit) and 5xx (server error) with exponential
         // backoff; throw immediately on other 4xx (wrong auth, not found,
@@ -1522,6 +1542,19 @@ function requestMove(fen, difficulty) {
     throw new Error('LLM call failed after exhausting retries: ' + lastError.message.replace(' — retrying', ''));
   }
 
+  // Selectable system prompts for the LLM-Assisted controller (PRD-style
+  // personas). Each keeps the iron output contract (exactly one legal UCI
+  // move) so the parser stays reliable; the variety is in persona + thinking
+  // cues. Surfaced in the setup screen via the .llm-prompt-select dropdown.
+  const LLM_SYSTEM_PROMPTS = {
+    grandmaster: 'You are a grandmaster-calibre chess player: sharp, patient, and ruthless when it counts. You play to win. Before you choose, scan for checks, captures, and threats — for both sides — and make sure your move leaves no piece hanging and your king safe. Favour moves that seize the initiative: control the centre, develop every piece with a purpose, and create problems your opponent must solve. You will be given a FEN position and a list of legal moves in UCI format (e.g. e2e4, e7e8q for a promotion). Reply with exactly one move from that list and nothing else — no explanation, no punctuation.',
+    tactician: 'You are a precise, calculating chess tactician who never gives material away for free. Before moving, verify three things: (1) does my move hang a piece or allow a fork, pin, or skewer? (2) is there a check, capture, or threat I am missing — for me or for my opponent? (3) does this move improve my position or set a trap? Pick the move that is both safest and strongest. You will be given a FEN position and a list of legal moves in UCI format (e.g. e2e4, e7e8q). Reply with exactly one move from that list and nothing else.',
+    attacker: 'You are an aggressive, attacking chess player who plays for a win every game. You hunt for tactics, sacrifices, and mating threats; you keep the opponent under constant pressure and punish the slightest inaccuracy. Always calculate the forcing moves first — checks, captures, threats — and choose the sharpest sound continuation. Defend your king, but never play passively when you can seize the initiative. You will be given a FEN position and a list of legal moves in UCI format (e.g. e2e4, e7e8q). Reply with exactly one move from that list and nothing else.',
+    positional: 'You are a strong, classically-trained chess player who wins by accumulating small advantages: a better centre, healthier pawn structure, more active pieces, a safer king. You are patient and principled, but alert — you never miss a tactic and you punish loose play. Choose the move that best improves your position while creating the fewest weaknesses. You will be given a FEN position and a list of legal moves in UCI format (e.g. e2e4, e7e8q). Reply with exactly one move from that list and nothing else.',
+    thinker: 'You are a strong chess player who wins by thinking clearly. For each position: (1) note whose move it is and the phase of the game (opening / middlegame / endgame); (2) list the forcing moves — checks, captures, threats — for both sides; (3) confirm your intended move does not hang a piece or weaken your king; (4) choose the strongest move. Reason briefly, then on the final line output exactly one move. You will be given a FEN position and a list of legal moves in UCI format (e.g. e2e4, e7e8q). Your final line must be exactly one move from that list and nothing else.',
+  };
+  const LLM_DEFAULT_PROMPT_KEY = 'grandmaster';
+
   function llmEndpointErrorHint(apiBase) {
     // NetworkError on an HTTPS page with HTTP endpoint = mixed-content block.
     // Give the user a specific hint instead of a generic failure message.
@@ -1533,9 +1566,18 @@ function requestMove(fen, difficulty) {
 
   function extractUciMove(text, legalUci) {
     const lower = text.toLowerCase();
-    // Prefer an exact legal-move token if the model echoed one back cleanly.
-    const found = legalUci.find(m => new RegExp('\\b' + m + '\\b').test(lower));
-    if (found) return found;
+    // Prefer the LAST legal-move token mentioned. A chain-of-thought reply
+    // (the "Think-then-commit" prompt) may name several candidate moves while
+    // reasoning, then commit a final one — first-token-wins would grab a
+    // rejected candidate. Last-occurrence-wins resolves to the actual choice.
+    let best = null;
+    for (const m of legalUci) {
+      const re = new RegExp('\\b' + m + '\\b', 'g');
+      let mm, lastIdx = -1;
+      while ((mm = re.exec(lower)) !== null) lastIdx = mm.index;
+      if (lastIdx >= 0 && (!best || lastIdx > best.idx)) best = { move: m, idx: lastIdx };
+    }
+    if (best) return best.move;
     const match = lower.match(/\b([a-h][1-8][a-h][1-8][qrbn]?)\b/);
     return match ? match[1] : null;
   }
@@ -1545,32 +1587,39 @@ function requestMove(fen, difficulty) {
     const legalUci = legalMovesAsUci(state);
     const sideName = state.turn === Rules.WHITE ? 'White' : 'Black';
     const sanHistory = moveHistory.map(r => r.san).join(' ');
+    const systemPrompt = sideConfig.systemPrompt || LLM_SYSTEM_PROMPTS[LLM_DEFAULT_PROMPT_KEY];
 
     const messages = [
-      { role: 'system', content: 'You are a chess engine. You will be given a FEN position and a list of legal moves in UCI format (e.g. e2e4, e7e8q). Reply with exactly one move chosen from that list and nothing else — no explanation, no punctuation.' },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: `Position (FEN): ${fen}\nYou are playing: ${sideName}\nMoves so far: ${sanHistory || '(none)'}\nLegal moves: ${legalUci.join(', ')}\nReply with exactly one move from the legal moves list.` },
     ];
 
-    let uciMove = null, lastRaw = '';
+    const startedAt = Date.now();
+    let completionTokens = 0;   // summed across attempts (retries), for tournament efficiency stats
+    let uciMove = null, lastRaw = '', llmRetries = 0;
     for (let attempt = 0; attempt < 2 && !uciMove; attempt++) {
       try {
-        lastRaw = await callLLM(sideConfig, messages);
+        const r = await callLLM(sideConfig, messages);
+        lastRaw = r.content;
+        if (r.usage && typeof r.usage.completion_tokens === 'number') completionTokens += r.usage.completion_tokens;
       } catch (err) {
         throw new Error('LLM call failed: ' + err.message + llmEndpointErrorHint(sideConfig.apiBase));
       }
       uciMove = extractUciMove(lastRaw, legalUci);
       if (uciMove && !legalUci.includes(uciMove)) uciMove = null;
       if (!uciMove) {
+        llmRetries++;
         messages.push({ role: 'assistant', content: lastRaw });
         messages.push({ role: 'user', content: 'That was not one of the legal moves listed. Reply with exactly one move from: ' + legalUci.join(', ') });
       }
     }
 
+    const latencyMs = Date.now() - startedAt;   // LLM inference time only (excludes the local analysis below)
     if (!uciMove) throw new Error('LLM did not return a legal move (last reply: "' + lastRaw.slice(0, 60) + '")');
 
     const analysis = await requestAnalysis(fen, uciMove).catch(() => ({ evalCp: 0, bestEvalCp: 0 }));
     const move = uciToMove(state, uciMove);
-    return { move, evalCp: analysis.evalCp, bestEvalCp: analysis.bestEvalCp };
+    return { move, evalCp: analysis.evalCp, bestEvalCp: analysis.bestEvalCp, llmRetries, latencyMs, completionTokens };
   }
 
   function uciToMove(state, uciStr) {
@@ -1863,6 +1912,8 @@ function requestMove(fen, difficulty) {
       if (diff >= GM_LEVEL) {
         const elo = GRANDMASTER_ELO_LEVELS[diff];
         cfgEl.querySelector('.side-hint').textContent = elo != null ? 'Stockfish limited to Elo ' + elo + ' via UCI_LimitStrength.' : SIDE_HINTS.grandmaster;
+      } else if (diff === 1) {
+        cfgEl.querySelector('.side-hint').textContent = 'Plays a uniformly random legal move — the weakest opponent (the LLM-Chess benchmark\'s random-agent baseline).';
       } else {
         cfgEl.querySelector('.side-hint').textContent = SIDE_HINTS.normal;
       }
@@ -1906,6 +1957,14 @@ function requestMove(fen, difficulty) {
         updateFileWarning();
       }
     });
+    // System-prompt preset loader: picking a named preset fills the textarea
+    // with that prompt (still editable); the textarea always holds the text
+    // that will actually be sent. 'custom' just frees the user to type freely.
+    cfgEl.querySelector('.llm-prompt-select').addEventListener('change', (e) => {
+      const key = e.target.value;
+      const ta = cfgEl.querySelector('.llm-prompt');
+      if (LLM_SYSTEM_PROMPTS[key]) ta.value = LLM_SYSTEM_PROMPTS[key];
+    });
   });
 
   // Propose last-used setup as defaults on load.
@@ -1930,6 +1989,12 @@ function requestMove(fen, difficulty) {
       if (entry.apiBase != null) cfgEl.querySelector('.llm-api-base').value = entry.apiBase;
       if (entry.apiKey != null) cfgEl.querySelector('.llm-api-key').value = entry.apiKey;
       if (entry.model != null) cfgEl.querySelector('.llm-model').value = entry.model;
+      // System prompt: restore the saved text and sync the preset dropdown
+      // (match exactly to a named preset, else show "Custom…").
+      const promptText = entry.systemPrompt != null ? entry.systemPrompt : LLM_SYSTEM_PROMPTS[LLM_DEFAULT_PROMPT_KEY];
+      cfgEl.querySelector('.llm-prompt').value = promptText;
+      const matchedKey = Object.keys(LLM_SYSTEM_PROMPTS).find(k => LLM_SYSTEM_PROMPTS[k] === promptText);
+      cfgEl.querySelector('.llm-prompt-select').value = matchedKey || 'custom';
     });
   })();
 
@@ -1957,6 +2022,7 @@ function requestMove(fen, difficulty) {
         entry.apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
         entry.apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
         entry.model = cfgEl.querySelector('.llm-model').value.trim();
+        entry.systemPrompt = cfgEl.querySelector('.llm-prompt').value.trim();
         if (!entry.apiBase || !entry.model) {
           errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-Assisted needs at least an API base URL and a model name.');
         } else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) {
@@ -2660,6 +2726,7 @@ function requestMove(fen, difficulty) {
         try {
           const fallback = await requestNormalMove(Rules.toFEN(gameState), 3);
           if (myGeneration !== gameGeneration) return;
+          if (tournament && sideConfig.type === 'llm') recordLlmFallback();
           result = { move: fallback.move, evalCp: fallback.evalCp, bestEvalCp: fallback.bestEvalCp };
         } catch (fallbackErr) {
           if (myGeneration !== gameGeneration) return;
@@ -2692,6 +2759,7 @@ function requestMove(fen, difficulty) {
       const legal = Rules.genLegalMoves(gameState);
       const san = Rules.toSAN(gameState, move, legal);
       const quality = classifyQuality(evalCp, bestEvalCp, gameState.turn);
+      if (tournament && sideConfig.type === 'llm') recordLlmMove(result.llmRetries || 0, quality, result.latencyMs || 0, result.completionTokens || 0);
       clockStop();   // freeze the mover's clock, then add the per-move increment
       if (timeControl) clocks[clockSideKey(gameState.turn)] += timeControl.incrementMs;
       renderClocks();
@@ -2820,7 +2888,7 @@ function requestMove(fen, difficulty) {
   // for slow inference / 429-5xx retry backoff). At the end, a results table
   // is shown and auto-saved to a timestamped text file.
   const TOURNAMENT_LEVEL_NAMES = {
-    1: '1 Beginner', 2: '2 Easy', 3: '3 Medium', 4: '4 Hard', 5: '5 Expert',
+    1: '1 Random', 2: '2 Easy', 3: '3 Medium', 4: '4 Hard', 5: '5 Expert',
     6: '6 GM (Elo 1350)', 7: '7 GM (Elo 1800)', 8: '8 GM (Elo 2200)', 9: '9 GM (full)',
   };
   function oppositeSide(sideKey) { return sideKey === 'white' ? 'black' : 'white'; }
@@ -2840,6 +2908,7 @@ function requestMove(fen, difficulty) {
           apiBase: cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, ''),
           apiKey: cfgEl.querySelector('.llm-api-key').value.trim(),
           model: cfgEl.querySelector('.llm-model').value.trim(),
+          systemPrompt: cfgEl.querySelector('.llm-prompt').value.trim(),
         };
       }
     });
@@ -2856,6 +2925,9 @@ function requestMove(fen, difficulty) {
     tournament = {
       level: 1, gameInLevel: 0, results: [],
       llmSide, llmConfig, llmName: llmConfig.model, startedAt: new Date(),
+      games: 0, totalPlies: 0,
+      llm: { firstTry: 0, retried: 0, fallback: 0, moves: 0, latencyMs: 0, completionTokens: 0 },
+      llmQuality: { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
     };
     tournamentStopped = false;
     document.getElementById('setup-screen').hidden = true;
@@ -2900,6 +2972,24 @@ function requestMove(fen, difficulty) {
     else if (llmWon) row.llmWins++;
     else row.aiWins++;
     t.gameInLevel++;
+    t.games++;
+    t.totalPlies += moveHistory.length;   // game-level stats for the results report
+  }
+
+  // Tournament LLM-move accounting (instruction-following + quality + efficiency).
+  function recordLlmMove(retries, quality, latencyMs, completionTokens) {
+    if (!tournament) return;
+    const t = tournament;
+    t.llm.moves++;
+    if (retries === 0) t.llm.firstTry++; else t.llm.retried++;
+    t.llm.latencyMs += latencyMs || 0;
+    t.llm.completionTokens += completionTokens || 0;
+    if (quality && t.llmQuality[quality] != null) t.llmQuality[quality]++;
+  }
+  function recordLlmFallback() {
+    if (!tournament) return;
+    tournament.llm.moves++;
+    tournament.llm.fallback++;
   }
 
   function tournamentAdvance() {
@@ -2948,6 +3038,25 @@ function requestMove(fen, difficulty) {
       const outcome = row.llmWins === 3 ? 'LLM swept' : row.aiWins === 3 ? 'AI swept' : 'no sweep';
       lines.push(TOURNAMENT_LEVEL_NAMES[row.level].padEnd(20) + ' ' + row.llmWins + '-' + row.aiWins + '-' + row.draws + '   ' + outcome);
     }
+    // Instruction-following stability (our analog of the LLM-Chess benchmark's
+    // "Game Duration" / instruction-error metric): how often the model produced
+    // its OWN legal move vs needed a corrective retry vs fell back to local.
+    const own = t.llm.firstTry + t.llm.retried;
+    const total = t.llm.moves || 1;
+    const pct = n => (100 * n / total).toFixed(1) + '%';
+    lines.push('');
+    lines.push('Instruction-following: ' + own + ' own-legal moves (' + t.llm.firstTry + ' first-try, ' + t.llm.retried + ' after retry), ' + t.llm.fallback + ' local fallbacks — ' + pct(own) + ' own moves');
+    // Move quality distribution across the LLM's own moves (engine-tagged).
+    const q = t.llmQuality, qtot = q.best + q.good + q.inaccuracy + q.mistake + q.blunder;
+    if (qtot > 0) {
+      const qp = k => (100 * q[k] / qtot).toFixed(0) + '%';
+      lines.push('Move quality (LLM): ' + qp('best') + ' best, ' + qp('good') + ' good, ' + qp('inaccuracy') + ' inaccuracy, ' + qp('mistake') + ' mistake, ' + qp('blunder') + ' blunder');
+    }
+    // Game-level + per-move efficiency stats.
+    const avgMoves = t.games ? (t.totalPlies / t.games).toFixed(1) : '0';
+    const avgLatency = t.llm.moves ? (t.llm.latencyMs / t.llm.moves / 1000).toFixed(1) : '0';
+    const avgTokens = t.llm.moves ? Math.round(t.llm.completionTokens / t.llm.moves) : 0;
+    lines.push('Games: ' + t.games + ' · avg ' + avgMoves + ' moves/game · avg LLM latency ' + avgLatency + ' s/move · ' + avgTokens + ' completion tokens/move');
     return lines.join('\n');
   }
 

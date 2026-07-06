@@ -101,7 +101,7 @@ transposition table, and per-difficulty move-selection noise. Difficulty table
 
 | Level | maxDepth | maxNodes | noise |
 |---|---|---|---|
-| 1 Beginner | 1 | 5K | wide-random |
+| 1 Random | 1 | 5K | wide-random (uniform over all legal moves) |
 | 2 Easy | 3 | 50K | top3-random |
 | 3 Medium | 99 | 200K | gaussian-small |
 | 4 Hard | 99 | 800K | gaussian-tiny |
@@ -151,7 +151,7 @@ engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 ## 5. Key contracts (don't break these)
 
 - **ControllerConfig:** `{ type: 'human' | 'normal' | 'grandmaster' | 'llm',
-  difficulty?, apiBase?, apiKey?, model? }` (spec §8, TDD §2).
+  difficulty?, apiBase?, apiKey?, model?, systemPrompt? }` (spec §8, TDD §2).
 - **Worker protocol** (spec §9, TDD §6):
   - Main→Worker: `{type:'search',...}`, `{type:'analyze', fen, uciMove}`
     (Normal only), `{type:'stop'}`.
