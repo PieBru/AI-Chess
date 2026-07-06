@@ -326,8 +326,7 @@
   .replay-controls .replay-counter { color: var(--text-dim); min-width: 3.5em; text-align: center; }
 
   /* ---- Captured-piece tray ---- */
-  .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: .9rem;
-                   max-height: 3.6em; overflow: hidden; }   /* bounded so a long capture string can't wrap-grow over the move list below */
+  .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }   /* grows to fit wrapped capture strings; the move list below has its own min-height */
   .captured-row { display: flex; align-items: center; gap: 6px; }
   .captured-label { color: var(--text-dim); font-size: .68rem; min-width: 92px; white-space: nowrap; font-family: var(--font-body); }
   .captured-pieces { flex: 1; letter-spacing: 1px; line-height: 1.15; min-height: 1.15em; }
