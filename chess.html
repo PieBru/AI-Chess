@@ -114,6 +114,15 @@
     background: var(--panel); color: var(--text); border: 1px solid var(--line);
     font-family: var(--font-mono); font-size: .8rem;
   }
+  .verify-llm-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .verify-llm-btn {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer;
+  }
+  .verify-llm-btn:disabled { opacity: .5; cursor: wait; }
+  .verify-llm-status { font-size: .78rem; font-family: var(--font-mono); }
+  .verify-llm-status.ok { color: var(--good); }
+  .verify-llm-status.off { color: var(--danger); }
 
   #start-btn {
     display: block; margin: 20px 0 0 auto;   /* primary action: bottom-right (LTR convention) */
@@ -1549,6 +1558,56 @@ function requestMove(fen, difficulty) {
     throw new Error('LLM call failed after exhausting retries: ' + lastError.message.replace(' — retrying', ''));
   }
 
+  // One-shot connectivity probe for an LLM endpoint: posts a trivial chat
+  // completion (NO retry loop — verify is a manual action and the user wants
+  // an instant verdict, not a 5-min wait) and reports "On line" or
+  // "OFF LINE (<reason>)". Reads the field values live so it tests exactly
+  // what Start will use. Sends only { model, messages } (no hyperparams) for
+  // the same reason callLLM does — reasoning models 400 on unknown params.
+  async function verifySideLlm(cfgEl, btn, statusEl) {
+    const apiBase = cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, '');
+    const apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
+    const model = cfgEl.querySelector('.llm-model').value.trim();
+    statusEl.hidden = false;
+    statusEl.className = 'verify-llm-status';
+    if (!apiBase || !model) {
+      statusEl.classList.add('off');
+      statusEl.textContent = 'OFF LINE (enter API base URL and model first)';
+      return;
+    }
+    statusEl.textContent = 'Checking…';
+    btn.disabled = true;
+    try {
+      const res = await fetch(apiBase + '/chat/completions', {
+        method: 'POST',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          apiKey ? { Authorization: 'Bearer ' + apiKey } : {}
+        ),
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word: ok' }] }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+        statusEl.classList.add(content ? 'ok' : 'off');
+        statusEl.textContent = content ? 'On line' : 'OFF LINE (200 but no message content)';
+      } else {
+        statusEl.classList.add('off');
+        statusEl.textContent = 'OFF LINE (HTTP ' + res.status + ')';
+      }
+    } catch (err) {
+      statusEl.classList.add('off');
+      // Mixed-content block (HTTPS page → HTTP endpoint) gets a clear label;
+      // other network failures (CORS/DNS/unreachable) surface as the raw
+      // error message, which is the most informative thing the browser gives.
+      statusEl.textContent = (location.protocol === 'https:' && apiBase.startsWith('http:'))
+        ? 'OFF LINE (mixed content)'
+        : 'OFF LINE (' + (err.message || 'network error') + ')';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   // Selectable system prompts for the LLM-Assisted controller (PRD-style
   // personas). Each keeps the iron output contract (exactly one legal UCI
   // move) so the parser stays reliable; the variety is in persona + thinking
@@ -1986,6 +2045,15 @@ function requestMove(fen, difficulty) {
       const ta = cfgEl.querySelector('.llm-prompt');
       if (LLM_SYSTEM_PROMPTS[key]) ta.value = LLM_SYSTEM_PROMPTS[key];
     });
+    // Verify-LLM button: appended to this side's LLM config (so it hides with
+    // the config when the side isn't LLM-AI) and wired to a one-shot probe.
+    const verifyRow = document.createElement('div');
+    verifyRow.className = 'verify-llm-row';
+    verifyRow.innerHTML = '<button type="button" class="verify-llm-btn">Verify LLM</button><span class="verify-llm-status" hidden></span>';
+    cfgEl.querySelector('.llm-config').appendChild(verifyRow);
+    verifyRow.querySelector('.verify-llm-btn').addEventListener('click', () =>
+      verifySideLlm(cfgEl, verifyRow.querySelector('.verify-llm-btn'), verifyRow.querySelector('.verify-llm-status'))
+    );
   });
 
   // Propose last-used setup as defaults on load.
