@@ -11,7 +11,7 @@ A single-file chess app built with vanilla HTML, CSS, and JavaScript — no buil
 
 I made it to have fun while entertaining my grandkids on both playing and designing such software, and to have an empirical benchmark platform to measure my self-hosted systems' quality about LLM inferencing, harnesses, scaffolds, software engineering, and coding. Two goals, in priority order: **entertain** (a beginner should have a winnable, enjoyable game; a strong player should get a genuine challenge) and **evaluate AI "intelligence"** — concretely, how the engines and LLMs think move-to-move.
 
-NOTE: it's almost impossible for me to manually test all features and options. EXPECT BUGS and please open an issue if you find one, or want to suggest new features.
+NOTE: it's almost impossible for me to manually test all features and options. EXPECT BUGS and please open an issue if you find one, or want to suggest new features. Tested mainly with **LibreWolf** (Firefox), occasionally with **Ungoogled-Chromium** (Chromium); other modern browsers should work but aren't regularly checked.
 
 ## Features
 
