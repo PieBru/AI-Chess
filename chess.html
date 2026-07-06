@@ -1626,6 +1626,13 @@ function requestMove(fen, difficulty) {
     }
   }
 
+  function llmStatusLabel(r) {
+    return r.ok ? 'On line'
+      : r.reason === 'mixed content'
+        ? 'OFF LINE — mixed content: an HTTPS page cannot call an HTTP endpoint. Reload this app over http:// (e.g. python3 -m http.server) or use an HTTPS endpoint.'
+        : 'OFF LINE (' + r.reason + ')';
+  }
+
   async function verifySideLlm(cfgEl, btn, statusEl) {
     const apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
     const apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
@@ -1642,7 +1649,7 @@ function requestMove(fen, difficulty) {
     try {
       const r = await probeLlm({ apiBase, apiKey, model });
       statusEl.classList.add(r.ok ? 'ok' : 'off');
-      statusEl.textContent = r.ok ? 'On line' : 'OFF LINE (' + r.reason + ')';
+      statusEl.textContent = llmStatusLabel(r);
       if (r.ok) saveLlmProfile(cfgEl);   // remember this verified endpoint+model
     } finally { btn.disabled = false; }
   }
@@ -2309,7 +2316,7 @@ function requestMove(fen, difficulty) {
           if (statusEl) {
             statusEl.hidden = false;
             statusEl.className = 'verify-llm-status ' + (r.ok ? 'ok' : 'off');
-            statusEl.textContent = r.ok ? 'On line' : 'OFF LINE (' + r.reason + ')';
+            statusEl.textContent = llmStatusLabel(r);
           }
           return [i.side, r];
         }));
