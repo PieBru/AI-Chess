@@ -135,11 +135,11 @@ Node budgets (not wall-clock time) keep engine strength **hardware-independent**
 - Owns board state reconstruction from a FEN string per request (stateless between calls — simplest correctness story, avoids state-drift bugs between main thread and worker).
 - Reports intermediate progress messages during iterative deepening (`{ type: 'progress', depth, evalCp }`) so the main thread can drive the PRD §5.3 thinking indicator without polling.
 - Returns final `{ type: 'result', move, evalCp, bestEvalCp }` — `bestEvalCp` is the same as `evalCp` except at Difficulty 1–3 where move-selection noise/randomization may pick a move other than the top-scored one; the engine manager needs both values for the PRD §5.4 quality-tagging feature to work even at low difficulties.
-- Also handles an `{ type: 'analyze', fen, uciMove }` message (§6): grades an arbitrary played move against a quick local search at a fixed analysis difficulty (~4), returning `{ type: 'analysis', evalCp, bestEvalCp }`. `evalCp` is the played move's eval (child-position search, negated into the mover's perspective), `bestEvalCp` the best line's. This lets quality tagging (PRD §5.4) apply to **any** move source — LLM-Assisted and human, not just the Normal engine's own moves — using one local yardstick.
+- Also handles an `{ type: 'analyze', fen, uciMove }` message (§6): grades an arbitrary played move against a quick local search at a fixed analysis difficulty (~4), returning `{ type: 'analysis', evalCp, bestEvalCp }`. `evalCp` is the played move's eval (child-position search, negated into the mover's perspective), `bestEvalCp` the best line's. This lets quality tagging (PRD §5.4) apply to **any** move source — LLM-AI and human, not just the Normal engine's own moves — using one local yardstick.
 
 ### 4.5 Move-quality tag thresholds (implements PRD §5.4)
 
-Every played move — any source (Normal, Grandmaster, LLM-Assisted, or human) — is classified by the centipawn **loss** it gives up relative to the best available move, measured in the mover's own perspective:
+Every played move — any source (Normal, Grandmaster, LLM-AI, or human) — is classified by the centipawn **loss** it gives up relative to the best available move, measured in the mover's own perspective:
 
 > `loss = bestEvalCp − evalCp`  (White to move);  `loss = evalCp − bestEvalCp`  (Black to move)
 
@@ -176,8 +176,8 @@ Consequence: Grandmaster strength is bounded by single-thread NPS. This is still
 - Parse `bestmove <uci-move> [ponder <move>]` as the terminal response.
 - UCI move strings (e.g. `e2e4`, `e7e8q`) are converted to the internal `Move` shape via the rules engine's own move generator (find the legal move matching that from/to/promotion) rather than trusted blindly — this reuses the legality filter as a safety net against any parser edge case.
 
-### 5.4 LLM-Assisted engine (main-thread fetch, implements spec FR-9)
-Unlike the Normal and Grandmaster engines, the LLM-Assisted controller is **not a worker** — it issues a direct `fetch()` from the main thread to the user-supplied OpenAI-compatible endpoint. It still satisfies the engine-manager `requestMove()` contract, returning the normalized `{ move, evalCp, bestEvalCp }` shape so the game loop stays agnostic (spec §7.1).
+### 5.4 LLM-AI engine (main-thread fetch, implements spec FR-9)
+Unlike the Normal and Grandmaster engines, the LLM-AI controller is **not a worker** — it issues a direct `fetch()` from the main thread to the user-supplied OpenAI-compatible endpoint. It still satisfies the engine-manager `requestMove()` contract, returning the normalized `{ move, evalCp, bestEvalCp }` shape so the game loop stays agnostic (spec §7.1).
 
 - **Request:** `POST {apiBase}/chat/completions` with `Authorization: Bearer {apiKey}` when a key is supplied; body is `{ model, messages, temperature }`. The system message constrains the model to reply with exactly one legal UCI move; the user message supplies the FEN, the side to move, recent SAN history, and the full legal UCI move list (constrained choice — the main reliability lever).
 - **Parse / retry:** extract the first UCI token from `choices[0].message.content`, preferring an exact legal-move token. A non-matching reply triggers up to one corrective retry: the model's bad reply is appended as an `assistant` message and a `user` message says "that wasn't legal, pick from: …". After a failed retry the function throws.
@@ -257,7 +257,7 @@ All applied moves — human or AI — pass through the same rules-engine validat
 - **Rules engine**: unit tests against known FEN/perft positions (standard perft node-count test suite) to validate move generation correctness independent of any AI.
 - **Normal engine**: regression tests on fixed positions with known best moves/tactics at each difficulty tier; confirm time/depth budgets are respected (§4.3 table).
 - **Grandmaster integration**: smoke test that UCI handshake completes, a `position`+`go` round-trip returns a legal move, and load-failure handling triggers correctly when the asset URL is deliberately broken in a test.
-- **End-to-end**: scripted playthroughs covering all Human/AI controller combinations including LLM-Assisted (spec AC-4, AC-8), a full AI-vs-AI game to completion (AC-3), and an offline-mode check confirming Human vs Human / Human vs Normal works with network disabled (AC-6).
+- **End-to-end**: scripted playthroughs covering all Human/AI controller combinations including LLM-AI (spec AC-4, AC-8), a full AI-vs-AI game to completion (AC-3), and an offline-mode check confirming Human vs Human / Human vs Normal works with network disabled (AC-6).
 
 ## 12. Open technical risks
 

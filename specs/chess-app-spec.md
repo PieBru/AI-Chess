@@ -35,7 +35,7 @@ Both engines run inside a **Web Worker** so the UI thread never blocks during se
 ## 2. Goals
 
 - **G1.** Provide a fully playable, rules-correct chess game in one HTML file.
-- **G2.** Let the user independently assign White and Black to Human, Normal AI (with a difficulty), Grandmaster AI, or LLM-Assisted (with its own endpoint/model config).
+- **G2.** Let the user independently assign White and Black to Human, Browser-AI (with a difficulty), Grandmaster AI, or LLM-AI (with its own endpoint/model config).
 - **G3.** Keep the UI responsive at all times, including during deep AI search.
 - **G4.** Offer a genuinely wide strength range: from a beatable beginner AI up to super-human (Stockfish-class) play.
 - **G5.** Keep the codebase understandable and self-contained enough that the Normal engine's logic is inspectable, not a black box.
@@ -55,11 +55,11 @@ There is a single user-facing configuration surface: **for each color (White, Bl
 | Controller | Description |
 |---|---|
 | Human | Moves are entered via the board UI (click or drag) |
-| Normal AI | Local custom engine; requires a **Difficulty** sub-selection |
-| Grandmaster AI | Stockfish WASM; selectable via Normal AI difficulty 6–9 (full strength or UCI_Elo-limited) |
-| LLM-Assisted | Calls a user-configured OpenAI-compatible chat endpoint per move; requires **Endpoint / API key (optional) / Model** sub-selection |
+| Browser-AI | Local custom engine; requires a **Difficulty** sub-selection |
+| Grandmaster AI | Stockfish WASM; selectable via Browser-AI difficulty 6–9 (full strength or UCI_Elo-limited) |
+| LLM-AI | Calls a user-configured OpenAI-compatible chat endpoint per move; requires **Endpoint / API key (optional) / Model** sub-selection |
 
-All Human/AI combinations must be supported without special-casing in the rules engine (LLM-Assisted counts as an AI tier):
+All Human/AI combinations must be supported without special-casing in the rules engine (LLM-AI counts as an AI tier):
 
 - Human vs Human
 - Human vs AI (either tier, either color)
@@ -76,7 +76,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
 
 ### FR-2. Game modes & player assignment
 - FR-2.1 Before a game starts, the user selects White's controller and Black's controller independently, per §4.
-- FR-2.2 If Normal AI is selected for a side, a Difficulty must also be selected (see FR-3.2).
+- FR-2.2 If Browser-AI is selected for a side, a Difficulty must also be selected (see FR-3.2).
 - FR-2.3 Controller assignment can be changed via "New Game"; it is not changeable mid-game.
 - FR-2.4 When it is an AI-controlled side's turn, the UI must clearly indicate "thinking" state and disable human move input on the board.
 
@@ -96,7 +96,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
   | 8 — Grandmaster (Elo 2200) | Stockfish with `UCI_LimitStrength`=true, `UCI_Elo`=2200 | Best move only (Elo-limited Stockfish) | ~2200 |
   | 9 — Grandmaster full | Stockfish NNUE | Best move only (Stockfish) | Full strength |
 
-  Levels 6–9 route to Grandmaster (`type: 'grandmaster'` in ControllerConfig) with an optional `elo` field. The Normal AI difficulty picker exposes them (PRD §2.1) to keep the controller picker to three choices. Levels 1–5 remain the Normal engine's own depths.
+  Levels 6–9 route to Grandmaster (`type: 'grandmaster'` in ControllerConfig) with an optional `elo` field. The Browser-AI difficulty picker exposes them (PRD §2.1) to keep the controller picker to three choices. Levels 1–5 remain the Normal engine's own depths.
 
   Exact ELO targets are a PRD/TDD tuning concern; this table constrains *mechanism* (how difficulty is achieved), not exact numbers.
 - FR-3.3 The Normal engine must never crash or stall the worker on any legal position, including positions with very few legal moves (forced sequences) or none (must correctly report game-over rather than search).
@@ -138,7 +138,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
   controller types; engines rarely flag (their think time is small relative
   to a minutes-long budget), so in practice it constrains humans and slow
   LLMs. Selection persists across sessions.
-- FR-6.7 Cross-hardware fairness: Normal AI uses node budgets (not wall-clock
+- FR-6.7 Cross-hardware fairness: Browser-AI uses node budgets (not wall-clock
   time — see TDD §4.3) so the same difficulty level searches the same tree
   on any CPU. Grandmaster (Stockfish) exposes selectable Elo levels via
   `UCI_LimitStrength` + `UCI_Elo` (difficulty 7–9, levels below full
@@ -168,13 +168,13 @@ All Human/AI combinations must be supported without special-casing in the rules 
   to play again. Custom-position games via a `[FEN]` tag are not supported in
   v1 (standard start only).
 
-### FR-9. AI — LLM-Assisted mode
-- FR-9.1 On selecting LLM-Assisted for a side, the user supplies, per side: an **API base URL** (OpenAI-compatible, stored as `apiBase`), an optional **API key** (blank works for local servers like Ollama / LM Studio), a **Model** name, and a **System prompt** (stored as `systemPrompt`). Both `apiBase` and `model` are required to start. The two sides may use different endpoints/models/prompts. The system prompt is chosen from a set of built-in personas (Grandmaster / Tactician / Attacker / Positional / Think-then-commit) via a dropdown that loads the preset into an editable textarea, or typed freely as a custom prompt; whichever text ends up in the textarea is what is sent (persisted with the rest of the config). Every prompt keeps the iron output contract — exactly one legal UCI move — so the parser stays reliable; the move extractor resolves to the **last** legal-move token mentioned (so a chain-of-thought "Think-then-commit" reply that names candidates then commits resolves to the choice, not a rejected candidate).
+### FR-9. AI — LLM-AI mode
+- FR-9.1 On selecting LLM-AI for a side, the user supplies, per side: an **API base URL** (OpenAI-compatible, stored as `apiBase`), an optional **API key** (blank works for local servers like Ollama / LM Studio), a **Model** name, and a **System prompt** (stored as `systemPrompt`). Both `apiBase` and `model` are required to start. The two sides may use different endpoints/models/prompts. The system prompt is chosen from a set of built-in personas (Grandmaster / Tactician / Attacker / Positional / Think-then-commit) via a dropdown that loads the preset into an editable textarea, or typed freely as a custom prompt; whichever text ends up in the textarea is what is sent (persisted with the rest of the config). Every prompt keeps the iron output contract — exactly one legal UCI move — so the parser stays reliable; the move extractor resolves to the **last** legal-move token mentioned (so a chain-of-thought "Think-then-commit" reply that names candidates then commits resolves to the choice, not a rejected candidate).
 - FR-9.2 Each move is requested via `POST {apiBase}/chat/completions` (Authorization: Bearer {apiKey} when a key is supplied), sending the current FEN, the side to move, recent SAN move history, and the full list of legal UCI moves, and asking the model to return exactly one move from that list (constrained choice — the main reliability lever for legal LLM chess).
 - FR-9.3 The reply is parsed for one UCI move (preferring an exact legal-move token) and **re-validated through the rules engine** like every other AI move (NFR-7.2). An illegal/unparseable reply is retried **up to once** with a corrective message that feeds the bad reply back into the conversation. If it still fails, or the network call itself fails, the side **falls back to a quick local Normal-engine move (difficulty 3) so play continues**, with a toast — LLM APIs fail transiently far more often than a local engine, and per the primary goal (entertain) a flaky API must not kill the game. Only if the fallback itself errors does the game end.
 - FR-9.4 Setup **config** (per-side controller, difficulty, and LLM `apiBase`/`apiKey`/`model`) is **persisted to `localStorage` and proposed as defaults on the next restart** on the same computer. This is the single permitted persistence exception: it covers setup selections only, **not** game state/history/ratings (those remain barred by NG2 / FR-8.1). Persistence is best-effort and silently no-ops when storage is unavailable (e.g. disabled, or some `file://` contexts). Note the key is stored locally and readable by anyone with browser-profile access — acceptable for a single-user local tool, not for sharing the file with a real key typed in.
-- FR-9.5 The eval bar and move-quality tags (PRD §5.4) remain functional in LLM-Assisted mode: the Normal engine exposes an `analyze` message (spec §9) that grades *any* played move — LLM or human — against a quick local search, returning `evalCp` (the played move's eval) and `bestEvalCp` (the best line's eval). The chat endpoint returns no eval, so the local engine acts purely as a judge, never as a mover — giving one yardstick to compare LLM moves against Normal and Grandmaster.
-- FR-9.6 **Tournament mode (LLM gauntlet):** when exactly one side is LLM-Assisted, a "Run tournament" action becomes available. It plays a 3-game round between the LLM and the AI opponent at each difficulty (1–9) using an **adaptive gauntlet** (cf. the LLM-Chess benchmark's level-selection heuristic): after each 3-game round, if the **AI swept** (LLM lost all 3) the tournament **stops** — that level is the LLM's floor; otherwise (LLM swept **or** the round was mixed) it **climbs to the next difficulty** until the top level (Grandmaster full) is reached. (The earlier "any 3-0 sweep ends it" rule ended a strong LLM at level 1 and never found its ceiling; the adaptive rule is what makes the Elo estimate below resolvable.) **Difficulty 1 is a pure random player** (it picks uniformly from all legal moves — the weakest opponent, the same baseline as the benchmark's random-agent gating phase). Colors alternate each game for fairness; tournament games run **without a chess clock** so the LLM is not penalized for slow inference / 429-5xx retry backoff, and are **capped at 200 half-moves → draw** (the benchmark's 200-move cap) as a safety net against infinite loops, since threefold repetition is not yet detected (FR-1.3 caveat). LLM 4xx/5xx errors use the exponential-backoff retry loop (the local fallback move of FR-9.3 is only the last resort). On completion, a per-level results table (W-L-D from the LLM's perspective + outcome) **plus the diagnostic blocks below** are shown and auto-saved to a timestamped text file (`tournament-{model}-{yyyymmdd-hhmmss}.txt`), ending with a **methodology footnote** noting that our single-turn constrained-choice protocol is simpler than the benchmark's multi-turn agentic Game Duration (so our instruction-following % is not directly comparable) and that our Elo pool (Stockfish `UCI_Elo`) differs from theirs (Dragon/chess.com) though the MLE method is identical:
+- FR-9.5 The eval bar and move-quality tags (PRD §5.4) remain functional in LLM-AI mode: the Normal engine exposes an `analyze` message (spec §9) that grades *any* played move — LLM or human — against a quick local search, returning `evalCp` (the played move's eval) and `bestEvalCp` (the best line's eval). The chat endpoint returns no eval, so the local engine acts purely as a judge, never as a mover — giving one yardstick to compare LLM moves against Normal and Grandmaster.
+- FR-9.6 **Tournament mode (LLM gauntlet):** when exactly one side is LLM-AI, a "Run tournament" action becomes available. It plays a 3-game round between the LLM and the AI opponent at each difficulty (1–9) using an **adaptive gauntlet** (cf. the LLM-Chess benchmark's level-selection heuristic): after each 3-game round, if the **AI swept** (LLM lost all 3) the tournament **stops** — that level is the LLM's floor; otherwise (LLM swept **or** the round was mixed) it **climbs to the next difficulty** until the top level (Grandmaster full) is reached. (The earlier "any 3-0 sweep ends it" rule ended a strong LLM at level 1 and never found its ceiling; the adaptive rule is what makes the Elo estimate below resolvable.) **Difficulty 1 is a pure random player** (it picks uniformly from all legal moves — the weakest opponent, the same baseline as the benchmark's random-agent gating phase). Colors alternate each game for fairness; tournament games run **without a chess clock** so the LLM is not penalized for slow inference / 429-5xx retry backoff, and are **capped at 200 half-moves → draw** (the benchmark's 200-move cap) as a safety net against infinite loops, since threefold repetition is not yet detected (FR-1.3 caveat). LLM 4xx/5xx errors use the exponential-backoff retry loop (the local fallback move of FR-9.3 is only the last resort). On completion, a per-level results table (W-L-D from the LLM's perspective + outcome) **plus the diagnostic blocks below** are shown and auto-saved to a timestamped text file (`tournament-{model}-{yyyymmdd-hhmmss}.txt`), ending with a **methodology footnote** noting that our single-turn constrained-choice protocol is simpler than the benchmark's multi-turn agentic Game Duration (so our instruction-following % is not directly comparable) and that our Elo pool (Stockfish `UCI_Elo`) differs from theirs (Dragon/chess.com) though the MLE method is identical:
   - **Estimated Elo (LLM-Chess-leaderboard-style):** a maximum-likelihood Elo rating is computed from the (opponent Elo, game score) pairs of the Stockfish `UCI_Elo`-anchored games (levels 6–8: 1350/1800/2200 — level 9 full and Normal 1–5 have no anchor and are excluded). It solves `Σ(Sᵢ − Eᵢ(R̂)) = 0` with `Eᵢ(R)=1/(1+10^((Rᵢ−R)/400))` (bisection), and reports a 95% CI from the Fisher information `I=ΣE(1−E)(ln10/400)²`, `SE=1/√I`. Extreme cases report bounds: all-wins → "above {max anchor}", all-losses → "below {min anchor}"; if the LLM never reached the Stockfish levels, it reports "insufficient Elo-anchored data". Annotated as the Stockfish `UCI_Elo` pool (not cross-pool-comparable to chess.com/FIDE, per the benchmark's own caveat).
   - **Instruction-following stability** (the benchmark's headline metric): counts of LLM moves that were legal on the first try, needed the corrective retry, or fell back to a local Normal move — reported as "% own legal moves" (our honest analog of their "Game Duration" / instruction-error rate, since our fallback keeps the game alive rather than losing it).
   - **LLM move-quality distribution**: the existing best/good/inaccuracy/mistake/blunder tags (FR-9.5), accumulated across the LLM's own moves into percentages.
@@ -188,7 +188,7 @@ The deliverable is one `.html` file containing all CSS and JS inline. Exception:
 
 ### NFR-2. Performance
 - NFR-2.1 UI interactions (piece selection, highlighting, menu navigation) must respond within 100ms regardless of AI activity.
-- NFR-2.2 Normal AI must respect its difficulty's time/depth budget (§FR-3.2) and not exceed it by more than a small margin.
+- NFR-2.2 Browser-AI must respect its difficulty's time/depth budget (§FR-3.2) and not exceed it by more than a small margin.
 
 ### NFR-3. Responsiveness (non-blocking UI)
 - NFR-3.1 Both AI tiers must run their search inside a Web Worker. The main thread must never run a blocking search loop.
@@ -198,10 +198,10 @@ The deliverable is one `.html` file containing all CSS and JS inline. Exception:
 - NFR-4.1 Must run in current versions of Chrome, Firefox, Safari, and Edge without polyfills for standard Web Worker / WebAssembly APIs.
 - NFR-4.2 Must be usable on both desktop and mobile viewport widths (responsive layout).
 
-### NFR-5. Network dependency (Grandmaster and LLM-Assisted modes)
-- NFR-5.1 Human vs Human and Human vs Normal AI must work fully offline once the page is loaded.
+### NFR-5. Network dependency (Grandmaster and LLM-AI modes)
+- NFR-5.1 Human vs Human and Human vs Browser-AI must work fully offline once the page is loaded.
 - NFR-5.2 Grandmaster runs **fully offline once served**: the two-file Stockfish asset bundle (`stockfish-18-lite-single.js` + `stockfish-18-lite-single.wasm`) is **committed to the repo** next to `chess.html` (GPL-3.0 — §12.4), so no internet download is ever needed. The loader tries the local bundle first, then falls back to a CDN; the CDN is currently non-functional anyway (jsDelivr refuses the >150 MB npm package with HTTP 403), but the committed bundle makes that irrelevant. **Serving caveat:** Grandmaster must be served over **HTTP(S)**, not opened via `file://`. Browsers block `new Worker()` from a `file://` page (same-origin policy on local files), and the Stockfish loader runs as a Worker. (Human-vs-Human and Human-vs-Normal do work via `file://` — see NFR-5.1 — because the Normal engine runs from an inline Blob URL.)
-- NFR-5.4 LLM-Assisted mode requires network access to a user-supplied OpenAI-compatible endpoint on every move. The endpoint must itself serve permissive CORS headers (the browser makes the call directly); local servers such as LM Studio, llama.cpp, vLLM, and LocalAI do, while OpenAI's hosted API does not from a browser — a CORS-friendly proxy is the user's responsibility. No CORS handling is implemented app-side.
+- NFR-5.4 LLM-AI mode requires network access to a user-supplied OpenAI-compatible endpoint on every move. The endpoint must itself serve permissive CORS headers (the browser makes the call directly); local servers such as LM Studio, llama.cpp, vLLM, and LocalAI do, while OpenAI's hosted API does not from a browser — a CORS-friendly proxy is the user's responsibility. No CORS handling is implemented app-side.
 - NFR-5.3 **Threading caveat to carry into the TDD:** multi-threaded Stockfish WASM builds require `SharedArrayBuffer`, which requires cross-origin isolation (COOP/COEP response headers). A file opened directly via `file://` or served without those headers will not get multi-threading. The TDD must decide between (a) using a single-threaded WASM build for maximum compatibility at somewhat reduced NPS, or (b) requiring the file be served with the correct headers to unlock multi-threading. This materially affects Grandmaster-mode strength and must not be left ambiguous downstream.
 
 ### NFR-6. Accessibility
@@ -260,9 +260,9 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - AC-3: Grandmaster mode produces legal, strong moves via Stockfish WASM without freezing the UI.
 - AC-4: All four controller combinations (Human/Human, Human/AI, AI/Human, AI/AI) can be configured and played.
 - AC-5: The UI remains interactive during AI thinking at every difficulty and both tiers.
-- AC-6: The app loads and is fully playable (Human vs Human, Human vs Normal AI) with no network connection.
+- AC-6: The app loads and is fully playable (Human vs Human, Human vs Browser-AI) with no network connection.
 - AC-7: A Stockfish load failure is handled gracefully and does not break the rest of the app.
-- AC-8: LLM-Assisted mode produces legal moves from a configured OpenAI-compatible endpoint; an endpoint error or illegal reply (after retry) triggers a local fallback move rather than ending the game, and only a fallback failure freezes the UI gracefully.
+- AC-8: LLM-AI mode produces legal moves from a configured OpenAI-compatible endpoint; an endpoint error or illegal reply (after retry) triggers a local fallback move rather than ending the game, and only a fallback failure freezes the UI gracefully.
 
 ## 11. Assumptions & open questions (to be resolved in PRD/TDD)
 
@@ -271,7 +271,7 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - A11.3 ~~Whether multi-threaded WASM (requiring specific server headers) is a hard requirement or a "best effort if headers present"~~ — **Resolved (see §13):** use a single-threaded Stockfish WASM build for v1. Recommended package: `nmrugg/stockfish.js` single-threaded flavor (`stockfish` on npm). Multi-threading is a v1.1 upgrade gated on confirming the deployment host can serve COOP/COEP headers. See §13 and TDD §5.2.
 - A11.4 Drag-and-drop move input — **shipped (2026-07-05)** as part of FR-5.2; see that FR.
 - A11.5 Sound effects, animations, and visual theme are UX decisions left entirely to the PRD.
-- A11.6 LLM-Assisted prompt robustness — the single-hard-move prompt + one-retry policy (FR-9.3) is a baseline; real-world move legality/parse rates depend on the chosen model and may need a richer prompt or constrained decoding later. Not blocking v1.
+- A11.6 LLM-AI prompt robustness — the single-hard-move prompt + one-retry policy (FR-9.3) is a baseline; real-world move legality/parse rates depend on the chosen model and may need a richer prompt or constrained decoding later. Not blocking v1.
 
 ## 12. Dependencies, references & licensing
 

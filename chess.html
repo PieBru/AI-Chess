@@ -360,7 +360,7 @@
 
 <div class="topbar">
   <h1>♟ Granpy Piero's AI Chess</h1>
-  <span class="tagline">Human, Normal AI (6 levels — incl. Stockfish), or LLM-Assisted — either side</span>
+  <span class="tagline">Human, Browser-AI (6 levels — incl. Stockfish), or LLM-AI — either side</span>
 </div>
 
 <section id="setup-screen" class="screen">
@@ -373,8 +373,8 @@
         <h3><span class="swatch w"></span> White</h3>
         <div class="controller-options">
           <button class="opt-btn selected" data-type="human">Human</button>
-          <button class="opt-btn" data-type="normal">Normal AI</button>
-          <button class="opt-btn" data-type="llm">LLM-Assisted</button>
+          <button class="opt-btn" data-type="normal">Browser-AI</button>
+          <button class="opt-btn" data-type="llm">LLM-AI</button>
         </div>
         <div class="difficulty-picker" hidden>
           <label>Difficulty</label>
@@ -414,8 +414,8 @@
         <h3><span class="swatch b"></span> Black</h3>
         <div class="controller-options">
           <button class="opt-btn selected" data-type="human">Human</button>
-          <button class="opt-btn" data-type="normal">Normal AI</button>
-          <button class="opt-btn" data-type="llm">LLM-Assisted</button>
+          <button class="opt-btn" data-type="normal">Browser-AI</button>
+          <button class="opt-btn" data-type="llm">LLM-AI</button>
         </div>
         <div class="difficulty-picker" hidden>
           <label>Difficulty</label>
@@ -2034,7 +2034,7 @@ function requestMove(fen, difficulty) {
         entry.model = cfgEl.querySelector('.llm-model').value.trim();
         entry.systemPrompt = cfgEl.querySelector('.llm-prompt').value.trim();
         if (!entry.apiBase || !entry.model) {
-          errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-Assisted needs at least an API base URL and a model name.');
+          errors.push(side[0].toUpperCase() + side.slice(1) + ': LLM-AI needs at least an API base URL and a model name.');
         } else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) {
           errors.push(side[0].toUpperCase() + side.slice(1) + ': The LLM endpoint is HTTP, but this page is served over HTTPS — browsers block mixed-content requests. Use an HTTPS endpoint, or serve this app locally via HTTP.');
         }
@@ -2177,9 +2177,9 @@ function requestMove(fen, difficulty) {
   // FEN support only if a use case loads custom-position games.
   function controllerLabel(cfg) {
     if (cfg.type === 'human') return 'Human';
-    if (cfg.type === 'normal') return 'Normal AI (Level ' + cfg.difficulty + ')';
+    if (cfg.type === 'normal') return 'Browser-AI (Level ' + cfg.difficulty + ')';
     if (cfg.type === 'grandmaster') return 'Grandmaster';
-    if (cfg.type === 'llm') return 'LLM-Assisted' + (cfg.model ? ' (' + cfg.model + ')' : '');
+    if (cfg.type === 'llm') return 'LLM-AI' + (cfg.model ? ' (' + cfg.model + ')' : '');
     return cfg.type;
   }
 
@@ -2720,8 +2720,8 @@ function requestMove(fen, difficulty) {
       return;
     }
 
-    const label = sideConfig.type === 'normal' ? ('Normal AI — Level ' + sideConfig.difficulty)
-      : sideConfig.type === 'llm' ? ('LLM-Assisted — ' + sideConfig.model)
+    const label = sideConfig.type === 'normal' ? ('Browser-AI — Level ' + sideConfig.difficulty)
+      : sideConfig.type === 'llm' ? ('LLM-AI — ' + sideConfig.model)
       : 'Grandmaster (Stockfish)';
     thinkingTextEl.textContent = label + ' is thinking…';
     thinkingEl.hidden = false;

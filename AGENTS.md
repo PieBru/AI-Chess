@@ -79,7 +79,7 @@ above) so Grandmaster runs offline from the local bundle — but it must be
   generation, FEN/SAN, check/checkmate/stalemate, draws (fifty-move,
   insufficient material). **Threefold repetition is NOT implemented** (§9).
   `chess.js` is the documented fallback (spec §12.2) only if perft tests fail.
-- **`fetch()` to an OpenAI-compatible chat endpoint** for LLM-Assisted mode,
+- **`fetch()` to an OpenAI-compatible chat endpoint** for LLM-AI mode,
   straight from the main thread. No SDK, no proxy.
 - **Sampled audio**, all `HTMLAudioElement`-based (no `AudioContext`): CC0
   piece sounds (lichess) and Pixabay-License crowd reactions, embedded as
@@ -122,10 +122,10 @@ hardware. Runs in a worker and answers `search` (pick a move) and `analyze`
 source, and as the eval judge for LLM moves).
 
 ### 4.3 Grandmaster engine (Stockfish)
-Exposed in the UI as Normal AI **difficulty 6–9** — it builds a
+Exposed in the UI as Browser-AI **difficulty 6–9** — it builds a
 `{ type: 'grandmaster' }` ControllerConfig under the hood, so the contract and
 engine dispatch are unchanged; only the setup screen is simplified to 3
-controller choices (Human / Normal AI / LLM-Assisted). Stockfish over
+controller choices (Human / Browser-AI / LLM-AI). Stockfish over
 UCI-in-a-worker: `uci`→`uciok`→`isready`→`readyok` handshake, then
 `position fen … moves …` + `go movetime 3000` per move, parsing
 `score cp`/`score mate` and `bestmove`. Loaded lazily; load failure disables
@@ -136,7 +136,7 @@ the option for the session (PRD §5.5).
 strength (`UCI_LimitStrength` off). These three Elo anchors are what the
 tournament's Elo estimate is calibrated against (§4.6).
 
-### 4.4 LLM-Assisted controller
+### 4.4 LLM-AI controller
 Not a worker — a main-thread `fetch` to `{apiBase}/chat/completions`. Prompt
 sends FEN + side + SAN history + the **full legal UCI move list** (constrained
 choice = the main reliability lever) and asks for exactly one UCI move. A
@@ -209,7 +209,7 @@ before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
   threshold — the crowd starts quiet and grows invested).
 
 ### 4.6 Tournament mode (LLM gauntlet) — FR-9.6
-When exactly one side is LLM-Assisted, a "Run tournament" action appears. It
+When exactly one side is LLM-AI, a "Run tournament" action appears. It
 plays a **3-game round** between the LLM and the AI at each difficulty (1–9)
 using an **adaptive gauntlet** (aligned with LLM-Chess's level-selection
 heuristic): after each round, if the **AI swept** (LLM lost all 3) the
@@ -285,7 +285,7 @@ auto-saved to `tournament-{model}-{yyyymmdd-hhmmss}.txt`:
   `assert`-style `__main__`/demo block or one tiny test. Trivial one-liners
   need none.
 - **Offline-first.** Human-vs-Human and Human-vs-Normal must work with no
-  network. Only Grandmaster (Stockfish fetch) and LLM-Assisted (endpoint
+  network. Only Grandmaster (Stockfish fetch) and LLM-AI (endpoint
   fetch) need the network.
 - **Security at trust boundaries stays.** LLM API keys are sent directly from
   the browser to the endpoint. Per FR-9.4 the setup config (including the key)
@@ -330,7 +330,7 @@ place for over-claiming.
   dodges this because it runs from an inline Blob URL. To use Grandmaster,
   serve the folder over HTTP (e.g. `python3 -m http.server`, then open
   `http://localhost:8000/chess.html`); it then runs fully offline from the
-  vendored local bundle, no internet required. LLM-Assisted needs the network
+  vendored local bundle, no internet required. LLM-AI needs the network
   (the configured endpoint). LLM calls from an HTTPS page to an HTTP LAN
   endpoint are blocked as mixed content — serve the app over HTTP for local
   LLM servers.
