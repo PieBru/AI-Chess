@@ -64,6 +64,8 @@
     margin: 20px 0;
   }
   @media (max-width: 640px) { .side-configs { grid-template-columns: 1fr; } }
+  .side-configs.one-side { grid-template-columns: 1fr; }
+  .side-configs.one-side .side-config { max-width: 560px; margin: 0 auto; }
   .side-config {
     background: var(--panel-2);
     border: 1px solid var(--line);
@@ -2049,6 +2051,16 @@ function requestMove(fen, difficulty) {
     if (setupSeriesMode === 'match' && nonHuman !== 2) setupSeriesMode = 'single';
     sel.value = setupSeriesMode;
     document.getElementById('match-games-label').hidden = setupSeriesMode !== 'match';
+    // Tournament: the gauntlet sets the opponent and there is no clock, so
+    // hide the non-LLM side's pane (collapse the grid to one column) and the
+    // Time control. Match still shows both panes and a greyed clock.
+    const isTournament = setupSeriesMode === 'tournament';
+    document.querySelectorAll('.side-config').forEach(cfg => {
+      const s = cfg.querySelector('.opt-btn.selected');
+      cfg.hidden = isTournament && !(s && s.dataset.type === 'llm');
+    });
+    document.querySelector('.side-configs').classList.toggle('one-side', isTournament);
+    timeControlSelectEl.closest('label').hidden = isTournament;
     const noClock = setupSeriesMode !== 'single';
     timeControlSelectEl.disabled = noClock;
     timeControlSelectEl.title = noClock
