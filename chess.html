@@ -40,12 +40,16 @@
     outline-offset: 2px;
   }
   .topbar {
-    padding: 18px 24px;
+    padding: 14px 24px;
     border-bottom: 1px solid var(--line);
-    display: flex; align-items: baseline; gap: 12px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
   }
+  .topbar-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .topbar h1 { font-size: 1.4rem; letter-spacing: .02em; }
   .topbar .tagline { color: var(--text-dim); font-size: .85rem; }
+  .topbar-links { margin: 0; font-size: .75rem; color: var(--text-dim); }
+  .topbar-links a { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; }
+  .topbar-links a:hover { color: var(--text); }
 
   .screen { padding: 24px; max-width: 1100px; margin: 0 auto; }
   .screen[hidden] { display: none; }
@@ -102,10 +106,6 @@
     background: var(--panel); color: var(--text); border: 1px solid var(--line);
   }
   .hint { color: var(--text-dim); font-size: .8rem; margin: 6px 0 0; min-height: 1.2em; }
-  /* Setup-screen external links: brass (accent) so they read clearly on dark. */
-  .setup-links { text-align: center; }
-  .setup-links a { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; }
-  .setup-links a:hover { color: var(--text); }
 
   .llm-config { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
   .llm-config[hidden] { display: none; }
@@ -371,8 +371,16 @@
 <body>
 
 <div class="topbar">
-  <h1>♟ Piero's AI Chess, 2026 Edition</h1>
-  <span class="tagline">Human, Browser-AI (6 levels, plus Stockfish), or LLM-AI — either side</span>
+  <div class="topbar-row">
+    <h1>♟ Piero's AI Chess, 2026 Edition</h1>
+    <span class="tagline">Human, Browser-AI (6 levels, plus Stockfish), or LLM-AI — either side</span>
+  </div>
+  <p class="topbar-links">
+    <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>
+    · <a href="https://github.com/PieBru/AI-Chess" target="_blank" rel="noopener">Source &amp; docs on GitHub</a>
+    · <a href="https://github.com/official-stockfish/Stockfish" target="_blank" rel="noopener">How Grandmaster thinks (Stockfish)</a>
+    · <a href="https://github.com/maxim-saplin/llm_chess" target="_blank" rel="noopener">Tournament metrics inspired by LLM Chess</a>
+  </p>
 </div>
 
 <section id="setup-screen" class="screen">
@@ -497,12 +505,6 @@ Default Off = no clock.">Time control
       <button id="start-btn">Start Game</button>
     </div>
     <p id="setup-error" class="error-msg" hidden></p>
-    <p class="hint setup-links" style="margin-top:1em;font-size:0.85em">
-      <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>
-      · <a href="https://github.com/PieBru/AI-Chess" target="_blank" rel="noopener">Source &amp; docs on GitHub</a>
-      · <a href="https://github.com/official-stockfish/Stockfish" target="_blank" rel="noopener">How Grandmaster thinks (Stockfish)</a>
-      · <a href="https://github.com/maxim-saplin/llm_chess" target="_blank" rel="noopener">Tournament metrics inspired by LLM Chess</a>
-    </p>
   </div>
 </section>
 
