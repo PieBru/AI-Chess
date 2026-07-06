@@ -2926,6 +2926,7 @@ function requestMove(fen, difficulty) {
       level: 1, gameInLevel: 0, results: [],
       llmSide, llmConfig, llmName: llmConfig.model, startedAt: new Date(),
       games: 0, totalPlies: 0,
+      anchoredGames: [],   // {elo, score(1/0.5/0)} for games at Stockfish UCI_Elo levels — feeds the MLE Elo estimate
       llm: { firstTry: 0, retried: 0, fallback: 0, moves: 0, latencyMs: 0, completionTokens: 0 },
       llmQuality: { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
     };
@@ -2974,6 +2975,10 @@ function requestMove(fen, difficulty) {
     t.gameInLevel++;
     t.games++;
     t.totalPlies += moveHistory.length;   // game-level stats for the results report
+    // Elo-anchor this game if the opponent level has a known UCI_Elo (6-8).
+    // Level 9 (full strength) and Normal levels 1-5 have no anchor and are excluded.
+    const anchorElo = GRANDMASTER_ELO_LEVELS[t.level];
+    if (anchorElo != null) t.anchoredGames.push({ elo: anchorElo, score: status.result === '½-½' ? 0.5 : (llmWon ? 1 : 0) });
   }
 
   // Tournament LLM-move accounting (instruction-following + quality + efficiency).
@@ -3024,12 +3029,46 @@ function requestMove(fen, difficulty) {
     return 'ended';
   }
 
+  // LLM-Chess-leaderboard-style Elo estimate: maximum-likelihood rating over
+  // the (opponent Elo, game score) pairs from the Stockfish UCI_Elo-anchored
+  // levels (6-8). Solve sum(score_i - E_i(R)) = 0, E_i(R)=1/(1+10^((elo_i-R)/400));
+  // 95% CI from Fisher info I = sum E(1-E)(ln10/400)^2, SE = 1/sqrt(I).
+  // Returns null (insufficient data), {kind:'above'|'below', bound} for
+  // extreme all-win/all-loss, or {elo, se, n} for a finite estimate.
+  function estimateElo(games) {
+    if (!games || games.length === 0) return null;
+    const allWin = games.every(g => g.score === 1);
+    const allLoss = games.every(g => g.score === 0);
+    const elos = games.map(g => g.elo);
+    if (allWin) return { kind: 'above', bound: Math.max.apply(null, elos) };
+    if (allLoss) return { kind: 'below', bound: Math.min.apply(null, elos) };
+    const E = (R, elo) => 1 / (1 + Math.pow(10, (elo - R) / 400));
+    const grad = R => { let s = 0; for (const g of games) s += g.score - E(R, g.elo); return s; };
+    // grad is monotonically DECREASING in R (E rises with R); bisect to the root.
+    let lo = -500, hi = 4000;
+    for (let i = 0; i < 200; i++) { const mid = (lo + hi) / 2; if (grad(mid) > 0) lo = mid; else hi = mid; }
+    const R = (lo + hi) / 2;
+    const k = Math.log(10) / 400;
+    let info = 0; for (const g of games) { const e = E(R, g.elo); info += e * (1 - e); }
+    info *= k * k;
+    return { elo: R, se: info > 0 ? 1 / Math.sqrt(info) : NaN, n: games.length };
+  }
+
+  function eloSummaryLine(games) {
+    const e = estimateElo(games);
+    if (!e) return 'Estimated Elo: insufficient Elo-anchored data (the LLM did not reach the Stockfish UCI_Elo levels 6-8). The level reached above is the practical signal.';
+    if (e.kind === 'above') return 'Estimated Elo: above ' + e.bound + ' (won every game at the Stockfish Elo levels reached).';
+    if (e.kind === 'below') return 'Estimated Elo: below ' + e.bound + ' (lost every game at the Stockfish Elo levels reached).';
+    return 'Estimated Elo: ' + Math.round(e.elo) + ' ± ' + Math.round(1.96 * e.se) + ' (95% CI, MLE over ' + e.n + ' Stockfish-anchored games; Stockfish UCI_Elo pool, not cross-pool-comparable to chess.com/FIDE).';
+  }
+
   function tournamentSummaryText() {
     const t = tournament;
     const fmt = d => d.toISOString().slice(0, 19).replace('T', ' ');
     const lines = [
       'LLM tournament — ' + t.llmName,
       'Result: ' + tournamentEndReason(),
+      eloSummaryLine(t.anchoredGames),
       'Played: ' + fmt(t.startedAt) + '  →  ' + fmt(new Date()),
       '',
       'Level                W-L-D   Outcome',
