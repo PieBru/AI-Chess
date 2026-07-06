@@ -1804,6 +1804,7 @@ function requestMove(fen, difficulty) {
     cfgEl.querySelector('.difficulty-picker').hidden = type !== 'normal';
     cfgEl.querySelector('.llm-config').hidden = type !== 'llm';
     updateSideHint(cfgEl, type);
+    updateFileWarning();
   }
   // Hint reflects the chosen controller, and — for Normal — the selected
   // difficulty (levels 6+ = Grandmaster variants).
@@ -1821,6 +1822,19 @@ function requestMove(fen, difficulty) {
     }
   }
 
+  // Show the file:// warning only when at least one side has Grandmaster
+  // selected (not on every load — avoids alarming Human/Normal-only users).
+  function updateFileWarning() {
+    if (location.protocol !== 'file:') return;
+    const anyGM = Array.from(document.querySelectorAll('.side-config')).some(cfg => {
+      const selected = cfg.querySelector('.opt-btn.selected');
+      if (!selected || selected.dataset.type !== 'normal') return false;
+      const diff = parseInt(cfg.querySelector('.difficulty-select').value, 10);
+      return diff >= GM_LEVEL;
+    });
+    document.getElementById('file-warning').hidden = !anyGM;
+  }
+
   document.querySelectorAll('.side-config').forEach(cfgEl => {
     cfgEl.querySelectorAll('.opt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1828,7 +1842,10 @@ function requestMove(fen, difficulty) {
       });
     });
     cfgEl.querySelector('.difficulty-select').addEventListener('change', () => {
-      if (cfgEl.querySelector('.opt-btn.selected').dataset.type === 'normal') updateSideHint(cfgEl, 'normal');
+      if (cfgEl.querySelector('.opt-btn.selected').dataset.type === 'normal') {
+        updateSideHint(cfgEl, 'normal');
+        updateFileWarning();
+      }
     });
   });
 
@@ -2718,12 +2735,6 @@ function requestMove(fen, difficulty) {
   // Initial idle board preview behind the setup screen.
   buildBoardDOM();
   boardEl.classList.toggle('show-coords', showCoords);   // coord labels live on #board, survive rebuilds
-
-  // If opened via file://, warn that Grandmaster (Stockfish Worker) won't load,
-  // and point to the hosted version / local-server workaround.
-  if (location.protocol === 'file:') {
-    document.getElementById('file-warning').hidden = false;
-  }
 })();
 </script>
 </body>
