@@ -120,6 +120,12 @@
     padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: .95rem;
   }
   #start-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .start-row { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; align-items: center; }
+  #tournament-btn { background: var(--panel-2); color: var(--brass); border: 1px solid var(--brass); padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: .85rem; }
+  #tournament-btn:hover { background: rgba(201,162,75,.12); }
+  #tournament-btn[hidden] { display: none; }
+  .tournament-results { font-family: var(--font-mono); font-size: .78rem; line-height: 1.55; white-space: pre; color: var(--text); background: var(--panel-2); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+  .tournament-results-headline { font-family: var(--font-body); font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
   .timecontrol-label { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 14px; font-size: .85rem; color: var(--text-dim); }
   .timecontrol-label select { padding: 6px 8px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: .85rem; }
   .error-msg { color: var(--danger); font-size: .85rem; margin-top: 10px; }
@@ -436,7 +442,10 @@ Default Off = no clock.">Time control
         <option value="classical">Classical (30+0)</option>
       </select>
     </label>
-    <button id="start-btn">Start Game</button>
+    <div class="start-row">
+      <button id="start-btn">Start Game</button>
+      <button id="tournament-btn" hidden title="Play the LLM against each AI difficulty in a best-of-3 gauntlet, from Beginner up to Grandmaster (full).">Run tournament (LLM vs all)</button>
+    </div>
     <p id="setup-error" class="error-msg" hidden></p>
     <p class="hint setup-links" style="margin-top:1em;font-size:0.85em">
       <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>
@@ -1613,6 +1622,14 @@ function requestMove(fen, difficulty) {
   let replayHist = [];                // {san, move, ...} records for the loaded game
   let replayPly = 0;                  // current ply shown (0..replayStates.length-1)
 
+  // ---- Tournament mode (LLM gauntlet vs all AI difficulties) ----
+  // null when inactive. When active, the LLM side plays a best-of-3 round
+  // against each AI difficulty (1..9). If either side sweeps 3-0 the
+  // tournament ends; otherwise it advances to the next level. Stops at
+  // level 9 (Grandmaster full).
+  let tournament = null;   // { level, gameInLevel, results:[{level,w,l,d}], llmSide, llmConfig }
+  let tournamentStopped = false;
+
   const boardEl = document.getElementById('board');
   const statusEl = document.getElementById('status-line');
   const historyEl = document.getElementById('move-history');
@@ -1836,6 +1853,7 @@ function requestMove(fen, difficulty) {
     cfgEl.querySelector('.llm-config').hidden = type !== 'llm';
     updateSideHint(cfgEl, type);
     updateFileWarning();
+    updateTournamentButton();
   }
   // Hint reflects the chosen controller, and — for Normal — the selected
   // difficulty (levels 6+ = Grandmaster variants).
@@ -1864,6 +1882,16 @@ function requestMove(fen, difficulty) {
       return diff >= GM_LEVEL;
     });
     document.getElementById('file-warning').hidden = !anyGM;
+  }
+
+  // Show the tournament button only when exactly one side is LLM-Assisted
+  // (the gauntlet needs one LLM side to test).
+  function updateTournamentButton() {
+    const llmCount = Array.from(document.querySelectorAll('.side-config')).filter(cfg => {
+      const selected = cfg.querySelector('.opt-btn.selected');
+      return selected && selected.dataset.type === 'llm';
+    }).length;
+    document.getElementById('tournament-btn').hidden = llmCount !== 1;
   }
 
   document.querySelectorAll('.side-config').forEach(cfgEl => {
@@ -1953,6 +1981,10 @@ function requestMove(fen, difficulty) {
     startGame();
   });
 
+  document.getElementById('tournament-btn').addEventListener('click', () => {
+    startTournament();
+  });
+
   function startGame() {
     gameGeneration++;
     gameState = Rules.newGame();
@@ -2002,6 +2034,8 @@ function requestMove(fen, difficulty) {
   }
 
   document.getElementById('new-game-btn').addEventListener('click', () => {
+    if (tournament && !confirm('A tournament is in progress. Stop it and start a new game?')) return;
+    tournament = null; tournamentStopped = false;
     if (!confirmDiscardOrSave('New game')) return;
     exitReplayMode();
     document.getElementById('game-screen').hidden = true;
@@ -2010,6 +2044,8 @@ function requestMove(fen, difficulty) {
   // Rematch (Appendix A #3): same matchConfig, straight back into a fresh
   // game — skips the setup screen entirely.
   document.getElementById('rematch-btn').addEventListener('click', () => {
+    if (tournament && !confirm('A tournament is in progress. Stop it and start a new game?')) return;
+    tournament = null; tournamentStopped = false;
     if (!confirmDiscardOrSave('Rematch')) return;
     startGame();
   });
@@ -2045,6 +2081,11 @@ function requestMove(fen, difficulty) {
   });
   stopBtn.addEventListener('click', () => {
     if (gameOver) return;
+    if (tournament) {
+      tournamentStopped = true;
+      finishGame({ result: '*', reason: 'tournament stopped' });
+      return;
+    }
     paused = false;
     pauseBtn.textContent = 'Pause';
     finishGame({ result: '*', reason: 'stopped by spectator' });
@@ -2321,9 +2362,12 @@ function requestMove(fen, difficulty) {
     }
 
     if (!status.over) {
-      const sideName = gameState.turn === Rules.WHITE ? 'White' : 'Black';
-      statusEl.textContent = (status.check ? sideName + ' is in check — ' : '') + sideName + ' to move';
-      statusEl.classList.toggle('check', !!status.check);
+      if (tournament) { renderTournamentProgress(); }
+      else {
+        const sideName = gameState.turn === Rules.WHITE ? 'White' : 'Black';
+        statusEl.textContent = (status.check ? sideName + ' is in check — ' : '') + sideName + ' to move';
+        statusEl.classList.toggle('check', !!status.check);
+      }
     }
     // Game-over status text/banner is set by finishGame(), called separately
     // once by the game loop — render() itself stays idempotent.
@@ -2761,6 +2805,177 @@ function requestMove(fen, difficulty) {
     statusEl.textContent = 'Game over — ' + reason;
     playSound('gameover');
     if (status.reason === 'checkmate') playReaction('cheer');   // crowd erupts on checkmate
+    if (tournament) {
+      tournamentRecordResult(status);
+      if (tournamentStopped) renderTournamentResults();
+      else setTimeout(tournamentAdvance, 4000);   // let the spectator read the game result, then continue
+    }
+  }
+
+  // ---- Tournament mode (LLM gauntlet vs all AI difficulties) ----
+  // The LLM plays a 3-game round against each AI difficulty (1..9), climbing
+  // until a round produces a 3-0 sweep (by either side) or it reaches the top
+  // level (Grandmaster full). Colors alternate each game for fairness.
+  // Tournament games run without a chess clock (so the LLM isn't penalized
+  // for slow inference / 429-5xx retry backoff). At the end, a results table
+  // is shown and auto-saved to a timestamped text file.
+  const TOURNAMENT_LEVEL_NAMES = {
+    1: '1 Beginner', 2: '2 Easy', 3: '3 Medium', 4: '4 Hard', 5: '5 Expert',
+    6: '6 GM (Elo 1350)', 7: '7 GM (Elo 1800)', 8: '8 GM (Elo 2200)', 9: '9 GM (full)',
+  };
+  function oppositeSide(sideKey) { return sideKey === 'white' ? 'black' : 'white'; }
+  function tournamentAiConfig(level) {
+    if (level >= GM_LEVEL) return { type: 'grandmaster', difficulty: level, elo: GRANDMASTER_ELO_LEVELS[level] };
+    return { type: 'normal', difficulty: level };
+  }
+
+  function startTournament() {
+    let llmSide = null, llmConfig = null;
+    document.querySelectorAll('.side-config').forEach(cfgEl => {
+      const selected = cfgEl.querySelector('.opt-btn.selected');
+      if (selected && selected.dataset.type === 'llm') {
+        llmSide = cfgEl.dataset.side;
+        llmConfig = {
+          type: 'llm',
+          apiBase: cfgEl.querySelector('.llm-api-base').value.trim().replace(/\/+$/, ''),
+          apiKey: cfgEl.querySelector('.llm-api-key').value.trim(),
+          model: cfgEl.querySelector('.llm-model').value.trim(),
+        };
+      }
+    });
+    const errorEl = document.getElementById('setup-error');
+    if (!llmConfig || !llmConfig.apiBase || !llmConfig.model) {
+      errorEl.textContent = 'The LLM side needs an API base URL and a model to run a tournament.';
+      errorEl.hidden = false; return;
+    }
+    if (location.protocol === 'https:' && llmConfig.apiBase.startsWith('http:')) {
+      errorEl.textContent = 'The LLM endpoint is HTTP, but this page is HTTPS — browsers block it. Use an HTTPS endpoint or serve this app locally.';
+      errorEl.hidden = false; return;
+    }
+    errorEl.hidden = true;
+    tournament = {
+      level: 1, gameInLevel: 0, results: [],
+      llmSide, llmConfig, llmName: llmConfig.model, startedAt: new Date(),
+    };
+    tournamentStopped = false;
+    document.getElementById('setup-screen').hidden = true;
+    document.getElementById('game-screen').hidden = false;
+    resultBanner.hidden = true; resultBanner.innerHTML = '';
+    tournamentNextGame();
+  }
+
+  function tournamentNextGame() {
+    if (!tournament || tournamentStopped) return;
+    const t = tournament;
+    // Alternate colors each game for fairness (even gameInLevel → configured side).
+    const llmIsWhite = (t.gameInLevel % 2 === 0) ? (t.llmSide === 'white') : (t.llmSide !== 'white');
+    const llmKey = llmIsWhite ? 'white' : 'black';
+    matchConfig = {};
+    matchConfig[llmKey] = t.llmConfig;
+    matchConfig[oppositeSide(llmKey)] = tournamentAiConfig(t.level);
+    timeControl = null; clocks = null;                 // no clock in tournament games
+    document.getElementById('clocks').hidden = true;
+    gameGeneration++;
+    gameState = Rules.newGame();
+    moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;
+    gameOver = false; paused = false;
+    capturedByWhite = []; capturedByBlack = []; lastResult = '*';
+    pauseBtn.textContent = 'Pause';
+    resultBanner.hidden = true; resultBanner.innerHTML = '';
+    spectatorControlsEl.hidden = false;                // always spectator-style during a tournament
+    renderTournamentProgress();
+    buildBoardDOM(); render(); renderCapturedTray(); updateEvalBar(0);
+    playTurn();
+  }
+
+  function tournamentRecordResult(status) {
+    if (!tournament) return;
+    if (!status.result || status.result === '*') return;   // stopped/incomplete — don't count
+    const t = tournament;
+    const llmWasWhite = matchConfig.white === t.llmConfig;   // object-identity: which side was the LLM this game
+    const llmWon = (status.result === '1-0' && llmWasWhite) || (status.result === '0-1' && !llmWasWhite);
+    let row = t.results.find(r => r.level === t.level);
+    if (!row) { row = { level: t.level, llmWins: 0, aiWins: 0, draws: 0 }; t.results.push(row); }
+    if (status.result === '½-½') row.draws++;
+    else if (llmWon) row.llmWins++;
+    else row.aiWins++;
+    t.gameInLevel++;
+  }
+
+  function tournamentAdvance() {
+    if (!tournament) return;
+    const t = tournament;
+    if (tournamentStopped) { renderTournamentResults(); return; }
+    if (t.gameInLevel < 3) { tournamentNextGame(); return; }
+    // 3 games played at this level — check for a decisive 3-0 sweep.
+    const row = t.results.find(r => r.level === t.level);
+    const swept = row && (row.llmWins === 3 || row.aiWins === 3);
+    if (swept || t.level >= 9) { renderTournamentResults(); return; }
+    // No sweep and higher levels remain — climb to the next difficulty.
+    t.level++; t.gameInLevel = 0;
+    tournamentNextGame();
+  }
+
+  function renderTournamentProgress() {
+    if (!tournament) return;
+    const t = tournament;
+    const row = t.results.find(r => r.level === t.level) || { llmWins: 0, aiWins: 0, draws: 0 };
+    statusEl.textContent = 'Tournament — ' + TOURNAMENT_LEVEL_NAMES[t.level] + ' · game ' + (t.gameInLevel + 1) + '/3 · LLM ' + row.llmWins + '-' + row.aiWins + '-' + row.draws;
+  }
+
+  function tournamentEndReason() {
+    const t = tournament;
+    if (tournamentStopped) return 'stopped by user';
+    const last = t.results[t.results.length - 1];
+    if (!last) return 'no rounds completed';
+    if (last.llmWins === 3) return 'LLM swept ' + TOURNAMENT_LEVEL_NAMES[last.level];
+    if (last.aiWins === 3) return 'stopped at ' + TOURNAMENT_LEVEL_NAMES[last.level] + ' (AI swept)';
+    if (last.level >= 9) return 'completed all levels (no sweep at top)';
+    return 'ended';
+  }
+
+  function tournamentSummaryText() {
+    const t = tournament;
+    const fmt = d => d.toISOString().slice(0, 19).replace('T', ' ');
+    const lines = [
+      'LLM tournament — ' + t.llmName,
+      'Result: ' + tournamentEndReason(),
+      'Played: ' + fmt(t.startedAt) + '  →  ' + fmt(new Date()),
+      '',
+      'Level                W-L-D   Outcome',
+    ];
+    for (const row of t.results) {
+      const outcome = row.llmWins === 3 ? 'LLM swept' : row.aiWins === 3 ? 'AI swept' : 'no sweep';
+      lines.push(TOURNAMENT_LEVEL_NAMES[row.level].padEnd(20) + ' ' + row.llmWins + '-' + row.aiWins + '-' + row.draws + '   ' + outcome);
+    }
+    return lines.join('\n');
+  }
+
+  function renderTournamentResults() {
+    const llmName = tournament ? tournament.llmName : 'llm';
+    const text = tournament ? tournamentSummaryText() : 'Tournament results unavailable.';
+    resultBanner.hidden = false;
+    resultBanner.innerHTML = '';
+    const pre = document.createElement('pre');
+    pre.className = 'tournament-results';
+    pre.textContent = text;
+    resultBanner.appendChild(pre);
+    statusEl.textContent = 'Tournament complete — ' + (tournament ? tournamentEndReason() : '.') + '  Results auto-saved.';
+    // Auto-save to a timestamped text file (yyyymmdd-hhmmss).
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    const safeName = String(llmName).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'llm';
+    a.href = URL.createObjectURL(blob);
+    a.download = 'tournament-' + safeName + '-' + timestampStr() + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    tournament = null; tournamentStopped = false;
+  }
+
+  function timestampStr() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
   }
 
   // Initial idle board preview behind the setup screen.
