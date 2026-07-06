@@ -260,8 +260,8 @@
   .clock.active { border-color: var(--brass); background: rgba(201,162,75,.12); }
   .clock.low .clock-time { color: var(--danger); }   /* < 10 s: urgency */
   #move-history {
-    list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
-    min-height: 220px; max-height: 280px;   /* bounded scroll region: ~9–12 rows then scroll, can't collapse or grow unbounded now that the panel sizes to content */
+    list-style: none; margin: 0; padding: 0; flex: 1 1 auto;
+    min-height: 220px;   /* empty-state floor; grows with the game so the panel resizes to fit all moves (the page scrolls if a game runs very long), instead of an internal scrollbar that makes the list look like it's overflowing its own frame */
     font-family: var(--font-mono); font-size: .82rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
   #move-history li { padding: 3px 2px; display: flex; gap: 6px; align-items: baseline; }
