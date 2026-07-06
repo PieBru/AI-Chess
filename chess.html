@@ -1987,6 +1987,10 @@ function requestMove(fen, difficulty) {
   function loadSetup() {
     try { return JSON.parse(localStorage.getItem(SETUP_KEY)) || null; } catch (e) { return null; }
   }
+  // First-run default (nothing saved yet): Human (White) vs Browser-AI level 3
+  // (Black). Once a game is started, the last-used setup is persisted and
+  // proposed instead.
+  const DEFAULT_SETUP = { white: { type: 'human' }, black: { type: 'normal', difficulty: 3 } };
 
   const SIDE_HINTS = {
     human: 'Makes moves via the board UI.',
@@ -2154,10 +2158,15 @@ function requestMove(fen, difficulty) {
     );
   });
 
-  // Propose last-used setup as defaults on load.
+  // Propose last-used setup (mode + side options) as defaults on load. On the
+  // very first run nothing is saved, so fall back to DEFAULT_SETUP.
   (function restoreSetup() {
-    const saved = loadSetup();
-    if (!saved) return;
+    const saved = loadSetup() || DEFAULT_SETUP;
+    // Restore the series mode too; set it before the loop (selectSideType→
+    // updateSeriesMode reads it), then re-assert afterwards so the tournament/
+    // match guards re-check on the fully-restored sides.
+    const savedMode = (saved.mode === 'tournament' || saved.mode === 'match') ? saved.mode : 'single';
+    setupSeriesMode = savedMode;
     document.querySelectorAll('.side-config').forEach(cfgEl => {
       const entry = saved[cfgEl.dataset.side];
       if (!entry) return;
@@ -2183,6 +2192,8 @@ function requestMove(fen, difficulty) {
       const matchedKey = Object.keys(LLM_SYSTEM_PROMPTS).find(k => LLM_SYSTEM_PROMPTS[k] === promptText);
       cfgEl.querySelector('.llm-prompt-select').value = matchedKey || 'custom';
     });
+    setupSeriesMode = savedMode;
+    updateSeriesMode();
   })();
 
   // Gather every configured LLM side's endpoint creds from the live (possibly
@@ -2208,6 +2219,9 @@ function requestMove(fen, difficulty) {
     const startBtn = document.getElementById('start-btn');
     const errorEl = document.getElementById('setup-error');
     errorEl.hidden = true;
+    // Persist the current setup (mode + side options) so it's proposed as the
+    // default next time — one place covering Single, Tournament, and Match.
+    saveSetup({ ...readSideConfigs().config, mode: setupSeriesMode });
     // Pre-start gate: probe every LLM side before leaving the setup screen.
     // The manual "Verify" button is for interactive API-key trial; this is the
     // same probe run automatically so a dead endpoint never reaches the board.
@@ -2247,7 +2261,6 @@ function requestMove(fen, difficulty) {
     }
     errorEl.hidden = true;
     matchConfig = config;
-    saveSetup(config);
     startGame();
   });
 

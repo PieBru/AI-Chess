@@ -29,7 +29,7 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 - **Sound & crowd** — off-by-default sampled piece sounds (move/capture/check/game-end) and an opt-in "spectator reactions" layer (crowd applause, boos, cheers keyed to move quality, firing on big captures).
 - **Web Workers** — the Normal engine and Stockfish run off the main thread, so the UI never blocks.
 - **Offline-first** — Human vs Human and Human vs Normal need no network. Grandmaster loads a local Stockfish runtime bundle when present (else tries a CDN); LLM-AI needs your configured endpoint.
-- **Setup persistence** — your per-side controller choices and LLM config are saved to `localStorage` and proposed as defaults next time.
+- **Setup persistence** — your per-side controller choices, LLM config, and game mode (Single / Tournament / Match) are saved to `localStorage` and proposed as defaults next time; the very first run opens on Human vs Browser-AI.
 
 ## Play
 
