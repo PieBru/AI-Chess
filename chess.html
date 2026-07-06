@@ -23,6 +23,7 @@
     --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* make the hidden attribute always win over any `display:` rule (e.g. .clocks{display:flex}) so toggling .hidden actually hides the element */
   html, body {
     margin: 0; padding: 0;
     background: var(--bg); color: var(--text);
@@ -243,8 +244,8 @@
 
   .side-panel {
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 620px;
-  }
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  }   /* no fixed/max height: let the panel size to its content so sections never squish each other (previously max-height:620px forced flex children without a min-height — the move list, then the captured tray — to collapse) */
   #status-line { font-weight: 600; }
   #status-line.check { color: var(--danger); }
 
@@ -260,7 +261,7 @@
   .clock.low .clock-time { color: var(--danger); }   /* < 10 s: urgency */
   #move-history {
     list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1;
-    min-height: 220px;   /* floor so the move list can't collapse to one row when the side panel fills with other sections; it scrolls internally once exceeded */
+    min-height: 220px; max-height: 280px;   /* bounded scroll region: ~9–12 rows then scroll, can't collapse or grow unbounded now that the panel sizes to content */
     font-family: var(--font-mono); font-size: .82rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
   #move-history li { padding: 3px 2px; display: flex; gap: 6px; align-items: baseline; }
@@ -314,10 +315,11 @@
   .replay-controls .replay-counter { color: var(--text-dim); min-width: 3.5em; text-align: center; }
 
   /* ---- Captured-piece tray ---- */
-  .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: 1.05rem; }
+  .captured-tray { display: flex; flex-direction: column; gap: 4px; font-size: .9rem;
+                   max-height: 3.6em; overflow: hidden; }   /* bounded so a long capture string can't wrap-grow over the move list below */
   .captured-row { display: flex; align-items: center; gap: 6px; }
-  .captured-label { color: var(--text-dim); font-size: .68rem; min-width: 88px; font-family: var(--font-body); }
-  .captured-pieces { flex: 1; letter-spacing: 2px; min-height: 1.3em; }
+  .captured-label { color: var(--text-dim); font-size: .68rem; min-width: 64px; font-family: var(--font-body); }
+  .captured-pieces { flex: 1; letter-spacing: 1px; line-height: 1.15; min-height: 1.15em; }
   .material-diff {
     color: var(--good); font-family: var(--font-mono); font-size: .78rem;
     min-width: 1.8em; text-align: right;
