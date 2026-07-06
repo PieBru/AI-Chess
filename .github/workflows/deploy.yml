@@ -1,0 +1,45 @@
+# Deploys the site (repo root) to GitHub Pages through a workflow we control.
+#
+# Use this INSTEAD of the automatic "Deploy from a branch" builder:
+#   Settings → Pages → Build and deployment → Source → "GitHub Actions" → Save
+# That flip stops the automatic builder (and its recurring deploy-step
+# failures) and lets this workflow own the deployment. The site is plain
+# static files, so no Jekyll step is needed.
+name: Deploy Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: # manual "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write # required by actions/deploy-pages
+
+# One deployment at a time; a newer push cancels a stale in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # The site IS the repo root; just drop the repo-only files so they
+      # aren't served (or leaked) on the public site.
+      - name: Exclude repo-only files from the site
+        run: rm -rf .git .github .gitignore
+      - name: Set up Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
