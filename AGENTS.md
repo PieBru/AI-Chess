@@ -16,11 +16,15 @@ browser. Two goals, in priority order (PRD §1):
 
 1. **Entertain.** A beginner should have a winnable, enjoyable game; a strong
    player should get a genuine challenge.
-2. **Evaluate AI "intelligence."** The app is also a lens for comparing the
-   engines — how Normal behaves at each difficulty, how strong Grandmaster is,
-   and concretely how each thinks move-to-move. This goal drives the
-   transparency features (eval bar, move-quality tags, thinking indicator,
-   AI-vs-AI spectating) that a plain "let me play chess" app wouldn't need.
+2. **Evaluate AI "intelligence."** The app is a lens for comparing engines and
+   LLMs — how Normal behaves at each difficulty, how strong Grandmaster is, and
+   concretely how each thinks move-to-move. This goal drives the transparency
+   features (eval bar, move-quality tags, thinking indicator, AI-vs-AI
+   spectating, **tournament gauntlet with an Elo estimate**) that a plain
+   "let me play chess" app wouldn't need. The tournament's metrics and Elo
+   method are aligned with the public **[LLM-Chess](https://github.com/maxim-saplin/llm_chess)**
+   benchmark (same MLE Elo; we annotate honestly where our pool/protocol
+   differs — see §4.6).
 
 The design is deliberately **vendor-neutral**: the only cloud-LLM brand
 referenced anywhere is OpenAI, and only as the de-facto *protocol* name
@@ -39,7 +43,7 @@ stockfish-18-lite-single.wasm # Stockfish NNUE WASM (vendored, GPL-3.0)
 README.md                     # Project README
 LICENSE                       # GNU GPL v3.0 (whole project, incl. vendored Stockfish)
 AGENTS.md                     # This file (operating manual) — at root for agent tooling
-specs/                        # Project / governing documentation (SDD layers)
+specs/                        # Governing documentation (SDD layers)
   chess-app-spec.md           # SDD Layer 1 — spec (requirements, the contract)
   chess-app-prd.md            # SDD Layer 2 — PRD (UX, flows, behavior)
   chess-app-tdd.md            # SDD Layer 3 — TDD (architecture, design, schemas)
@@ -49,8 +53,8 @@ docs/                         # User-facing pages (blog / guide / kids, EN + IT)
 
 No `package.json`, no build tooling, no test runner — by design. The project
 is **GPL-3.0** and **vendors** the Stockfish runtime (the two sibling files
-above) so Grandmaster runs offline from the local bundle — but note it must
-be **served over HTTP**, not opened via `file://` (see §8). See §6 and §8.
+above) so Grandmaster runs offline from the local bundle — but it must be
+**served over HTTP**, not opened via `file://` (see §8).
 
 ---
 
@@ -66,19 +70,21 @@ be **served over HTTP**, not opened via `file://` (see §8). See §6 and §8.
   no separate `.js` files.
 - **Stockfish WASM**, single-threaded `nmrugg/stockfish.js` flavor
   (`stockfish@18.0.0`), **vendored** next to `chess.html`
-  (`stockfish-18-lite-single.{js,wasm}`) and loaded as a local Worker (CDN
-  fallback kept). Single-threaded
-  on purpose: no COOP/COEP/`SharedArrayBuffer` requirement, so the file works
-  on any static host. (`file://` works for Human/Normal play, but NOT for
-  Grandmaster — browsers block `new Worker()` from a `file://` page; see §8.)
-  Multi-threading is a deferred upgrade
-  (spec A11.3 / §13, TDD §5.2).
+  (`stockfish-18-lite-single.{js,wasm}`) and loaded as a local Worker (a CDN
+  fallback exists but is currently broken/irrelevant — the local bundle is the
+  path). Single-threaded on purpose: no COOP/COEP/`SharedArrayBuffer`
+  requirement, so the file works on any static host. Multi-threading is
+  deferred (spec A11.3, TDD §5.2; see §9).
 - **Hand-rolled 0x88 rules engine** (`Rules` namespace) — legal move
-  generation, FEN/SAN, check/checkmate/stalemate, draws (threefold, fifty-move,
-  insufficient material). `chess.js` is the documented fallback (spec §12.2)
-  only if perft tests fail.
+  generation, FEN/SAN, check/checkmate/stalemate, draws (fifty-move,
+  insufficient material). **Threefold repetition is NOT implemented** (§9).
+  `chess.js` is the documented fallback (spec §12.2) only if perft tests fail.
 - **`fetch()` to an OpenAI-compatible chat endpoint** for LLM-Assisted mode,
   straight from the main thread. No SDK, no proxy.
+- **Sampled audio**, all `HTMLAudioElement`-based (no `AudioContext`): CC0
+  piece sounds (lichess) and Pixabay-License crowd reactions, embedded as
+  base64 data URIs in `#sound-clips-src` / `#reaction-clips-src` blocks so the
+  file stays self-contained and offline.
 
 ---
 
@@ -90,14 +96,15 @@ The file is one big `<script>` after the markup. Top-down:
 Pure functions, no DOM/worker dependency. Owns the 0x88 board, move
 generation, FEN/SAN, game-end detection. Key surface: `Rules.newGame`,
 `genLegalMoves`, `applyMove`, `toFEN`/`fromFEN`, `toSAN`, `gameStatus`,
-`zobristHash`, `sqName`/`nameToSq`. This is reused inside the worker, so it
-lives in the inline `#rules-src` block that gets concatenated into the worker
-blob.
+`zobristHash`, `sqName`/`nameToSq`. Reused inside the worker, so it lives in
+the inline `#rules-src` block concatenated into the worker blob. Detects
+checkmate, stalemate, fifty-move rule, insufficient material — **not**
+threefold repetition.
 
 ### 4.2 Normal engine (`#normal-engine-src`)
 Hand-built alpha-beta with null-move pruning, late-move reductions, a capped
 transposition table, and per-difficulty move-selection noise. Difficulty table
-(DIFFICULTY, ~line 1012):
+(`DIFFICULTY`):
 
 | Level | maxDepth | maxNodes | noise |
 |---|---|---|---|
@@ -107,44 +114,132 @@ transposition table, and per-difficulty move-selection noise. Difficulty table
 | 4 Hard | 99 | 800K | gaussian-tiny |
 | 5 Expert | 99 | 4M | none |
 
-Node budgets (instead of wall-clock `timeMs`) ensure the same search tree
-depth on any CPU — a fast machine reaches it faster, a slow one takes
-longer, both play the same strength. A 30s safety cap prevents hangs on
-very slow hardware. See also the Grandmaster Elo-level fairness feature
-(Side hints: levels 6-9, Stockfish `UCI_LimitStrength`).
+Node budgets (instead of wall-clock `timeMs`) ensure the same search-tree
+depth on any CPU — a fast machine reaches it faster, a slow one takes longer,
+both play the same strength. A 30s safety cap prevents hangs on very slow
+hardware. Runs in a worker and answers `search` (pick a move) and `analyze`
+(grade an arbitrary played move — used for quality tagging of *any* move
+source, and as the eval judge for LLM moves).
 
-**Setup-screen note:** Grandmaster (Stockfish, §4.3) is exposed in the UI as
-Normal AI **difficulty 6** — it builds a `{ type: 'grandmaster' }`
-ControllerConfig under the hood, so the contract and engine dispatch are
-unchanged; only the setup screen is simplified to 3 controller choices
-(Human / Normal AI / LLM-Assisted) instead of 4.
-
-(TDD §4.3 is the contract; constants are tunable.) Runs in a worker and
-answers two message types: `search` (pick a move) and `analyze` (grade an
-arbitrary played move — used for quality tagging of *any* move source).
-
-### 4.3 Grandmaster engine
-Stockfish over UCI-in-a-worker: `uci`→`uciok`→`isready`→`readyok` handshake,
-then `position fen … moves …` + `go movetime 3000` per move, parsing
+### 4.3 Grandmaster engine (Stockfish)
+Exposed in the UI as Normal AI **difficulty 6–9** — it builds a
+`{ type: 'grandmaster' }` ControllerConfig under the hood, so the contract and
+engine dispatch are unchanged; only the setup screen is simplified to 3
+controller choices (Human / Normal AI / LLM-Assisted). Stockfish over
+UCI-in-a-worker: `uci`→`uciok`→`isready`→`readyok` handshake, then
+`position fen … moves …` + `go movetime 3000` per move, parsing
 `score cp`/`score mate` and `bestmove`. Loaded lazily; load failure disables
 the option for the session (PRD §5.5).
+
+**Elo levels** (`GRANDMASTER_ELO_LEVELS`): levels 6–8 set
+`UCI_LimitStrength=true` + `UCI_Elo` = **1350 / 1800 / 2200**; level 9 is full
+strength (`UCI_LimitStrength` off). These three Elo anchors are what the
+tournament's Elo estimate is calibrated against (§4.6).
 
 ### 4.4 LLM-Assisted controller
 Not a worker — a main-thread `fetch` to `{apiBase}/chat/completions`. Prompt
 sends FEN + side + SAN history + the **full legal UCI move list** (constrained
-choice = the main reliability lever). One corrective retry feeding the bad
-reply back into the conversation; on final failure, **falls back to a local
-Normal move (difficulty 3)** so play continues (LLM APIs are transiently
-flaky; a flaky endpoint must not kill a game). Evals for the bar/tags come
-from the Normal engine's `analyze` message — the chat endpoint returns none.
+choice = the main reliability lever) and asks for exactly one UCI move. A
+**system prompt** is chosen per side from 5 built-in personas
+(`LLM_SYSTEM_PROMPTS`: Grandmaster / Tactician / Attacker / Positional /
+Think-then-commit; default Grandmaster) via a dropdown that loads the preset
+into an editable textarea, or typed freely — whatever text ends up in the
+textarea is sent. The move extractor resolves to the **last** legal-move token
+mentioned, so a "Think-then-commit" chain-of-thought reply that names
+candidates then commits resolves to the choice, not a rejected candidate.
+
+- **Request body:** `{ model, messages }` — **no `temperature`/`top_p`/
+  `frequency_penalty`**. Reasoning models (o1/o3/o4, R1, Gemini-thinking,
+  Claude-thinking) reject non-reasoning params with HTTP 400, and some
+  third-party OpenAI-compatible servers error on unknown params; sending them
+  would make a reasoning model fail every move and silently fall back,
+  poisoning eval results for a fault that isn't the model's (cf. LLM-Chess,
+  Apr 2026). Rely on provider defaults.
+- **Retry policy:** exponential backoff (1s → 60s cap) for **429 / 5xx**,
+  retrying for up to **5 min** total; **400/401/403/404 throw immediately**
+  (won't resolve); network/mixed-content errors throw immediately. There is
+  **no per-request timeout** — a slow-but-successful reasoning response
+  (e.g. a local model at 30 tok/s thinking 20k tokens ≈ 11 min) completes,
+  matching the benchmark's rationale for a long timeout.
+- **Fallback:** an illegal/unparseable reply is retried **once** with a
+  corrective message feeding the bad reply back in. If it still fails, or the
+  call fails, the side **falls back to a local Normal-engine move (difficulty
+  3)** so play continues, with a toast. Only if the fallback itself errors
+  does the game end.
+- Evals for the bar/tags come from the Normal engine's `analyze` message —
+  the chat endpoint returns none.
 
 ### 4.5 Game loop & UI
 `playTurn()` is the spine: checks game status, dispatches to the side's
 controller via the engine-agnostic `requestAIMove()` (all tiers resolve to
-`{ move, evalCp, bestEvalCp }`), re-validates every AI move through the rules
-engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
+`{ move, evalCp, bestEvalCp }`, LLM additionally `{ llmRetries, latencyMs,
+completionTokens }`), re-validates every AI move through the rules engine
+before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 `playTurn()` recursing at the loop tail. Setup screen captures per-side
 `ControllerConfig`; `matchConfig` is the live `{white, black}` pair.
+
+**Cross-cutting features wired into the loop / UI:**
+- **Chess clock** (FR-6.6): optional FIDE-style per-side total clock +
+  per-move increment (`TIME_CONTROLS`: Off / Bullet 1+0 / Blitz 3+2 / Rapid
+  10+5 / Classical 30+0, default Off, persisted). The side-to-move's clock
+  runs during its move (human deliberation or engine think); spectator pacing
+  delay excluded; zero = loss on time. Tournament games run **without** a
+  clock (§4.6).
+- **Move input:** click-to-select + **drag-and-drop** share one resolver
+  (`attemptMoveTo`); invalid drops snap back (FR-5.2).
+- **Confirm destructive actions** (FR-6.5): native `confirm()` on New game /
+  Rematch / Resign during an in-progress game, offering save-as-PGN before
+  discarding.
+- **PGN save/replay** (FR-8.2): download a game as PGN; import a PGN for
+  view-only replay (First/Prev/Next/Last). Standard start position only;
+  loaded games don't resume engine play.
+- **Spectator controls** (FR-6.4): Pause/Stop and a 5-step **speed** select
+  (`SPEED_DELAYS`: veryslow 12000 / slow 9000 / normal 7000 / fast 2500 /
+  instant 0 ms between AI-vs-AI moves), persisted. Render only in true
+  AI-vs-AI spectating (both sides non-human).
+- **Captured-piece tray** (FR-5.3): glyphs sorted queen→pawn with a material
+  badge. **Rich summary panel:** per-side quality breakdown + "who played
+  cleaner" verdict (human moves aren't engine-scored, said honestly).
+- **Sounds** (off by default, persisted): CC0 piece sounds on move/capture/
+  check/game-end. **Spectator reactions** (own off-by-default toggle): Pixabay
+  crowd reactions keyed off the move-quality tag (`best`→applause,
+  `blunder`→boo, `mistake`→disappointment, `inaccuracy`→shocked,
+  checkmate→cheer), firing only on captures gated by a crowd-enthusiasm
+  threshold (captured value + eval swing + quality premium vs a ply-decaying
+  threshold — the crowd starts quiet and grows invested).
+
+### 4.6 Tournament mode (LLM gauntlet) — FR-9.6
+When exactly one side is LLM-Assisted, a "Run tournament" action appears. It
+plays a **3-game round** between the LLM and the AI at each difficulty (1–9)
+using an **adaptive gauntlet** (aligned with LLM-Chess's level-selection
+heuristic): after each round, if the **AI swept** (LLM lost all 3) the
+tournament **stops** — that level is the LLM's floor; otherwise (LLM swept
+**or** mixed) it **climbs** to the next difficulty until level 9. (The earlier
+"any 3-0 sweep ends it" rule ended a strong LLM at level 1 and never found its
+ceiling; the adaptive rule is what makes the Elo estimate resolvable.)
+Colors alternate each game; no chess clock (LLM not penalized for slow
+inference / retry backoff); games capped at **200 half-moves → draw** (the
+benchmark's 200-move cap) as a safety net, since threefold isn't detected.
+
+On completion a per-level results table plus diagnostics are shown and
+auto-saved to `tournament-{model}-{yyyymmdd-hhmmss}.txt`:
+- **Estimated Elo** (LLM-Chess-style MLE): maximum-likelihood rating over the
+  (opponent Elo, game-score) pairs from the Stockfish `UCI_Elo`-anchored games
+  (levels 6–8 only; 9 full and Normal 1–5 have no anchor). Solves
+  `Σ(Sᵢ−Eᵢ(R̂))=0`, `Eᵢ(R)=1/(1+10^((Rᵢ−R)/400))` (bisection); 95% CI from
+  Fisher info `I=ΣE(1−E)(ln10/400)²`, `SE=1/√I`. All-wins → "above {max
+  anchor}", all-losses → "below {min anchor}", never-reached-Stockfish →
+  "insufficient Elo-anchored data".
+- **Instruction-following:** counts of LLM moves legal on first try / after
+  retry / local fallback, as "% own legal moves".
+- **Move-quality distribution** (best/good/inaccuracy/mistake/blunder %) and
+  **game/efficiency stats** (games, avg moves/game, avg LLM latency/move
+  excluding local analysis, avg completion tokens/move).
+- **Methodology footnote:** our single-turn constrained-choice protocol is
+  simpler than LLM-Chess's multi-turn agentic Game Duration, so our
+  instruction-following % is not directly comparable; our Elo pool (Stockfish
+  `UCI_Elo`) differs from theirs (Dragon/chess.com) though the MLE method is
+  identical.
 
 ---
 
@@ -152,11 +247,17 @@ engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 
 - **ControllerConfig:** `{ type: 'human' | 'normal' | 'grandmaster' | 'llm',
   difficulty?, apiBase?, apiKey?, model?, systemPrompt? }` (spec §8, TDD §2).
+  Internally, a grandmaster config also carries `elo` (from
+  `GRANDMASTER_ELO_LEVELS`); it is not user-set.
 - **Worker protocol** (spec §9, TDD §6):
   - Main→Worker: `{type:'search',...}`, `{type:'analyze', fen, uciMove}`
     (Normal only), `{type:'stop'}`.
   - Worker→Main: `{type:'result', move, evalCp, bestEvalCp}`,
     `{type:'analysis', evalCp, bestEvalCp}`, `{type:'error', message}`.
+- **LLM request contract:** `POST {apiBase}/chat/completions`,
+  `Authorization: Bearer {apiKey}` when a key is set, body `{ model, messages }`
+  **only** (no temperature/top_p/etc. — §4.4). Response parsed for
+  `choices[0].message.content` and `usage.completion_tokens`.
 - **Eval convention:** scores are side-to-move-relative (negamax for Normal,
   UCI `score cp` for Stockfish), normalized to White's perspective before
   storage. Mate encoded as ±100000 ∓ N.
@@ -171,8 +272,7 @@ engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 - **Single-file discipline.** Everything ships in `chess.html`. Do not add
   `.js`/`.css` files, build steps, or npm dependencies. The Stockfish runtime
   is vendored (the two sibling binaries, GPL-3.0); the only network fetch is
-  the user-supplied LLM endpoint (plus a Stockfish CDN backstop if the local
-  bundle is ever absent) — nothing else.
+  the user-supplied LLM endpoint — nothing else.
 - **Lazy by default.** Question whether a feature needs to exist. Reuse what's
   already in the file before writing new code. Stdlib/platform features before
   custom code. Shortest working diff wins — once you've read the whole flow.
@@ -187,25 +287,27 @@ engine before committing (NFR-7.2), then renders. AI-vs-AI games auto-play by
 - **Offline-first.** Human-vs-Human and Human-vs-Normal must work with no
   network. Only Grandmaster (Stockfish fetch) and LLM-Assisted (endpoint
   fetch) need the network.
-- **Security at trust boundaries stays.** LLM API keys are sent directly
-  from the browser to the endpoint. Per FR-9.4 the setup config (including
-  the key) is persisted to `localStorage` so a restart proposes the last-used
-  options as defaults on the same computer — so the key is readable by anyone
-  with this browser profile; acceptable for local use, not for sharing the
-  file with a real key in it. Keys are never written into the HTML file itself.
+- **Security at trust boundaries stays.** LLM API keys are sent directly from
+  the browser to the endpoint. Per FR-9.4 the setup config (including the key)
+  is persisted to `localStorage` so a restart proposes the last-used options
+  on the same computer — the key is readable by anyone with this browser
+  profile; acceptable for local use, not for sharing the file with a real key
+  in it. Keys are never written into the HTML file itself.
+- **Don't re-add LLM hyperparameters.** The request body is `{ model, messages
+  }`. Adding `temperature` etc. breaks reasoning models and strict servers
+  (§4.4). If steering is ever needed, add a *configurable* knob, never a
+  hardcoded value.
 
 ---
 
 ## 7. Documentation discipline (this project's recurring failure mode)
 
 This repo has three governing docs (spec/PRD/TDD) written *before* the code,
-plus user-facing pages. They drift. Two drift directions, both have bitten us:
-
-1. **Docs under-describe the code** (e.g. move-quality thresholds lived only in
-   `classifyQuality`; LLM failure-fallback was documented as "error out").
-2. **Docs over-describe the code** — the bigger current gap: six documented
-   features the build does not ship (Appendix A). User-facing pages are the
-   most dangerous place for this.
+plus user-facing pages. They drift in both directions: docs under-describe
+the code (a threshold or fallback lives only in code), and docs over-describe
+the code (a feature is documented but not shipped — currently the main one is
+**threefold repetition**, FR-1.3). User-facing pages are the most dangerous
+place for over-claiming.
 
 **Rules:**
 - When you change behavior in `chess.html`, update the matching spec/PRD/TDD
@@ -213,7 +315,7 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 - **Code is the source of truth.** If docs and code conflict, fix the docs
   unless the user explicitly wants the behavior to change.
 - Never commit a user-facing page (`onefile-*.html`) that promises a feature
-  the build lacks — cross-check against Appendix A first.
+  the build lacks — cross-check against §9 first.
 - When deferring a feature, record it in PRD §8.1 (deferred-features register)
   with a re-open trigger, and downgrade any spec FR it traces to.
 
@@ -223,218 +325,83 @@ plus user-facing pages. They drift. Two drift directions, both have bitten us:
 
 - **Run:** open `chess.html` in a browser. Human-vs-Human and Human-vs-Normal
   work via `file://` with no server and no network. **Grandmaster (Stockfish)
-  does NOT work via `file://`** — browsers block `new Worker()` from a `file://`
-  page (same-origin policy on local files), and the Normal engine only dodges
-  this because it runs from an inline Blob URL. To use Grandmaster, serve the
-  folder over HTTP (e.g. `python3 -m http.server`, then open
+  does NOT work via `file://`** — browsers block `new Worker()` from a
+  `file://` page (same-origin policy on local files); the Normal engine only
+  dodges this because it runs from an inline Blob URL. To use Grandmaster,
+  serve the folder over HTTP (e.g. `python3 -m http.server`, then open
   `http://localhost:8000/chess.html`); it then runs fully offline from the
   vendored local bundle, no internet required. LLM-Assisted needs the network
-  (the configured endpoint).
-- **Grandmaster / Stockfish:** the two-file Stockfish bundle is **committed
-  to the repo** next to `chess.html`:
-  - `stockfish-18-lite-single.js` (~20 KB loader)
-  - `stockfish-18-lite-single.wasm` (~7 MB; NNUE compiled in)
-  The project is GPL-3.0, so vendoring the GPL Stockfish binary is consistent
-  (spec §12.4). Over HTTP, Grandmaster runs **fully offline from this local
-  bundle** — no extra download, no internet. The loader also has a CDN
-  fallback; the CDN backstop is currently broken (jsDelivr refuses the
-  >150 MB npm package with HTTP 403), but the committed local bundle makes
-  that irrelevant. The one hard requirement is HTTP (not `file://`) serving,
-  because the Stockfish Worker can't be created from a `file://` page.
+  (the configured endpoint). LLM calls from an HTTPS page to an HTTP LAN
+  endpoint are blocked as mixed content — serve the app over HTTP for local
+  LLM servers.
+- **Grandmaster / Stockfish:** the two-file bundle is **committed to the repo**
+  next to `chess.html` (`stockfish-18-lite-single.js` ~20 KB loader,
+  `stockfish-18-lite-single.wasm` ~7 MB; NNUE compiled in). The project is
+  GPL-3.0, so vendoring the GPL Stockfish binary is consistent (spec §12.4).
+  The one hard requirement is HTTP (not `file://`) serving.
 - **Test:** there is **no in-repo test runner**. Validation done so far:
-  - Perft-style rules-engine checks and Normal-engine search checks (run
-    ad-hoc, e.g. via `node` extracting the inline scripts).
-  - jsdom headless tests for LLM setup validation, retry-on-illegal, and
-    fallback-on-failure paths (run externally by the maintainer).
-- When you add non-trivial logic, keep the ad-hoc check runnable: extract the
-  last `<script>` and `new Function()` it, or run a perft node count. A
-  one-line `node -e` parse/self-check is the bar, not a test framework.
+  perft-style rules-engine checks and Normal-engine search checks (run ad-hoc
+  via `node` extracting the inline scripts), and Playwright/jsdom headless
+  checks for LLM setup validation, retry-on-illegal, fallback-on-failure, and
+  tournament paths. When you add non-trivial logic, keep the ad-hoc check
+  runnable: extract the last `<script>` and `new Function()` it, or run a
+  perft node count. A one-line `node -e` parse/self-check is the bar, not a
+  test framework.
 
 ---
 
-## Appendix A — (formerly) deferred features — now shipped
+## 9. Feature status (shipped / deferred / future)
 
-> **Status (2026-07-05): all six items below are implemented in `chess.html`.**
-> This appendix previously tracked documented-but-unshipped features; they are
-> now live, so the doc-vs-code gap it warned about is closed. The spec FRs
-> (FR-5.3, FR-6.4, FR-7.2) and PRD sections (§2.3, §2.4, §5.4, §6) were never
-> downgraded, so no standing needed restoring — only this notice and the
-> PRD §8.1 sound row were updated.
+The authoritative deferred register is **PRD §8.1** (with re-open triggers);
+this section is a compact map so agents don't re-derive it from a code scan.
+Keep them in sync — change one, change both.
 
-| # | Feature | Doc source | Implementation note |
-|---|---|---|---|
-| 1 | **Pause/Stop AI-vs-AI** | spec FR-6.4, PRD §2.3 | Spectator-only control bar. Pause halts the loop after the in-flight move; Stop ends the game with reason "stopped by spectator" (result `*`). Generation tracking prevents a move computed for a superseded game (e.g. via Rematch) from leaking into a new one. |
-| 2 | **Spectator speed control** (Very slow / Slow / Normal / Fast / Instant) | PRD §2.3 | Select inserts a 12000/9000/7000/2500/0 ms pause between AI-vs-AI moves; persisted to `localStorage`. |
-| 3 | **"Rematch" action** (same config) | PRD §2.4 | Same controllers, straight into a new game — no setup-screen detour. |
-| 4 | **Rich summary panel** | PRD §2.4 / §5.4 | Per-side quality breakdown (best/good/inaccuracy/mistake/blunder + average centipawn loss) and a "who played cleaner" verdict. Human moves are not engine-scored, so the panel says so honestly rather than treating them as perfect. |
-| 5 | **Captured-piece tray** | spec FR-5.3 | Glyphs sorted queen→pawn with a small material-advantage badge. |
-| 6 | **Sound effects + off-by-default toggle** | PRD §6, §8 | Sampled CC0 piece sounds (lichess `standard`/`sfx` themes: move, capture, check, game-end), embedded as base64 data URIs in a `#sound-clips-src` block — self-contained, offline, ~31 KB raw. Off by default; toggle persists locally. |
+### 9.1 Shipped (built into `chess.html`)
+Core: Human/Normal/Grandmaster/LLM controllers, eval bar, move-quality tags,
+thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
+- **Tournament gauntlet (FR-9.6)** with adaptive climb, **LLM-Chess-style Elo
+  estimate** (MLE), instruction-following / quality / efficiency diagnostics,
+  methodology footnote, auto-saved results file.
+- **LLM system-prompt selection** (5 personas + custom) and the
+  **no-hyperparameter request body** (`{ model, messages }`).
+- **PGN save/replay (FR-8.2)**, **confirm destructive actions (FR-6.5)**,
+  **drag-and-drop (FR-5.2)**, **chess clock (FR-6.6)**.
+- **Sampled sounds + spectator reactions** (CC0 / Pixabay, off by default),
+  **pause/stop/speed spectator controls (FR-6.4)**, **captured-piece tray
+  (FR-5.3)**, **rich summary panel**, **rematch**.
 
-**Judgment calls where docs were silent:**
-- Pause/Stop/Speed render only in true AI-vs-AI spectating (both sides
-  non-human), not in mixed human/AI games.
-- Stop records result `*` (not a win/loss), per the spectator-aborts-game case.
-- "Who played cleaner" is decided by average centipawn loss, with an honest
-  caveat when one or both sides lack engine data (human moves).
-
-### What remains unbuilt (two tiers)
-
-With Appendix A closed, exactly two categories of unbuilt work remain. The
-registers named here are the **source of truth**; this section is a map so
-agents don't re-derive it from a code scan. Do not duplicate the rows into
-AGENTS.md — link to the register, or it will drift (§7).
-
-**Tier 1 — Deferred-but-specified (in PRD §8.1).** Specced as FRs/PRD
-features, product decisions made, deliberately not coded. Build when the
-re-open trigger fires; no new design questions to resolve first.
-
-| Feature | Spec/PRD ref | Re-open trigger |
+### 9.2 Deferred (specified, not built — build when the trigger fires)
+| Feature | Spec/PRD | Why deferred / re-open trigger |
 |---|---|---|
-| In-session AI-vs-AI result tally | PRD §4, §8 | A user asks for a session scoreboard |
-| PGN export / accounts / sharing | PRD §4, spec NG2 | v1.1 candidate; a concrete export need surfaces (relaxes NG2) |
-| ~~Drag-and-drop move input~~ | spec FR-5.2, A11.4 | **Shipped (2026-07-05)** — click + drag share one resolver (`attemptMoveTo`); invalid drops snap back | n/a |
-| Multi-threaded Stockfish WASM | spec A11.3, TDD §5.2 | Deployment host confirmed to serve COOP/COEP headers |
+| **Threefold-repetition draw** | FR-1.3 (downgraded) | Not implemented. Tournament games use the 200-ply cap as an interim safety net. Re-open: a game is observed looping via repeated positions, or full FIDE draws are wanted. |
+| In-session AI-vs-AI result tally | PRD §4, §8 | Speculative UX on a working spectator flow. Re-open: a user asks for a session scoreboard. |
+| Multi-threaded Stockfish WASM | spec A11.3, TDD §5.2 | Deployment host must serve COOP/COEP headers for `SharedArrayBuffer`. |
+| Normal-engine Elo calibration | (new) | Levels 1–5 have no Elo anchor, so the tournament can't resolve models below Stockfish's 1350 floor (LLM-Chess's Dragon resolves to 250). Re-open: weak-model Elo resolution matters. |
+| Accounts / server-side sharing | spec NG2 | NG2 bars automatic persistence; user-initiated PGN file I/O shipped (FR-8.2). Re-open: a concrete online-sharing need. |
 
-**Tier 2 — Future ideas needing decisions (Appendix B below).** Not specced,
-not promised, each carries open product questions. Build none of these until
-the listed decisions are made and a spec FR + PRD/TDD section exists. Quick
-map of the open blockers (full detail in Appendix B):
+### 9.3 Future ideas (need a product decision before building — none specced)
+Each needs a spec FR + PRD/TDD section and a resolved open question first.
+- **LLM single hint** (human-requested): needs its own LLM config (humans have
+  no endpoint today) + a definition of the hint budget.
+- **Per-side language (EN/IT):** scope unclear — per-side *UI* language (two
+  players, one screen?) vs commentary vs announcements. No in-app strings are
+  localized today.
+- **AI commentary + multilingual TTS** per move: which LLM / which TTS engine
+  (browser-native `SpeechSynthesis` is the zero-dependency first option),
+  latency/pacing that must not block the loop. Audio foundation already exists.
+- **Configurable LLM reasoning level:** `reasoning_effort`/thinking-budget
+  knob. The param mapping is endpoint/model-specific (needs a capability
+  probe); note the benchmark found more thinking ≠ better chess (Claude 3.7
+  extended thinking gave only +17% and even degraded).
+- **NoN / MoA multi-model orchestration:** pair a smart-but-erratic reasoning
+  model with a cheap non-reasoning orchestrator to fix instruction-following
+  (LLM-Chess lifted R1 32%→63%, Gemini 42%→79% this way). Out of scope for our
+  single-LLM-per-side architecture today.
+- **Per-turn hard time cap** on top of the chess clock, if a "no single move
+  may exceed N seconds" guard is ever wanted.
 
-1. ~~**Save/load/replay (PGN)**~~ — **shipped (2026-07-05)** as spec FR-8.2:
-   PGN download + view-only replay (First/Prev/Next/Last). Standard start
-   position only; loaded games don't resume engine play.
-2. **LLM single hint** — needs its own LLM config (humans have no endpoint
-   today) + a definition of the hint budget.
-3. ~~**Turn timer**~~ — **shipped (2026-07-05)** as spec FR-6.6: FIDE-style
-   per-side total clock + increment (the faithful model, not the per-turn
-   cap); loss-on-time game-over reason added.
-4. **Per-side language (EN/IT)** — **most open UX**: per-side *UI* language
-   (two players, one screen?) vs commentary vs announcements.
-5. **AI commentary + multilingual TTS** — which LLM, which TTS engine,
-   latency/pacing, profile selector. Audio foundation now exists (Appendix A #6).
-6. **Configurable LLM reasoning level** — param mapping is
-   endpoint/model-specific; needs a capability probe; interacts with #3.
-7. ~~**Confirm destructive actions**~~ — **shipped (2026-07-05)** as spec
-   FR-6.5: native `confirm()` on New game/Rematch/Resign during an in-progress
-   game, with save-as-PGN before discard (wired to the shipped FR-8.2 export).
-8. **Move-evaluation SFX** — sound-source tradeoff (synthesized vs sampled);
-   can share audio plumbing with #5.
-
-**Lowest-friction next build:** Tier 1 is now exhausted (all four items
-shipped). Among Tier 2, #2 (LLM hint) is the highest-value but needs a config
-decision first; #3 (turn timer) is self-contained and adds a clear evaluation
-lens. Everything left in Tier 2 carries a real product question — pick one
-and talk through the decision before building.
-
----
-
-## Appendix B — Future feature ideas (not started; for planning only)
-
-Recorded so they aren't forgotten. None are specced, designed, or promised to
-users. Each would need a spec FR + PRD/TDD section before implementation.
-See Tier 2 above for the quick map of open decisions per item.
-
-> **Shipped out of this appendix (kept as placeholders so cross-refs stay
-> stable):** #1 save/load/replay → spec FR-8.2; #7 confirm destructive
-> actions → spec FR-6.5.
-
-1. **Save / load / replay a game session** — **SHIPPED (2026-07-05)** as
-   spec FR-8.2: PGN download + view-only replay (First/Prev/Next/Last),
-   standard start position only, loaded games don't resume engine play.
-   Original open question (NG2/FR-8.1 relaxation) resolved by narrowing those
-   to bar *automatic* persistence only; user-initiated file I/O is permitted.
-
-2. **LLM-assisted single hint** requestable by a human player, with a
-   **budget capped by the chosen game level**.
-   - *Hook:* reuse the LLM `fetch` path with a "suggest, don't move" prompt;
-   render as a square/arrow highlight, never an auto-move.
-   - *Decisions needed:* (a) humans have no difficulty setting today — define
-   what "game level" gates the hint budget (opponent's difficulty? a fixed
-   per-game counter?); (b) in Human-vs-Normal/Grandmaster there is no LLM
-   endpoint configured, so the hint needs its own LLM config independent of the
-   opponent's controller.
-
-3. ~~**Turn timer**~~ — **Shipped (2026-07-05) as the chess clock (spec
-   FR-6.6 / PRD §2.1).** Implemented the faithful FIDE-style per-side total
-   clock + per-move increment (Off / Bullet 1+0 / Blitz 3+2 / Rapid 10+5 /
-   Classical 30+0, default Off) rather than the simple per-turn wall-clock
-   cap sketched below — a per-turn cap isn't how chess works, and the
-   secondary goal is partly to mirror real play. The side-to-move's clock
-   runs during its move (spectator pacing delay excluded); zero = loss on
-   time (new game-over reason). ponytail simplification kept: no
-   insufficient-mating-material-on-flagfall draw rule.
-   - *(Original sketch, retained for context: wrap `requestAIMove()` in
-   `Promise.race` with a wall-clock timeout; on expiry forfeit the move.)
-   That per-turn-cap variant remains a possible future addition if a
-   hard "no single move may exceed N seconds" guard is ever wanted on top
-   of the total clock.*
-
-4. **Per-opponent language selection** (English / Italian, extensible) — each
-   side picks its own language.
-   - *Hook:* needs an in-app i18n string table (the `onefile-*_it.html` pages
-   prove EN/IT translations exist for marketing copy, but **no in-app strings
-   are localized today** — the UI is single-language via `<html lang>`).
-   - *Decision needed:* clarify scope — is this per-side **UI** language (two
-   players sharing one screen in different languages?), per-side **commentary
-   / thinking text**, or move announcements? The sharing-one-screen case has
-   real layout/contrast implications and should be pinned down before any code.
-
-5. **AI commentary per move, spoken via multilingual TTS.** After each move,
-   an LLM generates spoken commentary for the current context (move, SAN,
-   eval, quality tag), played through a multilingual TTS engine (e.g. Piper,
-   QwenTTS, or similar). Pure entertainment — opponents and spectators *hear*
-   the game. Configurable **language/profile** (serious, soccer-style,
-   satiric, humorous, …).
-   - *Hook:* reuse the LLM `fetch` path with a commentary prompt; feed the
-   returned text to TTS. The **lazy/zero-dependency first option is the
-     browser-native `SpeechSynthesis` API** (Web Speech) — multilingual, no
-     network, no dependency; reach for Piper/QwenTTS (server or WASM) only if
-     native voices fall short.
-   - *Decisions needed:* (a) which LLM — reuse a side's LLM config, or a
-     dedicated commentary endpoint? (b) TTS engine choice (native vs. hosted);
-     (c) profile/language selector UI; (d) **latency** — commentary per move
-     adds wall-clock delay and must not block the game loop or AI-vs-AI pacing
-     (generate async, queue/decay if moves come faster than speech); (e) the
-     audio-output foundation now exists — Appendix A #6 ships sampled piece
-     sounds (CC0) and Appendix B #8 ships sampled crowd reactions (Pixabay
-     License), all `HTMLAudioElement`-based, which TTS commentary can build on.
-
-6. **Configurable LLM reasoning/thinking level**, from none up to the max the
-   model allows (e.g. reasoning-effort / thinking-budget knobs, or a
-   chain-of-thought prompt prefix). Lets a side trade latency/cost for move
-   quality — directly serving the "evaluate AI intelligence" goal (how much
-   does extra reasoning actually help an LLM play chess?).
-   - *Hook:* add a per-side `reasoning` field to `ControllerConfig`; map it to
-     either an OpenAI-style `reasoning_effort`/`max_completion_tokens` request
-     parameter (when the endpoint supports it) or a prompt-side
-     think-then-move scaffold (when it doesn't). Reuse the existing
-     `apiBase`/`apiKey`/`model` config.
-   - *Decisions needed:* (a) the param mapping is **endpoint/model-specific** —
-     not every OpenAI-compatible server exposes the same knob, so this needs a
-     capability probe or a per-model setting; (b) prompt-scaffold fallback is
-     weaker and must still return one legal UCI move (don't break the
-     constrained-choice contract); (c) higher reasoning = more latency/cost,
-     which interacts with Appendix B #3 (turn timer) — a reasoning-capped LLM
-     under a timer is a distinct fairness scenario worth defining together.
-
-7. **Confirm destructive actions** — **SHIPPED (2026-07-05)** as spec
-   FR-6.5: native `confirm()` on New game/Rematch/Resign during an
-   in-progress game, with save-as-PGN before discard (wired to FR-8.2). The
-   originally-open save-on-confirm branch is now live since #1 shipped.
-
-8. **~~Move-evaluation SFX~~ — SHIPPED** (2026-07-05, then upgraded to
-   sampled 2026-07-05). Crowd reactions keyed off the move-quality tag:
-   `best`→ applause, `blunder`→ boo, `mistake`→ disappointment,
-   `inaccuracy`→ shocked, checkmate→ cheer. Off-by-default "Spectator
-   reactions" toggle (own opt-in), distinct from the move/capture sounds.
-   - *Sound source:* **sampled** real crowd reactions under the **Pixabay
-     License** (no attribution, commercial OK, GPL-3.0-compatible), embedded
-     as base64 data URIs in a `#reaction-clips-src` block (~171 KB raw /
-     ~228 KB base64 for 5 clips). The earlier synthesized Web Audio version
-     (overlapping noise-burst "claps") sounded like static and was replaced
-     after playtest feedback. No `AudioContext` remains — all audio is now
-     `HTMLAudioElement`-based.
-
-When one of these is chosen for implementation: move it out of this appendix,
-write the spec FR + PRD/TDD sections, and add any new non-goal relaxations to
-the §4 / NG lists explicitly.
+**Lowest-friction next build:** among §9.3, the **LLM single hint** is the
+highest-value but needs a config decision first; **AI commentary + native TTS**
+is self-contained and reuses the existing LLM `fetch` path. Everything here
+carries a real product question — pick one and talk through the decision
+before building.

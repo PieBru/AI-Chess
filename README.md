@@ -16,14 +16,16 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 ## Features
 
 - **Single-file app** — everything lives in one `chess.html`: no build step, no frameworks, no CDN for core play. (The Stockfish files are an optional companion for Grandmaster mode only — see [Play](#play).)
-- **Hand-rolled 0x88 rules engine** — legal move generation, FEN/SAN, check/checkmate/stalemate, and draws (threefold, fifty-move, insufficient material). No `chess.js` dependency.
-- **Four opponent types, pickable per side:**
+- **Hand-rolled 0x88 rules engine** — legal move generation, FEN/SAN, check/checkmate/stalemate, and draws (fifty-move rule, insufficient material). No `chess.js` dependency. (Threefold repetition is not yet detected — see [AGENTS.md §9](AGENTS.md).)
+- **Three controller types, pickable per side:**
   - **Human** — local two-player on one board.
-  - **Normal** — a hand-built alpha-beta search (null-move pruning, late-move reductions, transposition table) with five difficulty levels, from wide-random Beginner to full-depth Expert.
-  - **Grandmaster** — Stockfish over UCI, the strongest engine there is.
-  - **LLM-Assisted** — any OpenAI-compatible endpoint *you* configure; the model is given the full legal move list (constrained choice) with a retry on an illegal reply and a graceful local fallback so a flaky endpoint never kills a game.
+  - **Normal AI** — a hand-built alpha-beta search (null-move pruning, late-move reductions, transposition table) across nine levels: **1 Random → 5 Expert** (wide-random Beginner up to full-depth Expert), then **6–9 Grandmaster** = Stockfish over UCI, Elo-limited at **1350 / 1800 / 2200** and finally **full strength** — the strongest engine there is. Node budgets (not wall-clock) make each level play the same strength on any CPU.
+  - **LLM-Assisted** — any OpenAI-compatible endpoint *you* configure, with a per-side **system prompt** (5 built-in personas or custom). The model is given the full legal move list (constrained choice) with a corrective retry on an illegal reply and a graceful local fallback so a flaky endpoint never kills a game.
 - **Mix any two sides** — Human vs Normal, Stockfish vs LLM, or sit back and **spectate AI vs AI**.
 - **Engine transparency** — eval bar, per-move quality tags (`best` / `good` / `inaccuracy` / `mistake` / `blunder`), and a "thinking…" indicator, so you can *see* how each side reasons.
+- **Tournament / benchmark mode** — when a side is LLM-Assisted, run a gauntlet that plays the LLM against every difficulty (Random → Grandmaster full) in an **adaptive climb**, then prints an **estimated Elo** (maximum-likelihood, the same method as the public [LLM-Chess](https://github.com/maxim-saplin/llm_chess) leaderboard) plus instruction-following, move-quality, and efficiency diagnostics, auto-saved to a text file.
+- **Chess clock, PGN, and quality-of-life** — optional FIDE-style per-side clock (Bullet/Blitz/Rapid/Classical); **save/load a game as PGN** with view-only replay; drag-and-drop *or* click moves; confirm-before-discard on New/Rematch/Resign.
+- **Sound & crowd** — off-by-default sampled piece sounds (move/capture/check/game-end) and an opt-in "spectator reactions" layer (crowd applause, boos, cheers keyed to move quality, firing on big captures).
 - **Web Workers** — the Normal engine and Stockfish run off the main thread, so the UI never blocks.
 - **Offline-first** — Human vs Human and Human vs Normal need no network. Grandmaster loads a local Stockfish runtime bundle when present (else tries a CDN); LLM-Assisted needs your configured endpoint.
 - **Setup persistence** — your per-side controller choices and LLM config are saved to `localStorage` and proposed as defaults next time.
@@ -32,7 +34,7 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 
 Open `chess.html` in any modern browser (or `firefox chess.html`). It works via `file://` — no server required. **`chess.html` alone is a complete game**: Human vs Human, Human vs Normal AI, and LLM-Assisted all run from that one file with nothing else.
 
-**Grandmaster mode is the one exception** — it needs the Stockfish engine, shipped as two optional companion files next to `chess.html` (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0). They load only when a side is set to Grandmaster; delete them and every other mode keeps working unchanged.
+**Grandmaster mode is the one exception** — it needs the Stockfish engine, shipped as two optional companion files next to `chess.html` (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0). They load only when a side is set to Grandmaster; delete them and every other mode keeps working unchanged. **Grandmaster also requires serving over HTTP** (e.g. `python3 -m http.server`, then open `http://localhost:8000/chess.html`) — browsers block its background Worker from a `file://` page. Over HTTP it runs fully offline from the local bundle. Likewise, if you point LLM-Assisted at a local HTTP server (e.g. Ollama / LM Studio), serve the app over HTTP too — browsers block calls from an HTTPS page to an HTTP endpoint (mixed content).
 
 ## Specs
 
