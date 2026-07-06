@@ -61,6 +61,15 @@ User-facing pages (blog, player's guide, kids): see [`docs/`](docs/).
 
 The LLM backing `pi` was a **self-hosted [llama.cpp](https://github.com/ggml-org/llama.cpp)** server running **Qwen-3.6-27B_UD-Q8 by Unsloth** — no cloud APIs involved. Part of the point: this project is itself an empirical benchmark for self-hosted LLM inferencing and agentic software engineering.
 
+## Acknowledgments
+
+This project stands on the shoulders of two open-source efforts:
+
+- **[Stockfish](https://github.com/official-stockfish/Stockfish)** (GPL-3.0) — the strongest chess engine there is, vendored as a WebAssembly build and powering Grandmaster mode (levels 6–9).
+- **[LLM Chess](https://github.com/maxim-saplin/llm_chess)** — the public LLM-vs-engine benchmark whose maximum-likelihood Elo method and adaptive level-selection heuristic inspired the Tournament gauntlet and its diagnostics.
+
+Sound effects and crowd reactions are sampled recordings under permissive licences (CC0 / Pixabay Licence), embedded as base64 data URIs so the app stays self-contained and offline.
+
 ## License
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
