@@ -1894,7 +1894,7 @@ function requestMove(fen, difficulty) {
     human: 'Makes moves via the board UI.',
     normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
     grandmaster: 'Level 6 = Stockfish, full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
-    llm: 'Calls an OpenAI-compatible chat endpoint. If this page is served over HTTPS (e.g. GitHub Pages), the endpoint must also be HTTPS — browsers block mixed-content fetch to an HTTP LAN server. Serve this app locally (via python3 -m http.server) to reach HTTP-only LLM servers.',
+    llm: 'Calls an OpenAI-compatible chat endpoint. If this page is accessed over HTTPS (e.g. GitHub Pages), the API base URL must also be HTTPS — browsers block mixed-content fetch to an HTTP LAN server. Serve this app locally (via python3 -m http.server) to reach HTTP-only LLM servers.',
   };
   // Difficulty 6 is the first Grandmaster level; difficulties 6-9 map to
   // Stockfish UCI_Elo levels (null = full strength). Kept as a Normal-AI
