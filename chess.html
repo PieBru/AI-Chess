@@ -437,7 +437,9 @@ Default Off = no clock.">Time control
             <option value="9">9 — Grandmaster (full)</option>
           </select>
         </div>
-        <div class="llm-config" hidden>
+        <div class="llm-config" hidden">
+          <label>Saved profile <span class="hint-inline">(saved after Verify)</span></label>
+          <select class="llm-profile-select"><option value="custom">Custom…</option></select>
           <label>API base URL <span class="hint-inline">with or without <code>/chat/completions</code></span></label>
           <input type="text" class="llm-api-base" placeholder="https://api.openai.com/v1">
           <label>API key <span class="hint-inline">(optional for local servers)</span></label>
@@ -478,7 +480,9 @@ Default Off = no clock.">Time control
             <option value="9">9 — Grandmaster (full)</option>
           </select>
         </div>
-        <div class="llm-config" hidden>
+        <div class="llm-config" hidden">
+          <label>Saved profile <span class="hint-inline">(saved after Verify)</span></label>
+          <select class="llm-profile-select"><option value="custom">Custom…</option></select>
           <label>API base URL <span class="hint-inline">with or without <code>/chat/completions</code></span></label>
           <input type="text" class="llm-api-base" placeholder="https://api.openai.com/v1">
           <label>API key <span class="hint-inline">(optional for local servers)</span></label>
@@ -1639,6 +1643,7 @@ function requestMove(fen, difficulty) {
       const r = await probeLlm({ apiBase, apiKey, model });
       statusEl.classList.add(r.ok ? 'ok' : 'off');
       statusEl.textContent = r.ok ? 'On line' : 'OFF LINE (' + r.reason + ')';
+      if (r.ok) saveLlmProfile(cfgEl);   // remember this verified endpoint+model
     } finally { btn.disabled = false; }
   }
 
@@ -1992,6 +1997,59 @@ function requestMove(fen, difficulty) {
   // proposed instead.
   const DEFAULT_SETUP = { white: { type: 'human' }, black: { type: 'normal', difficulty: 3 } };
 
+  // Saved LLM profiles: any URL+key+model+persona that passes the Verify gate
+  // (manual button or the automatic pre-start probe) is remembered, so a
+  // known-good endpoint is re-selectable from a dropdown instead of re-typed.
+  // Identity = apiBase + model (re-verifying updates key/persona in place).
+  // Stored under its own key; same local-only key caveat as the setup (§6).
+  const LLM_PROFILES_KEY = 'onefile-chess-llm-profiles-v1';
+  function loadLlmProfiles() {
+    try { return JSON.parse(localStorage.getItem(LLM_PROFILES_KEY)) || []; } catch (e) { return []; }
+  }
+  // Record the current field values as a profile (called after a successful
+  // probe), then refresh every dropdown so the new/updated entry appears.
+  function saveLlmProfile(cfgEl) {
+    const apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
+    const model = cfgEl.querySelector('.llm-model').value.trim();
+    if (!apiBase || !model) return;
+    const entry = {
+      apiBase,
+      apiKey: cfgEl.querySelector('.llm-api-key').value.trim(),
+      model,
+      persona: cfgEl.querySelector('.llm-prompt-select').value,
+      systemPrompt: cfgEl.querySelector('.llm-prompt').value,
+    };
+    const list = loadLlmProfiles();
+    const i = list.findIndex(p => p.apiBase === apiBase && p.model === model);
+    if (i >= 0) list[i] = entry; else list.push(entry);
+    localStorage.setItem(LLM_PROFILES_KEY, JSON.stringify(list));
+    rebuildProfileDropdowns();
+  }
+  // Match one side's dropdown to its current field values: select the profile
+  // if apiBase+model match one, else "Custom…".
+  function syncProfileDropdown(cfgEl) {
+    const sel = cfgEl.querySelector('.llm-profile-select');
+    if (!sel) return;
+    const apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
+    const model = cfgEl.querySelector('.llm-model').value.trim();
+    const i = loadLlmProfiles().findIndex(p => p.apiBase === apiBase && p.model === model);
+    sel.value = i >= 0 ? String(i) : 'custom';
+  }
+  // Rebuild every profile dropdown from the saved list, then re-sync each to
+  // its side's current fields. (DOM-built options avoid any escaping.)
+  function rebuildProfileDropdowns() {
+    const list = loadLlmProfiles();
+    document.querySelectorAll('.llm-profile-select').forEach(sel => {
+      const cfgEl = sel.closest('.side-config');
+      sel.innerHTML = '';
+      const c = document.createElement('option'); c.value = 'custom'; c.textContent = 'Custom…'; sel.appendChild(c);
+      list.forEach((p, idx) => {
+        const o = document.createElement('option'); o.value = String(idx); o.textContent = p.model; sel.appendChild(o);
+      });
+      if (cfgEl) syncProfileDropdown(cfgEl);
+    });
+  }
+
   const SIDE_HINTS = {
     human: 'Makes moves via the board UI.',
     normal: 'Hand-built engine: alpha-beta search with a selectable difficulty.',
@@ -2147,6 +2205,18 @@ function requestMove(fen, difficulty) {
       const ta = cfgEl.querySelector('.llm-prompt');
       if (LLM_SYSTEM_PROMPTS[key]) ta.value = LLM_SYSTEM_PROMPTS[key];
     });
+    // Saved-profile loader: picking a profile fills URL+key+model+persona
+    // (still editable afterwards); "Custom…" leaves the fields as-is.
+    cfgEl.querySelector('.llm-profile-select').addEventListener('change', (e) => {
+      if (e.target.value === 'custom') return;
+      const p = loadLlmProfiles()[parseInt(e.target.value, 10)];
+      if (!p) return;
+      cfgEl.querySelector('.llm-api-base').value = p.apiBase;
+      cfgEl.querySelector('.llm-api-key').value = p.apiKey || '';
+      cfgEl.querySelector('.llm-model').value = p.model;
+      cfgEl.querySelector('.llm-prompt-select').value = p.persona || 'grandmaster';
+      cfgEl.querySelector('.llm-prompt').value = p.systemPrompt != null ? p.systemPrompt : (LLM_SYSTEM_PROMPTS[p.persona] || '');
+    });
     // Verify-LLM button: appended to this side's LLM config (so it hides with
     // the config when the side isn't LLM-AI) and wired to a one-shot probe.
     const verifyRow = document.createElement('div');
@@ -2194,6 +2264,7 @@ function requestMove(fen, difficulty) {
     });
     setupSeriesMode = savedMode;
     updateSeriesMode();
+    rebuildProfileDropdowns();   // populate dropdowns + sync each to restored fields
   })();
 
   // Gather every configured LLM side's endpoint creds from the live (possibly
@@ -2233,6 +2304,7 @@ function requestMove(fen, difficulty) {
       try {
         const results = await Promise.all(probeInputs.map(async (i) => {
           const r = await probeLlm(i);
+          if (r.ok) saveLlmProfile(i.cfgEl);   // remember every verified endpoint+model
           const statusEl = i.cfgEl.querySelector('.verify-llm-status');
           if (statusEl) {
             statusEl.hidden = false;
