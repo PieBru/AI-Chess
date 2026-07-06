@@ -1,4 +1,4 @@
-# Granpy Piero's AI Chess — Technical Design Document (TDD)
+# Piero's AI Chess, 2026 Edition — Technical Design Document (TDD)
 
 **Document type:** TDD (SDD Layer 2 — architecture, data, algorithms)
 **Derived from:** `chess-app-spec.md`, `chess-app-prd.md`

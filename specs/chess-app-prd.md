@@ -1,4 +1,4 @@
-# Granpy Piero's AI Chess — Product Requirements Document (PRD)
+# Piero's AI Chess, 2026 Edition — Product Requirements Document (PRD)
 
 **Document type:** PRD (SDD Layer 2 — user-facing behavior, flows, UX)
 **Derived from:** `chess-app-spec.md`

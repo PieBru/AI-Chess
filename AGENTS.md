@@ -1,4 +1,4 @@
-# AGENTS.md — Granpy Piero's AI Chess
+# AGENTS.md — Piero's AI Chess, 2026 Edition
 
 Operating manual for AI agents (and humans) working in this repo. Read this
 first; it encodes the vision, the architecture, the tech stack, and the

@@ -1,4 +1,4 @@
-# Granpy Piero's AI Chess
+# Piero's AI Chess, 2026 Edition
 
 ▶️ **Play it now:** <https://piebru.github.io/AI-Chess/chess.html>
 
