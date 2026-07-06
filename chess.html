@@ -374,6 +374,7 @@
     <h2>New Game</h2>
     <p class="hint">Choose who controls each side, then start.</p>
     <p id="file-warning" class="error-msg" hidden><strong>Opened via file://</strong> — Grandmaster (Stockfish) can't load from a local file. <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>, or serve this folder over HTTP (run <code>python3 -m http.server</code> here, then open <code>http://localhost:8000/chess.html</code>). Human vs Human / Normal still work here.</p>
+    <label class="timecontrol-label" id="tournament-toggle-label" hidden title="Play the LLM side in a best-of-3 round against each AI difficulty — an adaptive gauntlet from Random up to Grandmaster (full) that finds the LLM's level. Results + diagnostics auto-save to a timestamped file. Runs without a chess clock."><input type="checkbox" id="tournament-toggle"> Tournament mode (LLM gauntlet vs all Browser-AI levels)</label>
     <div class="side-configs">
       <div class="side-config" data-side="white">
         <h3><span class="swatch w"></span> White</h3>
@@ -471,7 +472,6 @@ Default Off = no clock.">Time control
         <option value="classical">Classical (30+0)</option>
       </select>
     </label>
-    <label class="timecontrol-label" id="tournament-toggle-label" hidden title="Play the LLM side in a best-of-3 round against each AI difficulty — an adaptive gauntlet from Random up to Grandmaster (full) that finds the LLM's level. Results + diagnostics auto-save to a timestamped file. Runs without a chess clock."><input type="checkbox" id="tournament-toggle"> Tournament mode (LLM gauntlet vs all Browser-AI levels)</label>
     <div class="start-row">
       <button id="start-btn">Start Game</button>
     </div>
