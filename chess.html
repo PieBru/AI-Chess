@@ -2019,9 +2019,17 @@ function requestMove(fen, difficulty) {
     if (toggleLabel.hidden) toggle.checked = false;   // clear a stale check when the LLM side is removed
     syncStartButton();
   }
+  // Tournaments run without a clock (the LLM isn't penalized for slow
+  // inference/retries), so grey out the Time control pick and say why.
+  let _tcOrigTitle = null;
   function syncStartButton() {
-    document.getElementById('start-btn').textContent =
-      document.getElementById('tournament-toggle').checked ? 'Run tournament' : 'Start Game';
+    const tournamentOn = document.getElementById('tournament-toggle').checked;
+    document.getElementById('start-btn').textContent = tournamentOn ? 'Run tournament' : 'Start Game';
+    if (_tcOrigTitle === null) _tcOrigTitle = timeControlSelectEl.title;
+    timeControlSelectEl.disabled = tournamentOn;
+    timeControlSelectEl.title = tournamentOn
+      ? 'No clock in tournament mode — the LLM isn\'t penalized for slow inference or retries.'
+      : _tcOrigTitle;
   }
   document.getElementById('tournament-toggle').addEventListener('change', syncStartButton);
 
