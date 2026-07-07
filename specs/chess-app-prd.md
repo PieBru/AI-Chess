@@ -50,12 +50,14 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 | Controller picker (per side) | FR-2 | Human / Normal(+difficulty 1–11, where 6–11 = Grandmaster) / LLM-AI |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
-| Board + move input | FR-1, FR-5 | Click-to-move + drag-and-drop |
+| Board + move input | FR-5.1, FR-5.2 | Click-to-move + drag-and-drop; toggleable coordinate labels (FR-5.1) |
 | Move history (SAN) | FR-5.4 | Scrollable, always visible |
 | Thinking indicator | NFR-3 | Must reflect worker activity, never fake/static |
+| Plain-English move narration + spoken TTS | FR-5.5 | Local (no LLM); optional OpenAI-compat `/v1/audio/speech` with native fallback |
+| Audio: piece sounds + spectator reactions | FR-5.6 | Off by default, persisted; see §6 |
 | Eval bar | new — see §5.4 | Not in spec v1; added here to serve secondary goal |
 | Move-quality tags | new — see §5.4 | Same |
-| AI vs AI spectator controls | FR-6.4 | Speed control is new, added here |
+| AI vs AI spectator controls (Pause/Stop + speed) | FR-6.4 | Incl. the spectator speed control (Very slow…Instant) |
 | Game summary panel | FR-7 | Extended beyond spec's minimum result line |
 | Resign / Flip / New Game | FR-6 | |
 | Graceful Stockfish-load failure | FR-4.3 | Must not silently fail — see §5.5 |
@@ -80,7 +82,7 @@ Each controller option needs a plain-language strength cue so the "evaluate inte
 - LLM-AI: *"A chat model picks each move from the legal options. Point it at any OpenAI-compatible endpoint — fun for seeing how badly an LLM plays chess.""
 
 ### 5.2 Board & interaction
-- Standard 8×8 board, light/dark square theme, coordinate labels on the edge.
+- Standard 8×8 board, light/dark square theme, **coordinate labels (a–h, 1–8) on the edges, toggleable via a persisted 'Show coordinates' option** (on by default; spec FR-5.1).
 - Selected piece highlighted; legal destinations marked distinctly from captures (capture squares visually different from empty destination squares).
 - Check: king square gets a distinct warning highlight (not just a text notice — should be readable at a glance while watching a fast AI-vs-AI game).
 

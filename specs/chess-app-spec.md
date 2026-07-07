@@ -72,8 +72,8 @@ All Human/AI combinations must be supported without special-casing in the rules 
 - FR-1.2 Check, checkmate, and stalemate detection.
 - FR-1.3 Draw detection: fifty-move rule, insufficient material, and **threefold repetition** are all implemented. Threefold is detected by counting occurrences of each position (key = FEN board + side to move + castling rights + en passant square, ignoring the move counters) across a game; the 3rd occurrence of the same position → draw ("threefold repetition"). This is the rule that catches perpetual check / shuffle loops early (vs the fifty-move rule's ~100-ply wait). Tournament/match games additionally keep the 200-half-move cap (FR-9.6/FR-9.7) as a backstop for loops that never quite repeat.
 - FR-1.4 **Configurable move limit (game-length cap):** the setup screen offers a **Move limit** selector (Off / 40 / 60 / 80 / 100 / 150 / 200 full moves, default Off, persisted). When set, a single game is auto-drawn at that many full moves (half-moves × 2) — a user-controlled safety net, since the fifty-move rule (FR-1.3) only fires after 100 *consecutive* quiet plies, which engine games can dodge with periodic captures/pawn moves. Off = rely on the fifty-move rule and natural endings. In Match mode the selector is shown and the cap is the lesser of the user limit and the 200-half-move safety net (so it can only tighten FR-9.7, never raise it); in Tournament mode the selector is hidden and the fixed 200-half-move cap applies.
-- FR-1.4 A move is only committed to the game state if fully legal; illegal move attempts by a human are rejected with visual feedback and do not change state.
-- FR-1.5 The engine must produce a FEN string for any position and standard algebraic notation (SAN) for any move, since both AI tiers and the move-history UI depend on them.
+- FR-1.5 A move is only committed to the game state if fully legal; illegal move attempts by a human are rejected with visual feedback and do not change state.
+- FR-1.6 The engine must produce a FEN string for any position and standard algebraic notation (SAN) for any move, since both AI tiers and the move-history UI depend on them.
 
 ### FR-2. Game modes & player assignment
 - FR-2.1 Before a game starts, the user selects White's controller and Black's controller independently, per §4.
@@ -112,7 +112,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
 - FR-4.4 Grandmaster engine selection must not require any server-side component — asset loading is client-side only (script tag / fetch from CDN).
 
 ### FR-5. Board & interaction UI
-- FR-5.1 Rendered 8×8 board, correctly oriented (can be flipped), with legal-move highlighting when a human selects a piece.
+- FR-5.1 Rendered 8×8 board, correctly oriented (can be flipped), with legal-move highlighting when a human selects a piece. **Coordinate labels (a–h, 1–8) on the board edges are toggleable** via a persisted 'Show coordinates' option (on by default).
 - FR-5.2 Move input via click-to-select-then-click-to-move **and**
   drag-and-drop. Both paths share one move-resolution routine
   (`attemptMoveTo`), so promotion and legality behave identically; an invalid
@@ -121,11 +121,15 @@ All Human/AI combinations must be supported without special-casing in the rules 
 - FR-5.4 Move history panel in SAN, scrollable, updated after every ply.
 - FR-5.5 Plain-English move narration, shown and optionally spoken. After every move a small toaster under the board shows a **locally generated** plain-English description (e.g. "White: Knight to f3", "Black: Pawn captures on d5", "Castles kingside", "Queen captures on f7 — checkmate!"), built from the pre-move board + the move + SAN — no LLM call; inaccuracies/mistakes/blunders append a short cue. When the game ends the same toaster appends the end-game verdict (the summary's "who played cleaner" sentence) on a second line. A **Speak moves** toggle (off by default, persisted) speaks each narration aloud: it POSTs `{model,input,voice,response_format}` to a user-configured **OpenAI-compatible `/v1/audio/speech`** endpoint (e.g. a local Kokoro server such as docker-kokoro — config: base URL, model, voice, persisted) and plays the returned audio blob, **falling back to the browser's native `speechSynthesis`** when no endpoint is set or a request fails. Speech is cancelled on toggle-off, new game, and entering replay; a newer move supersedes any in-flight fetch/utterance. The only TTS protocol referenced is "OpenAI-compatible /v1/audio/speech" (vendor-neutral, §1).
 
+- FR-5.6 **Audio feedback** (all off by default, persisted, vendor-neutral — §1):
+  - **Piece sounds** ("Sound effects" toggle): move / capture / check / game-end cues, played as **sampled CC0** clips (lichess `standard`/`sfx` themes) embedded as base64 data URIs in a `#sound-clips-src` block — self-contained, no network. (An earlier synthesized Web-Audio version was replaced after playtest feedback.)
+  - **Spectator reactions** ("Spectator reactions" toggle, AI-vs-AI only): crowd clips keyed off the move-quality tag — `best`→ applause, `blunder`→ boo, `mistake`→ disappointment, `inaccuracy`→ shocked, checkmate→ cheer — **sampled real crowd audio under the Pixabay License** (no attribution, GPL-3.0-compatible), embedded as base64 in `#reaction-clips-src`. Reactions **fire only on captures, gated by a crowd-enthusiasm threshold**: each move gets a drama score (captured-piece value + eval swing in pawns + a quality premium) and fires only if it beats a linear threshold that **decays with ply** — the crowd starts quiet (early game, only queen/rook captures or big swings fire) and grows more invested (by the endgame any capture gets a reaction), avoiding constant applause in strong matches. Clips fade out over their last 400 ms.
+
 ### FR-6. Game controls
 - FR-6.1 New Game (re-opens controller/difficulty selection).
 - FR-6.2 Resign (available to a human player, ends game with the opponent as winner).
 - FR-6.3 Flip board.
-- FR-6.4 Pause/stop AI-vs-AI games (since these run unattended).
+- FR-6.4 Pause/stop AI-vs-AI games (since these run unattended). A spectator **speed control** (Very slow / Slow / Normal / Fast / Instant) sets the pause between AI-vs-AI moves purely for watchability — the AI still computes at its real budget; persisted (PRD §2.3).
 - FR-6.5 Destructive actions are confirmed. New Game, Rematch, and Resign
   during an in-progress game prompt a native `confirm()`; if the action would
   discard an in-progress game with moves, OK saves it as a PGN file first
@@ -306,7 +310,7 @@ Exact message schema, versioning, and error codes are defined in the TDD.
 - A11.2 Whether Grandmaster mode exposes a "thinking time" or strength setting to the user, or is fixed — currently spec'd as fixed max strength.
 - A11.3 ~~Whether multi-threaded WASM (requiring specific server headers) is a hard requirement or a "best effort if headers present"~~ — **Resolved (see §13):** use a single-threaded Stockfish WASM build for v1. Recommended package: `nmrugg/stockfish.js` single-threaded flavor (`stockfish` on npm). Multi-threading is a v1.1 upgrade gated on confirming the deployment host can serve COOP/COEP headers. See §13 and TDD §5.2.
 - A11.4 Drag-and-drop move input — **shipped (2026-07-05)** as part of FR-5.2; see that FR.
-- A11.5 Sound effects, animations, and visual theme are UX decisions left entirely to the PRD.
+- A11.5 Visual theme and animations are UX decisions left to the PRD. (Sound effects and spectator reactions were originally deferred here too but are now fully spec'd — FR-5.6.)
 - A11.6 LLM-AI prompt robustness — the single-hard-move prompt + one-retry policy (FR-9.3) is a baseline; real-world move legality/parse rates depend on the chosen model and may need a richer prompt or constrained decoding later. Not blocking v1.
 
 ## 12. Dependencies, references & licensing
