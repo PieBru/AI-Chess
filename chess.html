@@ -473,7 +473,9 @@ Default Off = no clock.">Time control
             <option value="6">6 — Grandmaster (Elo 1350)</option>
             <option value="7">7 — Grandmaster (Elo 1800)</option>
             <option value="8">8 — Grandmaster (Elo 2200)</option>
-            <option value="9">9 — Grandmaster (full)</option>
+            <option value="9">9 — Grandmaster (Elo 2600)</option>
+            <option value="10">10 — Grandmaster (Elo 3000)</option>
+            <option value="11">11 — Grandmaster (full)</option>
           </select>
         </div>
         <div class="llm-config" hidden">
@@ -516,7 +518,9 @@ Default Off = no clock.">Time control
             <option value="6">6 — Grandmaster (Elo 1350)</option>
             <option value="7">7 — Grandmaster (Elo 1800)</option>
             <option value="8">8 — Grandmaster (Elo 2200)</option>
-            <option value="9">9 — Grandmaster (full)</option>
+            <option value="9">9 — Grandmaster (Elo 2600)</option>
+            <option value="10">10 — Grandmaster (Elo 3000)</option>
+            <option value="11">11 — Grandmaster (full)</option>
           </select>
         </div>
         <div class="llm-config" hidden">
@@ -662,7 +666,9 @@ Default Off = no clock.">Time control
           <option value="6">6 — Grandmaster (Elo 1350)</option>
           <option value="7">7 — Grandmaster (Elo 1800)</option>
           <option value="8">8 — Grandmaster (Elo 2200)</option>
-          <option value="9">9 — Grandmaster (full)</option>
+          <option value="9">9 — Grandmaster (Elo 2600)</option>
+          <option value="10">10 — Grandmaster (Elo 3000)</option>
+          <option value="11">11 — Grandmaster (full)</option>
         </select>
       </div>
       <div class="llm-config" hidden>
@@ -1897,9 +1903,9 @@ function requestMove(fen, difficulty) {
 
   // ---- Tournament mode (LLM gauntlet vs all AI difficulties) ----
   // null when inactive. When active, the LLM side plays a best-of-3 round
-  // against each AI difficulty (1..9). If either side sweeps 3-0 the
+  // against each AI difficulty (1..11). If either side sweeps 3-0 the
   // tournament ends; otherwise it advances to the next level. Stops at
-  // level 9 (Grandmaster full).
+  // the top level (Grandmaster full).
   let tournament = null;   // { level, gameInLevel, results:[{level,w,l,d}], llmSide, llmConfig }
   let tournamentStopped = false;
   let match = null;        // best-of-N head-to-head: { games, played, cfgA, cfgB, labelA/B, winsA/draws/winsB, stats:{A,B} }
@@ -2209,13 +2215,14 @@ function requestMove(fen, difficulty) {
     grandmaster: 'Level 6 = Stockfish, full strength. Must be served over HTTP (not opened via file://) — otherwise the browser blocks its Worker.',
     llm: 'Calls an OpenAI-compatible chat endpoint. If this page is accessed over HTTPS (e.g. GitHub Pages), the API base URL must also be HTTPS — browsers block mixed-content fetch to an HTTP LAN server. Serve this app locally (via python3 -m http.server) to reach HTTP-only LLM servers.',
   };
-  // Difficulty 6 is the first Grandmaster level; difficulties 6-9 map to
+  // Difficulty 6 is the first Grandmaster level; difficulties 6-11 map to
   // Stockfish UCI_Elo levels (null = full strength). Kept as a Normal-AI
   // dropdown option to simplify the setup screen (3 controller choices
   // instead of 4). The ControllerConfig contract is unchanged — levels
-  // 6-9 build a { type: 'grandmaster' } entry with an elo field.
+  // 6-11 build a { type: 'grandmaster' } entry with an elo field.
   const GM_LEVEL = 6;
-  const GRANDMASTER_ELO_LEVELS = { 6: 1350, 7: 1800, 8: 2200, 9: null };   // 9 = full strength
+  const MAX_DIFFICULTY = 11;   // highest difficulty (Grandmaster full strength)
+  const GRANDMASTER_ELO_LEVELS = { 6: 1350, 7: 1800, 8: 2200, 9: 2600, 10: 3000, 11: null };   // null = full strength
   // Shared by click handling and restore-from-storage so both take the same path.
   function selectSideType(cfgEl, type) {
     cfgEl.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
@@ -3559,7 +3566,7 @@ function requestMove(fen, difficulty) {
   }
 
   // ---- Tournament mode (LLM gauntlet vs all AI difficulties) ----
-  // The LLM plays a 3-game round against each AI difficulty (1..9), climbing
+  // The LLM plays a 3-game round against each AI difficulty (1..11), climbing
   // until a round produces a 3-0 sweep (by either side) or it reaches the top
   // level (Grandmaster full). Colors alternate each game for fairness.
   // Tournament games run without a chess clock (so the LLM isn't penalized
@@ -3567,7 +3574,7 @@ function requestMove(fen, difficulty) {
   // is shown and auto-saved to a timestamped text file.
   const TOURNAMENT_LEVEL_NAMES = {
     1: '1 Random', 2: '2 Easy', 3: '3 Medium', 4: '4 Hard', 5: '5 Expert',
-    6: '6 GM (Elo 1350)', 7: '7 GM (Elo 1800)', 8: '8 GM (Elo 2200)', 9: '9 GM (full)',
+    6: '6 GM (Elo 1350)', 7: '7 GM (Elo 1800)', 8: '8 GM (Elo 2200)', 9: '9 GM (Elo 2600)', 10: '10 GM (Elo 3000)', 11: '11 GM (full)',
   };
   const TOURNAMENT_MAX_PLY = 200;   // backstop cap: a tournament/match game is a draw at 200 half-moves (100/player), mirroring the LLM-Chess benchmark. Threefold repetition is also detected (perpetual check draws earlier); this catches the rare loop that never quite repeats.
   function oppositeSide(sideKey) { return sideKey === 'white' ? 'black' : 'white'; }
@@ -3655,8 +3662,8 @@ function requestMove(fen, difficulty) {
     t.gameInLevel++;
     t.games++;
     t.totalPlies += moveHistory.length;   // game-level stats for the results report
-    // Elo-anchor this game if the opponent level has a known UCI_Elo (6-8).
-    // Level 9 (full strength) and Normal levels 1-5 have no anchor and are excluded.
+    // Elo-anchor this game if the opponent level has a known UCI_Elo (6-10).
+    // Level 11 (full strength) and Normal levels 1-5 have no anchor and are excluded.
     const anchorElo = GRANDMASTER_ELO_LEVELS[t.level];
     if (anchorElo != null) t.anchoredGames.push({ elo: anchorElo, score: status.result === '1/2-1/2' ? 0.5 : (llmWon ? 1 : 0) });
   }
@@ -3689,7 +3696,7 @@ function requestMove(fen, difficulty) {
     // isn't enough to pin the rating — keep searching for a decisive level).
     const row = t.results.find(r => r.level === t.level);
     const aiSwept = row && row.aiWins === 3;   // LLM lost every game → this is its floor
-    if (aiSwept || t.level >= 9) { renderTournamentResults(); return; }
+    if (aiSwept || t.level >= MAX_DIFFICULTY) { renderTournamentResults(); return; }
     // LLM swept OR mixed, and higher levels remain → climb to the next difficulty.
     t.level++; t.gameInLevel = 0;
     tournamentNextGame();
@@ -3742,7 +3749,7 @@ function requestMove(fen, difficulty) {
 
   function eloSummaryLine(games) {
     const e = estimateElo(games);
-    if (!e) return 'Estimated Elo: insufficient Elo-anchored data (the LLM did not reach the Stockfish UCI_Elo levels 6-8). The level reached above is the practical signal.';
+    if (!e) return 'Estimated Elo: insufficient Elo-anchored data (the LLM did not reach the Stockfish UCI_Elo levels 6-10). The level reached above is the practical signal.';
     if (e.kind === 'above') return 'Estimated Elo: above ' + e.bound + ' (won every game at the Stockfish Elo levels reached).';
     if (e.kind === 'below') return 'Estimated Elo: below ' + e.bound + ' (lost every game at the Stockfish Elo levels reached).';
     return 'Estimated Elo: ' + Math.round(e.elo) + ' ± ' + Math.round(1.96 * e.se) + ' (95% CI, MLE over ' + e.n + ' Stockfish-anchored games; Stockfish UCI_Elo pool, not cross-pool-comparable to chess.com/FIDE).';

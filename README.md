@@ -80,7 +80,7 @@ This whole thing — the app, the docs, the process — was created with a fully
 
 On top of that, this project stands on the shoulders of two open-source efforts:
 
-- **[Stockfish](https://github.com/official-stockfish/Stockfish)** (GPL-3.0) — the strongest chess engine there is, vendored as a WebAssembly build and powering Grandmaster mode (levels 6–9).
+- **[Stockfish](https://github.com/official-stockfish/Stockfish)** (GPL-3.0) — the strongest chess engine there is, vendored as a WebAssembly build and powering Grandmaster mode (levels 6–11).
 - **[LLM Chess](https://github.com/maxim-saplin/llm_chess)** — the public LLM-vs-engine benchmark whose maximum-likelihood Elo method and adaptive level-selection heuristic inspired the Tournament gauntlet and its diagnostics.
 
 Sound effects and crowd reactions are sampled recordings under permissive licences (CC0 / Pixabay Licence), embedded as base64 data URIs so the app stays self-contained and offline.

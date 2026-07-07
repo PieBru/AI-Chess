@@ -122,7 +122,7 @@ hardware. Runs in a worker and answers `search` (pick a move) and `analyze`
 source, and as the eval judge for LLM moves).
 
 ### 4.3 Grandmaster engine (Stockfish)
-Exposed in the UI as Browser-AI **difficulty 6–9** — it builds a
+Exposed in the UI as Browser-AI **difficulty 6–11** — it builds a
 `{ type: 'grandmaster' }` ControllerConfig under the hood, so the contract and
 engine dispatch are unchanged; only the setup screen is simplified to 3
 controller choices (Human / Browser-AI / LLM-AI). Stockfish over
@@ -131,10 +131,10 @@ UCI-in-a-worker: `uci`→`uciok`→`isready`→`readyok` handshake, then
 `score cp`/`score mate` and `bestmove`. Loaded lazily; load failure disables
 the option for the session (PRD §5.5).
 
-**Elo levels** (`GRANDMASTER_ELO_LEVELS`): levels 6–8 set
-`UCI_LimitStrength=true` + `UCI_Elo` = **1350 / 1800 / 2200**; level 9 is full
-strength (`UCI_LimitStrength` off). These three Elo anchors are what the
-tournament's Elo estimate is calibrated against (§4.6).
+**Elo levels** (`GRANDMASTER_ELO_LEVELS`): levels 6–10 set
+`UCI_LimitStrength=true` + `UCI_Elo` = **1350 / 1800 / 2200 / 2600 / 3000**;
+level 11 is full strength (`UCI_LimitStrength` off). These five Elo anchors are
+what the tournament's Elo estimate is calibrated against (§4.6).
 
 ### 4.4 LLM-AI controller
 Not a worker — a main-thread `fetch` to `{apiBase}/chat/completions`. Prompt
@@ -213,13 +213,14 @@ Game-end, checked at the top of each `playTurn()`: checkmate / stalemate / insuf
 The setup screen's **Mode selector** (Single game / Tournament / Match —
 §4.7) offers **Tournament** when exactly one side is LLM-AI; choosing it turns
 the Start button into "Run tournament". (Replaces the earlier "Tournament
-mode" checkbox; the selector also hosts Match mode. Tournament and Match both
-grey out the Time control — they run without a chess clock.) It plays a
-**3-game round** between the LLM and the AI at each difficulty (1–9)
+mode" checkbox; the selector also hosts Match mode. Tournament greys out the
+Time control — it runs without a chess clock; Match honors it as a free
+choice, default Off.) It plays a
+**3-game round** between the LLM and the AI at each difficulty (1–11)
 using an **adaptive gauntlet** (aligned with LLM-Chess's level-selection
 heuristic): after each round, if the **AI swept** (LLM lost all 3) the
 tournament **stops** — that level is the LLM's floor; otherwise (LLM swept
-**or** mixed) it **climbs** to the next difficulty until level 9. (The earlier
+**or** mixed) it **climbs** to the next difficulty until the top level (11). (The earlier
 "any 3-0 sweep ends it" rule ended a strong LLM at level 1 and never found its
 ceiling; the adaptive rule is what makes the Elo estimate resolvable.)
 Colors alternate each game; no chess clock (LLM not penalized for slow
@@ -231,7 +232,7 @@ On completion a per-level results table plus diagnostics are shown and
 auto-saved to `tournament-{model}-{yyyymmdd-hhmmss}.txt`:
 - **Estimated Elo** (LLM-Chess-style MLE): maximum-likelihood rating over the
   (opponent Elo, game-score) pairs from the Stockfish `UCI_Elo`-anchored games
-  (levels 6–8 only; 9 full and Normal 1–5 have no anchor). Solves
+  (levels 6–10 only; 11 full and Normal 1–5 have no anchor). Solves
   `Σ(Sᵢ−Eᵢ(R̂))=0`, `Eᵢ(R)=1/(1+10^((Rᵢ−R)/400))` (bisection); 95% CI from
   Fisher info `I=ΣE(1−E)(ln10/400)²`, `SE=1/√I`. All-wins → "above {max
   anchor}", all-losses → "below {min anchor}", never-reached-Stockfish →

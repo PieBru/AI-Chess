@@ -17,7 +17,7 @@ These two goals are complementary, not competing: transparency features that sat
 
 ### 2.1 Setup flow
 1. User lands on a **Setup screen**: two side-by-side controller pickers, one per color (White / Black).
-2. Each picker offers: Human, Browser-AI (→ reveals a Difficulty sub-picker, 1–6 per spec FR-3.2 — **level 6 is Grandmaster / Stockfish**, so Grandmaster is no longer a separate top-level choice), LLM-AI (→ reveals Endpoint / API key (optional) / Model fields per spec FR-9.1, independent per side).
+2. Each picker offers: Human, Browser-AI (→ reveals a Difficulty sub-picker, 1–11 per spec FR-3.2 — **levels 6–11 are Grandmaster / Stockfish**, so Grandmaster is no longer a separate top-level choice), LLM-AI (→ reveals Endpoint / API key (optional) / Model fields per spec FR-9.1, independent per side).
 3. A short one-line description accompanies each option so a non-technical user understands what they're choosing (see §5.1 copy).
 4. "Start Game" begins play; the board screen loads with both sides' controllers locked for that game (spec FR-2.3).
 5. An optional **Time control** selector (Off / Bullet 1+0 / Blitz 3+2 / Rapid 10+5 / Classical 30+0, default Off) arms a FIDE-style chess clock (spec FR-6.6): each side gets a total time budget plus a per-move increment. When on, two live clocks appear in the side panel; the side-to-move's clock ticks down (shown in red under 10 s) and a clock hitting zero ends the game as a loss on time. Applies in every mode, but engines rarely flag — in practice it constrains humans and slow LLMs.
@@ -47,7 +47,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 
 | PRD feature | Spec ref | Notes |
 |---|---|---|
-| Controller picker (per side) | FR-2 | Human / Normal(+difficulty 1–6, where 6 = Grandmaster) / LLM-AI |
+| Controller picker (per side) | FR-2 | Human / Normal(+difficulty 1–11, where 6–11 = Grandmaster) / LLM-AI |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
 | Board + move input | FR-1, FR-5 | Click-to-move + drag-and-drop |
