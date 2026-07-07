@@ -396,6 +396,18 @@
     font-size: .9rem;
   }
   .result-banner[hidden] { display: none; }
+  .session-tally {
+    margin-top: 8px; padding: 6px 10px; border-radius: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    font-size: .82rem; color: var(--muted);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .session-tally[hidden] { display: none; }
+  .session-tally b { color: var(--text); font-weight: 600; }
+  .session-tally .tally-reset {
+    margin-left: auto; cursor: pointer; text-decoration: underline;
+    font-size: .78rem;
+  }
 </style>
 </head>
 <body>
@@ -629,6 +641,7 @@ Default Off = no clock.">Time control
       </div>
       <ol id="move-history" title="Moves in algebraic notation (SAN), paired White | Black, each tagged by quality (best / good / inaccuracy / mistake / blunder) judged by the local engine."></ol>
       <div class="result-banner" id="result-banner" hidden title="The game outcome and how it ended (checkmate, resignation, stalemate, time, draw…). Shown when the game finishes."></div>
+      <div class="session-tally" id="session-tally" hidden title="Running scoreboard of completed games this session (since the page loaded). Tournament / match games are not counted here — they have their own results panel."></div>
       <div class="replay-controls" id="replay-controls" hidden title="Step through a loaded PGN game (view-only — engines don't resume). Shown after Load PGN.">
         <button id="replay-first" type="button" title="Jump to the starting position.">⏮ Start</button>
         <button id="replay-prev" type="button" title="Step back one half-move.">◀ Prev</button>
@@ -1920,6 +1933,11 @@ function requestMove(fen, difficulty) {
   let lastMove = null;
   let boardFlipped = false;
   let gameOver = false;
+  // In-session scoreboard (FR-9.11): running W/D/L across completed SINGLE
+  // games this page session. Series games (tournament/match) are NOT counted
+  // here — they have their own results panel. In-memory only (no persist);
+  // reset on page reload or via the panel's reset link.
+  const sessionTally = { games: 0, whiteWins: 0, blackWins: 0, draws: 0 };
   let pendingPromotion = null;
   let paused = false;                 // AI-vs-AI auto-play suspended by spectator
   let capturedByWhite = [];           // piece-type ints White has captured (i.e. Black's losses)
@@ -1954,6 +1972,7 @@ function requestMove(fen, difficulty) {
   const evalLabelEl = document.getElementById('eval-label');
   const promoOverlay = document.getElementById('promo-overlay');
   const resultBanner = document.getElementById('result-banner');
+  const sessionTallyEl = document.getElementById('session-tally');
   const toastEl = document.getElementById('toast');
   const spectatorControlsEl = document.getElementById('spectator-controls');
   const speedSelectEl = document.getElementById('speed-select');
@@ -3698,6 +3717,29 @@ function requestMove(fen, difficulty) {
     }
   }
 
+  function recordSessionTally(status) {
+    const r = status.result;
+    if (r === '1-0') { sessionTally.whiteWins++; sessionTally.games++; }
+    else if (r === '0-1') { sessionTally.blackWins++; sessionTally.games++; }
+    else if (r === '1/2-1/2') { sessionTally.draws++; sessionTally.games++; }
+    else return;   // '*' (aborted / spectator Stop) is not a completed game — don't count it
+    renderSessionTally();
+  }
+  function renderSessionTally() {
+    if (!sessionTallyEl) return;
+    if (sessionTally.games === 0) { sessionTallyEl.hidden = true; return; }
+    sessionTallyEl.hidden = false;
+    const w = sessionTally.whiteWins, d = sessionTally.draws, b = sessionTally.blackWins;
+    sessionTallyEl.innerHTML =
+      '📋 Session: <b>' + sessionTally.games + '</b> game' + (sessionTally.games === 1 ? '' : 's') +
+      ' — White <b>' + w + '</b> · Draws <b>' + d + '</b> · Black <b>' + b + '</b>' +
+      ' <span class="tally-reset" id="tally-reset" title="Clear the session scoreboard (keeps playing).">reset</span>';
+    const resetEl = document.getElementById('tally-reset');
+    if (resetEl) resetEl.addEventListener('click', () => {
+      sessionTally.games = sessionTally.whiteWins = sessionTally.blackWins = sessionTally.draws = 0;
+      renderSessionTally();
+    });
+  }
   function finishGame(status) {
     gameOver = true;
     lastResult = status.result || '*';
@@ -3713,6 +3755,7 @@ function requestMove(fen, difficulty) {
     renderSummary(status, reason);
     statusEl.textContent = 'Game over — ' + reason;
     playSound('gameover');
+    if (!seriesActive()) recordSessionTally(status);   // session scoreboard (single games only; series own their tally)
     if (status.reason === 'checkmate') playReaction('cheer');   // crowd erupts on checkmate
     if (seriesActive()) {
       seriesRecordResult(status);

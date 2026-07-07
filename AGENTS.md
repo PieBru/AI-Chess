@@ -439,7 +439,7 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 ### 9.2 Deferred (specified, not built — build when the trigger fires)
 | Feature | Spec/PRD | Why deferred / re-open trigger |
 |---|---|---|
-| In-session AI-vs-AI result tally | PRD §4, §8 | Speculative UX on a working spectator flow. Re-open: a user asks for a session scoreboard. |
+| ~~In-session AI-vs-AI result tally~~ | spec FR-9.11 | **Shipped (2026-07-06):** running W/D/L scoreboard across completed single games this page session (panel under the board + reset link); tournament/match games excluded (they have their own results panel); in-memory, no persist. Counts decisive + draw games, not aborted/spectator-Stopped (`*`). | n/a |
 | Multi-threaded Stockfish WASM | spec A11.3, TDD §5.2 | Deployment host must serve COOP/COEP headers for `SharedArrayBuffer`. |
 | Normal-engine Elo calibration | (new) | Levels 1–5 have no Elo anchor, so the tournament can't resolve models below Stockfish's 1350 floor (LLM-Chess's Dragon resolves to 250). Re-open: weak-model Elo resolution matters. |
 | Accounts / server-side sharing | spec NG2 | NG2 bars automatic persistence; user-initiated PGN file I/O shipped (FR-8.2). Re-open: a concrete online-sharing need. |

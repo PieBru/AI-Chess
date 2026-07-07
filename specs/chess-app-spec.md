@@ -230,6 +230,9 @@ All Human/AI combinations must be supported without special-casing in the rules 
 ### FR-9.10. AI commentary per move
 - A "🗣 AI commentary" toggle (off by default, persisted) has the **AI assistant** (FR-9.9's shared endpoint) generate ONE short, entertaining sentence after each move — shown as a second line in the narration toaster (FR-5.5) and **spoken via TTS when "Speak moves" is on** (in which case the factual narration is shown but *not* spoken, so only the comment is voiced — one voice, not two). It is **best-effort and non-blocking**: a single fetch with **no retry loop** (a transient failure silently drops that move's comment — a retrying call per move would pile up in AI-vs-AI), and a **generation token drops any comment superseded by a newer move** (fast games skip stale commentary instead of queueing it). It never blocks the game loop or AI-vs-AI pacing. Rationale: pure entertainment (the "hear the game" angle); the factual move narration (FR-5.5) already covers the informational need, so this is optional color on top.
 
+### FR-9.11. In-session result tally
+- A **running scoreboard** (games played, White wins / draws / Black wins) accumulates across every completed **single** game in the page session — shown in a small panel below the board, with a reset link. It counts decisive games and draws only; an aborted or spectator-Stopped game (result `*`) is **not** counted. It **excludes tournament/match games** (those series own their own results panel — FR-9.6/FR-9.7). In-memory only (no persistence); reset on page reload or via the link. Rationale: a spectator (AI-vs-AI) or a human (Human-vs-AI) can see their record across the session without the overhead of configuring a full series.
+
 ## 6. Non-functional requirements
 
 ### NFR-1. Single-file architecture

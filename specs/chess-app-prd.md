@@ -51,6 +51,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 | LLM-AI side config | FR-9.1, FR-9.4 | Per side: API base + key + model + persona + reasoning level (FR-9.8); saved profiles |
 | Hint coach (human 💡 Hint button) | FR-9.9 | Own endpoint, 3 hints/game, highlighted suggestion, never auto-played |
 | AI commentary (🗣 toggle) | FR-9.10 | Reuses the AI-assistant endpoint; best-effort one-line comment per move, drop-stale, spoken if Speak moves on |
+| In-session tally | FR-9.11 | Running W/D/L scoreboard across completed single games; series games excluded; in-memory, reset link |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
 | Board + move input | FR-5.1, FR-5.2 | Click-to-move + drag-and-drop; toggleable coordinate labels (FR-5.1) |
@@ -135,7 +136,7 @@ Single source of truth for anything pushed past v1. Each item keeps the door ope
 
 | Feature | Source | Decision | Re-open trigger |
 |---|---|---|---|
-| In-session AI-vs-AI result tally | PRD §4, §8 | Defer past v1 | Spectator flow ships and a user asks for a session scoreboard |
+| In-session AI-vs-AI result tally | spec FR-9.11 | **Shipped (2026-07-06):** running W/D/L panel across completed single games (under the board + reset link); tournament/match games excluded (own panel); in-memory only, no persist. | n/a |
 | ~~PGN export / accounts / sharing~~ | PRD §4, spec NG2 | **Shipped (2026-07-05):** user-initiated PGN export (download) + import (view-only replay via First/Prev/Next/Last). Not accounts/sharing and not automatic persistence — NG2/FR-8.1 narrowed to permit file I/O only. | Accounts/ratings or server-side sharing, if a real sharing need surfaces |
 | ~~Drag-and-drop move input~~ | spec FR-5.2, A11.4 | **Shipped (2026-07-05):** click + drag share one resolver (`attemptMoveTo`); invalid drops snap back | n/a |
 | ~~Sound effects default + assets~~ | PRD §6, spec A11.5 | **Shipped (2026-07-05):** off-by-default toggle, persisted. Piece sounds are **sampled CC0** (lichess `standard`/`sfx` themes — move/capture/check/game-end), embedded as base64 data URIs (~31 KB raw) so the file stays self-contained and offline. (Earlier synthesized version was replaced after playtest feedback.) | n/a |
