@@ -418,7 +418,7 @@
           <option value="40">40</option>
         </select>
       </label>
-      <label class="timecontrol-label tc-right" id="movelimit-label" title="Maximum full moves (White+Black = 1 move) before the game is auto-drawn — a safety net against very long games. Off = no cap (relies on the fifty-move rule and natural endings). Tournament games always keep their fixed 100-move cap.">Move limit
+      <label class="timecontrol-label tc-right" id="movelimit-label" title="Maximum full moves (White+Black = 1 move) before the game is auto-drawn — a safety net against very long games. Off = no cap (relies on threefold repetition, the fifty-move rule, and natural endings). Tournament games always keep their fixed 100-move cap.">Move limit
         <select id="movelimit-select">
           <option value="off" selected>Off</option>
           <option value="40">40</option>
@@ -1805,6 +1805,7 @@ function requestMove(fen, difficulty) {
   let gameState = Rules.newGame();
   let matchConfig = { white: { type: 'human' }, black: { type: 'human' } };
   let moveHistory = [];
+  let positionCounts = new Map();   // threefold-repetition counts: position key -> times seen this game
   let selectedSquare = null;
   let legalFromSelected = [];
   let lastMove = null;
@@ -2422,6 +2423,7 @@ function requestMove(fen, difficulty) {
   function startGame() {
     gameGeneration++;
     gameState = Rules.newGame();
+    resetPositionCounts();
     moveHistory = [];
     selectedSquare = null;
     legalFromSelected = [];
@@ -2951,6 +2953,7 @@ function requestMove(fen, difficulty) {
     renderCapturedTray();
     render();
     playMoveSound(move);
+    if (notePosition()) { finishGame({ result: '1/2-1/2', reason: 'threefold repetition' }); return; }
     playTurn();
   }
 
@@ -3038,6 +3041,26 @@ function requestMove(fen, difficulty) {
     speakGen++;
     if (speakAudioEl) { speakAudioEl.pause(); speakAudioEl = null; }
     if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+  }
+
+  // ---- Threefold-repetition draw (FR-1.3) ----
+  // A position repeats when board + side to move + castling rights + en
+  // passant square are identical (FEN minus the move counters). Counting
+  // occurrences lets us declare a draw at the 3rd — the rule made for
+  // perpetual check / shuffle loops, which the fifty-move rule catches only
+  // after ~100 plies. resetPositionCounts() seeds the start position.
+  function positionKey(state) { return Rules.toFEN(state).split(' ').slice(0, 4).join(' '); }
+  function resetPositionCounts() {
+    positionCounts = new Map();
+    positionCounts.set(positionKey(gameState), 1);   // the starting position counts once
+  }
+  // Called after each applied move; returns true if the just-reached position
+  // is a 3rd occurrence (caller renders the move first, then ends the game).
+  function notePosition() {
+    const k = positionKey(gameState);
+    const c = (positionCounts.get(k) || 0) + 1;
+    positionCounts.set(k, c);
+    return c >= 3;
   }
 
   function narrateMove(prevState, move, san, quality) {
@@ -3281,6 +3304,7 @@ function requestMove(fen, difficulty) {
     }
 
     thinkingEl.hidden = true;
+    if (notePosition()) { finishGame({ result: '1/2-1/2', reason: 'threefold repetition' }); return; }
 
     if (paused) {
       statusEl.textContent = 'Paused — click Resume to continue.';
@@ -3399,7 +3423,7 @@ function requestMove(fen, difficulty) {
     1: '1 Random', 2: '2 Easy', 3: '3 Medium', 4: '4 Hard', 5: '5 Expert',
     6: '6 GM (Elo 1350)', 7: '7 GM (Elo 1800)', 8: '8 GM (Elo 2200)', 9: '9 GM (full)',
   };
-  const TOURNAMENT_MAX_PLY = 200;   // safety cap: a tournament game is a draw at 200 half-moves (100/player), mirroring the LLM-Chess benchmark. Prevents unattended engine/LLM games from looping forever (we don't yet detect threefold repetition).
+  const TOURNAMENT_MAX_PLY = 200;   // backstop cap: a tournament/match game is a draw at 200 half-moves (100/player), mirroring the LLM-Chess benchmark. Threefold repetition is also detected (perpetual check draws earlier); this catches the rare loop that never quite repeats.
   function oppositeSide(sideKey) { return sideKey === 'white' ? 'black' : 'white'; }
   function tournamentAiConfig(level) {
     if (level >= GM_LEVEL) return { type: 'grandmaster', difficulty: level, elo: GRANDMASTER_ELO_LEVELS[level] };
@@ -3459,6 +3483,7 @@ function requestMove(fen, difficulty) {
     document.getElementById('clocks').hidden = true;
     gameGeneration++;
     gameState = Rules.newGame();
+    resetPositionCounts();
     moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;
     gameOver = false; paused = false;
     capturedByWhite = []; capturedByBlack = []; lastResult = '*';
@@ -3715,6 +3740,7 @@ function requestMove(fen, difficulty) {
     document.getElementById('clocks').hidden = !timeControl;
     gameGeneration++;
     gameState = Rules.newGame();
+    resetPositionCounts();
     moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;
     gameOver = false; paused = false;
     capturedByWhite = []; capturedByBlack = []; lastResult = '*';

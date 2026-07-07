@@ -77,7 +77,7 @@ above) so Grandmaster runs offline from the local bundle — but it must be
   deferred (spec A11.3, TDD §5.2; see §9).
 - **Hand-rolled 0x88 rules engine** (`Rules` namespace) — legal move
   generation, FEN/SAN, check/checkmate/stalemate, draws (fifty-move,
-  insufficient material). **Threefold repetition is NOT implemented** (§9).
+  insufficient material, **threefold repetition**).
   `chess.js` is the documented fallback (spec §12.2) only if perft tests fail.
 - **`fetch()` to an OpenAI-compatible chat endpoint** for LLM-AI mode,
   straight from the main thread. No SDK, no proxy.
@@ -98,7 +98,7 @@ generation, FEN/SAN, game-end detection. Key surface: `Rules.newGame`,
 `genLegalMoves`, `applyMove`, `toFEN`/`fromFEN`, `toSAN`, `gameStatus`,
 `zobristHash`, `sqName`/`nameToSq`. Reused inside the worker, so it lives in
 the inline `#rules-src` block concatenated into the worker blob. Detects
-checkmate, stalemate, fifty-move rule, insufficient material — **not**
+checkmate, stalemate, fifty-move rule, insufficient material, and
 threefold repetition.
 
 ### 4.2 Normal engine (`#normal-engine-src`)
@@ -224,7 +224,8 @@ tournament **stops** — that level is the LLM's floor; otherwise (LLM swept
 ceiling; the adaptive rule is what makes the Elo estimate resolvable.)
 Colors alternate each game; no chess clock (LLM not penalized for slow
 inference / retry backoff); games capped at **200 half-moves → draw** (the
-benchmark's 200-move cap) as a safety net, since threefold isn't detected.
+benchmark's 200-move cap) as a backstop; threefold repetition is also
+detected (perpetual check draws at the 3rd repetition).
 
 On completion a per-level results table plus diagnostics are shown and
 auto-saved to `tournament-{model}-{yyyymmdd-hhmmss}.txt`:
@@ -353,8 +354,7 @@ gauntlet).
 This repo has three governing docs (spec/PRD/TDD) written *before* the code,
 plus user-facing pages. They drift in both directions: docs under-describe
 the code (a threshold or fallback lives only in code), and docs over-describe
-the code (a feature is documented but not shipped — currently the main one is
-**threefold repetition**, FR-1.3). User-facing pages are the most dangerous
+the code (a feature is documented but not shipped). User-facing pages are the most dangerous
 place for over-claiming.
 
 **Rules:**
@@ -418,7 +418,8 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 - **LLM system-prompt selection** (5 personas + custom) and the
   **no-hyperparameter request body** (`{ model, messages }`).
 - **PGN save/replay (FR-8.2)**, **confirm destructive actions (FR-6.5)**,
-  **drag-and-drop (FR-5.2)**, **chess clock (FR-6.6)**.
+  **drag-and-drop (FR-5.2)**, **chess clock (FR-6.6)**, **threefold-repetition
+  draw (FR-1.3)**.
 - **Sampled sounds + spectator reactions** (CC0 / Pixabay, off by default),
   **pause/stop/speed spectator controls (FR-6.4)**, **captured-piece tray
   (FR-5.3)**, **rich summary panel**, **rematch**.
@@ -430,7 +431,6 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 ### 9.2 Deferred (specified, not built — build when the trigger fires)
 | Feature | Spec/PRD | Why deferred / re-open trigger |
 |---|---|---|
-| **Threefold-repetition draw** | FR-1.3 (downgraded) | Not implemented. Tournament games use the 200-ply cap as an interim safety net. Re-open: a game is observed looping via repeated positions, or full FIDE draws are wanted. |
 | In-session AI-vs-AI result tally | PRD §4, §8 | Speculative UX on a working spectator flow. Re-open: a user asks for a session scoreboard. |
 | Multi-threaded Stockfish WASM | spec A11.3, TDD §5.2 | Deployment host must serve COOP/COEP headers for `SharedArrayBuffer`. |
 | Normal-engine Elo calibration | (new) | Levels 1–5 have no Elo anchor, so the tournament can't resolve models below Stockfish's 1350 floor (LLM-Chess's Dragon resolves to 250). Re-open: weak-model Elo resolution matters. |
