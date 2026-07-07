@@ -427,6 +427,9 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
   each move's narration (and the end-game verdict) can be spoken via a local
   OpenAI-compatible `/v1/audio/speech` endpoint (e.g. docker-kokoro / Kokoro)
   with a `speechSynthesis` fallback; vendor-neutral per §1.
+- **Take over a side mid-game (FR-6.8)** — swap one side's controller
+  (Human / Browser-AI / LLM-AI) from a modal and resume from the current
+  position; single-game only (tournament/match end-and-continue is future).
 
 ### 9.2 Deferred (specified, not built — build when the trigger fires)
 | Feature | Spec/PRD | Why deferred / re-open trigger |
@@ -460,6 +463,11 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
   single-LLM-per-side architecture today.
 - **Per-turn hard time cap** on top of the chess clock, if a "no single move
   may exceed N seconds" guard is ever wanted.
+- **Take over a side in a series:** the single-game take-over (FR-6.8) is
+  disabled in tournament/match because a series re-sets `matchConfig` every
+  game and its stats/Elo assume fixed matchups. End-and-continue would need to
+  record the swap and treat prior games as the old matchup's — a deliberate
+  change to the series result/Elo model.
 
 **Lowest-friction next build:** among §9.3, the **LLM single hint** is the
 highest-value but needs a config decision first. Everything here

@@ -252,6 +252,17 @@
     font-size: .85rem; color: var(--text); line-height: 1.3; white-space: pre-line;
   }
   .move-narration[hidden] { display: none; }
+  /* "Take over a side" modal — .takeover-config reuses the global side-config
+     internals (controller-options/opt-btn/difficulty-picker/llm-config). */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(10,10,10,.65); display: flex; align-items: center; justify-content: center; z-index: 30; padding: 16px; }
+  .modal-overlay[hidden] { display: none; }
+  .modal-card { background: var(--panel-2); border: 1px solid var(--brass); border-radius: 12px; padding: 18px 20px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; }
+  .modal-card h3 { margin: 0 0 6px; }
+  .modal-card > .hint { margin-top: 0; }
+  .takeover-side-label { display: flex; flex-direction: column; font-size: .8rem; color: var(--text-dim); margin: 12px 0; gap: 4px; }
+  .takeover-side-label select { padding: 6px 8px; border-radius: 6px; background: var(--panel); color: var(--text); border: 1px solid var(--line); font-size: .85rem; }
+  .takeover-config { margin-top: 8px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
   .spinner {
     width: 12px; height: 12px; border-radius: 50%;
     border: 2px solid var(--brass-dim); border-top-color: var(--brass);
@@ -608,6 +619,7 @@ Default Off = no clock.">Time control
       </div>
       <div class="controls">
         <button id="flip-btn" title="Flip the board so the other colour sits at the bottom.">Flip board</button>
+        <button id="takeover-btn" hidden title="Replace one side's controller mid-game (Human / Browser-AI / LLM-AI) and resume from the current position. The position, move history and clocks are unchanged. Single-game only — not available during a tournament or match.">Take over…</button>
         <button id="resign-btn" title="Concede — the side to move loses. Asks for confirmation.">Resign</button>
         <button id="rematch-btn" title="Start a fresh game with the same sides and settings (skips setup). Asks for confirmation if a game is in progress.">Rematch</button>
         <button id="save-pgn-btn" title="Download this game as a PGN file (standard portable game notation).">Save PGN</button>
@@ -623,6 +635,65 @@ Default Off = no clock.">Time control
   </div>
 </section>
 
+<div id="takeover-modal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <h3>Take over a side</h3>
+    <p class="hint">Replace one side's controller and resume from the current position. The position, move history and clocks are unchanged; the end-game summary will mix moves from the old and new controller for the taken-over side.</p>
+    <label class="takeover-side-label">Side to replace
+      <select id="takeover-side">
+        <option value="white">White</option>
+        <option value="black">Black</option>
+      </select>
+    </label>
+    <div class="takeover-config" id="takeover-config">
+      <div class="controller-options">
+        <button class="opt-btn selected" data-type="human">Human</button>
+        <button class="opt-btn" data-type="normal">Browser-AI</button>
+        <button class="opt-btn" data-type="llm">LLM-AI</button>
+      </div>
+      <div class="difficulty-picker" hidden>
+        <label>Difficulty</label>
+        <select class="difficulty-select">
+          <option value="1">1 — Random (beginner)</option>
+          <option value="2">2 — Easy (fair)</option>
+          <option value="3" selected>3 — Medium (moderate)</option>
+          <option value="4">4 — Hard (strong)</option>
+          <option value="5">5 — Expert (very strong)</option>
+          <option value="6">6 — Grandmaster (Elo 1350)</option>
+          <option value="7">7 — Grandmaster (Elo 1800)</option>
+          <option value="8">8 — Grandmaster (Elo 2200)</option>
+          <option value="9">9 — Grandmaster (full)</option>
+        </select>
+      </div>
+      <div class="llm-config" hidden>
+        <label>Saved profile <span class="hint-inline">(saved after Verify)</span></label>
+        <select class="llm-profile-select"><option value="custom">Custom…</option></select>
+        <label>API base URL <span class="hint-inline">with or without <code>/chat/completions</code></span></label>
+        <input type="text" class="llm-api-base" placeholder="https://api.openai.com/v1" autocomplete="off">
+        <label>API key <span class="hint-inline">(optional for local servers)</span></label>
+        <input type="password" class="llm-api-key" placeholder="sk-...">
+        <label>Model</label>
+        <input type="text" class="llm-model" placeholder="gpt-4o-mini" autocomplete="off">
+        <label>AI persona <span class="hint-inline">(thinking style)</span></label>
+        <select class="llm-prompt-select">
+          <option value="grandmaster">Grandmaster — confident + principles</option>
+          <option value="tactician">Tactician — anti-blunder checklist</option>
+          <option value="attacker">Relentless attacker</option>
+          <option value="positional">Sound positional player</option>
+          <option value="thinker">Think-then-commit (reasoning models)</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <textarea class="llm-prompt" rows="4" spellcheck="false" placeholder="Edit any preset above, or pick Custom and write your own. The reply must contain exactly one legal UCI move."></textarea>
+      </div>
+      <p class="hint side-hint">Makes moves via the board UI.</p>
+    </div>
+    <p class="error-msg" id="takeover-error" hidden></p>
+    <div class="modal-actions">
+      <button id="takeover-cancel">Cancel</button>
+      <button id="takeover-confirm">Take over &amp; resume</button>
+    </div>
+  </div>
+</div>
 <div id="toast" class="toast" hidden></div>
 
 <!-- ===== Chess rules engine (0x88 board, move generation, FEN/SAN) =====
@@ -2269,7 +2340,7 @@ function requestMove(fen, difficulty) {
     return cfg.type;
   }
 
-  document.querySelectorAll('.side-config').forEach(cfgEl => {
+  document.querySelectorAll('.side-config, .takeover-config').forEach(cfgEl => {
     cfgEl.querySelectorAll('.opt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         selectSideType(cfgEl, btn.dataset.type);
@@ -2312,6 +2383,29 @@ function requestMove(fen, difficulty) {
     );
   });
 
+  // Apply a controller entry (as stored in matchConfig / saved setup) to a
+  // side-config-flavoured element (a setup .side-config OR the take-over
+  // modal's .takeover-config). Single source of truth for "entry -> UI",
+  // shared by restoreSetup and the take-over prefill so the two never drift.
+  function applyConfigToSide(cfgEl, entry) {
+    if (!entry) entry = { type: 'human' };
+    const uiType = entry.type === 'grandmaster' ? 'normal' : (entry.type || 'human');
+    selectSideType(cfgEl, uiType);
+    if (entry.type === 'grandmaster') {
+      cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty != null ? entry.difficulty : 9);
+    } else if (entry.difficulty != null) {
+      cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
+    }
+    updateSideHint(cfgEl, uiType);   // difficulty value set above may change the hint
+    if (entry.apiBase != null) cfgEl.querySelector('.llm-api-base').value = entry.apiBase;
+    if (entry.apiKey != null) cfgEl.querySelector('.llm-api-key').value = entry.apiKey;
+    if (entry.model != null) cfgEl.querySelector('.llm-model').value = entry.model;
+    const promptText = entry.systemPrompt != null ? entry.systemPrompt : LLM_SYSTEM_PROMPTS[LLM_DEFAULT_PROMPT_KEY];
+    cfgEl.querySelector('.llm-prompt').value = promptText;
+    const matchedKey = Object.keys(LLM_SYSTEM_PROMPTS).find(k => LLM_SYSTEM_PROMPTS[k] === promptText);
+    cfgEl.querySelector('.llm-prompt-select').value = matchedKey || 'custom';
+  }
+
   // Propose last-used setup (mode + side options) as defaults on load. On the
   // very first run nothing is saved, so fall back to DEFAULT_SETUP.
   (function restoreSetup() {
@@ -2324,27 +2418,7 @@ function requestMove(fen, difficulty) {
     document.querySelectorAll('.side-config').forEach(cfgEl => {
       const entry = saved[cfgEl.dataset.side];
       if (!entry) return;
-      // Grandmaster is stored as type 'grandmaster' but exposed in the UI as
-      // Normal AI difficulty 6; reflect that on restore.
-      const uiType = entry.type === 'grandmaster' ? 'normal' : (entry.type || 'human');
-      selectSideType(cfgEl, uiType);
-      if (entry.type === 'grandmaster') {
-        // entry.difficulty was added in the fairness build; old saved configs
-        // lack it and were always full-strength (now difficulty 9).
-        cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty != null ? entry.difficulty : 9);
-      } else if (entry.difficulty != null) {
-        cfgEl.querySelector('.difficulty-select').value = String(entry.difficulty);
-      }
-      updateSideHint(cfgEl, uiType);   // difficulty value set above may change the hint
-      if (entry.apiBase != null) cfgEl.querySelector('.llm-api-base').value = entry.apiBase;
-      if (entry.apiKey != null) cfgEl.querySelector('.llm-api-key').value = entry.apiKey;
-      if (entry.model != null) cfgEl.querySelector('.llm-model').value = entry.model;
-      // System prompt: restore the saved text and sync the preset dropdown
-      // (match exactly to a named preset, else show "Custom…").
-      const promptText = entry.systemPrompt != null ? entry.systemPrompt : LLM_SYSTEM_PROMPTS[LLM_DEFAULT_PROMPT_KEY];
-      cfgEl.querySelector('.llm-prompt').value = promptText;
-      const matchedKey = Object.keys(LLM_SYSTEM_PROMPTS).find(k => LLM_SYSTEM_PROMPTS[k] === promptText);
-      cfgEl.querySelector('.llm-prompt-select').value = matchedKey || 'custom';
+      applyConfigToSide(cfgEl, entry);
     });
     setupSeriesMode = savedMode;
     updateSeriesMode();
@@ -2543,6 +2617,77 @@ function requestMove(fen, difficulty) {
       e.returnValue = '';
     }
   });
+
+  // ---- "Take over a side" mid-game (single-game only) ----
+  // Reuses the setup side-config UI: the modal's .takeover-config has the same
+  // internals (controller-options/opt-btn/difficulty-picker/llm-config) and is
+  // wired by the same init forEach ('.side-config, .takeover-config'), but it
+  // is NOT a .side-config, so readSideConfigs / updateSeriesMode /
+  // llmProbeInputs / startTournament (all '.side-config'-scoped) ignore it.
+  // The whole mechanic is swapping matchConfig[side] + resuming playTurn() —
+  // playTurn reads the controller live each turn. Series-incompatible: a
+  // tournament/match re-sets matchConfig every game, so the button stays hidden
+  // (updateTakeoverBtn). End-and-continue-a-series is a future feature.
+  const takeoverModal = document.getElementById('takeover-modal');
+  const takeoverCfgEl = document.getElementById('takeover-config');
+  const takeoverSideSel = document.getElementById('takeover-side');
+  const takeoverErrorEl = document.getElementById('takeover-error');
+  const takeoverBtn = document.getElementById('takeover-btn');
+  let takeoverWasPaused = false;
+  function readTakeoverConfig(cfgEl) {
+    const selected = cfgEl.querySelector('.opt-btn.selected');
+    const type = selected ? selected.dataset.type : 'human';
+    const entry = { type };
+    let error = null;
+    if (type === 'normal') {
+      const diff = parseInt(cfgEl.querySelector('.difficulty-select').value, 10);
+      if (diff >= GM_LEVEL) { entry.type = 'grandmaster'; entry.difficulty = diff; entry.elo = GRANDMASTER_ELO_LEVELS[diff];
+        if (location.protocol === 'file:') error = 'Grandmaster cannot run from a file:// URL — serve the folder over HTTP.';
+      } else entry.difficulty = diff;
+    } else if (type === 'llm') {
+      entry.apiBase = normalizeApiBase(cfgEl.querySelector('.llm-api-base').value);
+      entry.apiKey = cfgEl.querySelector('.llm-api-key').value.trim();
+      entry.model = cfgEl.querySelector('.llm-model').value.trim();
+      entry.systemPrompt = cfgEl.querySelector('.llm-prompt').value.trim();
+      entry.persona = cfgEl.querySelector('.llm-prompt-select').value;
+      if (!entry.apiBase || !entry.model) error = 'LLM-AI needs at least an API base URL and a model name.';
+      else if (location.protocol === 'https:' && entry.apiBase.startsWith('http:')) error = 'The API base URL is HTTP but this page is HTTPS (mixed content). Use HTTPS or serve locally via HTTP.';
+    }
+    return { entry, error };
+  }
+  function fillTakeoverFromSide() { applyConfigToSide(takeoverCfgEl, matchConfig[takeoverSideSel.value]); }
+  function openTakeoverModal() {
+    if (!takeoverModal || seriesActive() || gameOver || replayMode) return;
+    takeoverWasPaused = paused;
+    paused = true; pauseBtn.textContent = 'Resume';
+    takeoverSideSel.querySelector('option[value="white"]').textContent = 'White — currently ' + matchSideLabel(matchConfig.white);
+    takeoverSideSel.querySelector('option[value="black"]').textContent = 'Black — currently ' + matchSideLabel(matchConfig.black);
+    takeoverSideSel.value = gameState.turn === Rules.WHITE ? 'white' : 'black';
+    fillTakeoverFromSide();
+    takeoverErrorEl.hidden = true;
+    takeoverModal.hidden = false;
+  }
+  function closeTakeoverModal() { if (takeoverModal) takeoverModal.hidden = true; }
+  function confirmTakeover() {
+    const side = takeoverSideSel.value;
+    const { entry, error } = readTakeoverConfig(takeoverCfgEl);
+    if (error) { takeoverErrorEl.textContent = error; takeoverErrorEl.hidden = false; return; }
+    matchConfig[side] = entry;          // playTurn reads matchConfig[side] live next turn
+    const setupCfg = document.querySelector('.side-config[data-side="' + side + '"]');
+    if (setupCfg) applyConfigToSide(setupCfg, entry);   // so Rematch / next-game defaults keep it
+    try { saveSetup(Object.assign({}, readSideConfigs().config, { mode: setupSeriesMode })); } catch (e) {}
+    closeTakeoverModal();
+    paused = false; pauseBtn.textContent = 'Pause';
+    spectatorControlsEl.hidden = !isSpectatorMode();
+    playTurn();
+  }
+  function updateTakeoverBtn() { if (takeoverBtn) takeoverBtn.hidden = seriesActive() || gameOver || replayMode; }
+  if (takeoverBtn) takeoverBtn.addEventListener('click', openTakeoverModal);
+  if (takeoverSideSel) takeoverSideSel.addEventListener('change', fillTakeoverFromSide);
+  const takeoverCancelBtn = document.getElementById('takeover-cancel');
+  const takeoverConfirmBtn = document.getElementById('takeover-confirm');
+  if (takeoverCancelBtn) takeoverCancelBtn.addEventListener('click', () => { closeTakeoverModal(); paused = takeoverWasPaused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; if (!paused && !gameOver) playTurn(); });
+  if (takeoverConfirmBtn) takeoverConfirmBtn.addEventListener('click', confirmTakeover);
 
   // ---- PGN save / load / replay (Appendix B #1) ----
   // moveHistory already records SAN per ply, so serialization is just PGN
@@ -2826,6 +2971,7 @@ function requestMove(fen, difficulty) {
     }
     // Game-over status text/banner is set by finishGame(), called separately
     // once by the game loop — render() itself stays idempotent.
+    updateTakeoverBtn();   // show "Take over…" only in an active single game
   }
 
   function findKingSquare(color) {
