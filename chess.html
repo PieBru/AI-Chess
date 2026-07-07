@@ -302,8 +302,8 @@
   .clock.active { border-color: var(--brass); background: rgba(201,162,75,.12); }
   .clock.low .clock-time { color: var(--danger); }   /* < 10 s: urgency */
   #move-history {
-    list-style: none; margin: 0; padding: 0; flex: 1 1 auto;
-    min-height: 220px;   /* empty-state floor; grows with the game so the panel resizes to fit all moves (the page scrolls if a game runs very long), instead of an internal scrollbar that makes the list look like it's overflowing its own frame */
+    list-style: none; margin: 0; padding: 0; flex: 0 0 auto;
+    min-height: 160px; max-height: 360px; overflow-y: auto;   /* caps the panel: short games keep a floor, long games scroll internally instead of stretching the page */
     font-family: var(--font-mono); font-size: .82rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
   #move-history li { padding: 3px 2px; display: flex; gap: 6px; align-items: baseline; }
@@ -415,7 +415,7 @@
     <p id="file-warning" class="error-msg" hidden><strong>Opened via file://</strong> — Grandmaster (Stockfish) can't load from a local file. <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>, or serve this folder over HTTP (run <code>python3 -m http.server</code> here, then open <code>http://localhost:8000/chess.html</code>). Human vs Human / Normal still work here.</p>
     <div class="series-mode-row">
       <label class="timecontrol-label">Mode
-        <select id="series-mode" title="Single game: one game between the two sides. Tournament: the LLM plays an adaptive gauntlet vs every Browser-AI level (finds its level, Stockfish-Elo-anchored). Match: a best-of-N head-to-head between the two configured sides (relative strength ranking). Tournament and Match run without a chess clock.">
+        <select id="series-mode" title="Single game: one game between the two sides. Tournament: the LLM plays an adaptive gauntlet vs every Browser-AI level (finds its level, Stockfish-Elo-anchored). Match: a best-of-N head-to-head between the two configured sides (relative strength ranking). Tournament runs without a chess clock; Match honors the time control if you set one.">
           <option value="single">Single game</option>
           <option value="tournament">Tournament (gauntlet)</option>
           <option value="match">Match (head-to-head)</option>
@@ -2291,10 +2291,10 @@ function requestMove(fen, difficulty) {
     timeControlSelectEl.closest('label').hidden = isTournament;
     const mlLabel = document.getElementById('movelimit-label');
     if (mlLabel) mlLabel.hidden = isTournament;   // tournament keeps its fixed 200-ply cap; move-limit is a single/match option
-    const noClock = setupSeriesMode !== 'single' && llmCount > 0;   // clock disabled only with an LLM side (slow inference / retries)
+    const noClock = isTournament;   // tournament is clockless (label hidden above); match + single let you choose freely (default Off)
     timeControlSelectEl.disabled = noClock;
     timeControlSelectEl.title = noClock
-      ? 'No clock with an LLM side — it isn\'t penalized for slow inference or retries.'
+      ? 'Tournament runs without a clock.'
       : TC_TITLE;
     document.getElementById('start-btn').textContent =
       setupSeriesMode === 'tournament' ? 'Run tournament'
@@ -3856,8 +3856,8 @@ function requestMove(fen, difficulty) {
       errorEl.textContent = 'Match mode needs two non-human sides.'; errorEl.hidden = false; return;
     }
     const games = parseInt(document.getElementById('match-games').value, 10) || 10;
-    // Clock allowed only when neither side is an LLM (LLMs aren't penalized for slow inference/retries).
-    const matchTimeControl = (config.white.type === 'llm' || config.black.type === 'llm') ? null : readTimeControlFromSetup();
+    // Clock is a free choice in Match (default Off); respect whatever was picked.
+    const matchTimeControl = readTimeControlFromSetup();
     match = {
       games, played: 0,
       cfgA: config.white, cfgB: config.black,                 // A = configured White, B = configured Black (identity fixed; colors alternate)
