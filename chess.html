@@ -232,6 +232,12 @@
     font-size: .85rem; color: var(--brass); display: flex; gap: 8px; align-items: center;
   }
   #thinking[hidden] { display: none; }
+  .move-narration {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    font-size: .85rem; color: var(--text); line-height: 1.3;
+  }
+  .move-narration[hidden] { display: none; }
   .spinner {
     width: 12px; height: 12px; border-radius: 50%;
     border: 2px solid var(--brass-dim); border-top-color: var(--brass);
@@ -534,6 +540,7 @@ Default Off = no clock.">Time control
         </div>
       </div>
       <div id="thinking" hidden><span class="spinner"></span><span id="thinking-text"></span></div>
+      <div id="move-narration" class="move-narration" hidden title="Plain-English narration of the most recent move — generated locally, no AI call."></div>
     </div>
     <aside class="side-panel">
       <div id="status-line" title="Whose turn it is, plus any check, checkmate, stalemate or draw state — updates after every move.">White to move</div>
@@ -1807,6 +1814,7 @@ function requestMove(fen, difficulty) {
   const historyEl = document.getElementById('move-history');
   const thinkingEl = document.getElementById('thinking');
   const thinkingTextEl = document.getElementById('thinking-text');
+  const moveNarrationEl = document.getElementById('move-narration');
   const evalFillEl = document.getElementById('eval-fill');
   const evalLabelEl = document.getElementById('eval-label');
   const promoOverlay = document.getElementById('promo-overlay');
@@ -2387,6 +2395,7 @@ function requestMove(fen, difficulty) {
     document.getElementById('game-screen').hidden = false;
     resultBanner.hidden = true;
     resultBanner.innerHTML = '';
+    moveNarrationEl.hidden = true;
     spectatorControlsEl.hidden = !isSpectatorMode();
     buildBoardDOM();
     render();
@@ -2561,6 +2570,7 @@ function requestMove(fen, difficulty) {
     thinkingEl.hidden = true;
     spectatorControlsEl.hidden = true;
     resultBanner.hidden = true;
+    moveNarrationEl.hidden = true;
     replayControlsEl.hidden = false;
     gotoReplayPly(replayPly);
     showToast('Loaded ' + hist.length + ' move' + (hist.length === 1 ? '' : 's')
@@ -2862,12 +2872,14 @@ function requestMove(fen, difficulty) {
   function playHumanMove(move) {
     const moverColor = gameState.turn;   // captured before applyMove flips it
     if (commitClock(moverColor)) return;   // flagged on time while thinking
+    const prevState = gameState;          // snapshot for narration (piece/side) before applyMove
     const legal = Rules.genLegalMoves(gameState);
     const san = Rules.toSAN(gameState, move, legal);
     gameState = Rules.applyMove(gameState, move);
     lastMove = move;
     recordCapture(move);
     moveHistory.push({ san, evalCp: null, bestEvalCp: null, quality: null });
+    narrateMove(prevState, move, san, null);
     selectedSquare = null; legalFromSelected = [];
     renderHistory();
     renderCapturedTray();
@@ -2886,6 +2898,36 @@ function requestMove(fen, difficulty) {
   const CAPTURE_VALUE = { 1: 1, 2: 3, 3: 3, 4: 5, 5: 9, 6: 0 };
   const CAPTURE_SORT_ORDER = [5, 4, 3, 2, 1]; // queen..pawn, conventional tray ordering
 
+  // Plain-English narration of a move, built from board + move + SAN (no LLM).
+  // Shown in the #move-narration toaster under the board so a beginner can
+  // follow what just happened. SAN supplies capture (x), check (+), mate (#)
+  // and castling (O-O / O-O-O); the pre-move board supplies the piece type
+  // reliably (SAN is ambiguous for pawn captures vs piece moves).
+  const PIECE_NAME = { 1: 'Pawn', 2: 'Knight', 3: 'Bishop', 4: 'Rook', 5: 'Queen', 6: 'King' };
+  const QUALITY_WORD = { inaccuracy: ' — inaccurate', mistake: ' — a mistake', blunder: ' — a blunder!' };
+  function describeMove(prevState, move, san, quality) {
+    const type = Math.abs(prevState.board[move.from]);
+    const toSq = Rules.sqName(move.to);
+    const cap = san.includes('x');
+    let desc;
+    if (san.startsWith('O-O-O')) desc = 'Castles queenside';
+    else if (san.startsWith('O-O')) desc = 'Castles kingside';
+    else if (type === Rules.PAWN) {
+      desc = cap ? 'Pawn captures on ' + toSq : 'Pawn to ' + toSq;
+      if (move.promotion) desc += ', promotes to ' + PIECE_NAME[Math.abs(move.promotion)];
+    } else {
+      desc = PIECE_NAME[type] + (cap ? ' captures on ' : ' to ') + toSq;
+    }
+    if (san.endsWith('#')) desc += ' — checkmate!';
+    else if (san.endsWith('+')) desc += ' — gives check';
+    if (quality && QUALITY_WORD[quality]) desc += QUALITY_WORD[quality];
+    return desc;
+  }
+  function narrateMove(prevState, move, san, quality) {
+    if (!moveNarrationEl) return;
+    moveNarrationEl.textContent = (prevState.turn === Rules.WHITE ? 'White: ' : 'Black: ') + describeMove(prevState, move, san, quality);
+    moveNarrationEl.hidden = false;
+  }
   function renderCapturedTray() {
     function piecesText(list, glyphColorSuffix) {
       const sorted = list.slice().sort((a, b) => CAPTURE_SORT_ORDER.indexOf(a) - CAPTURE_SORT_ORDER.indexOf(b));
@@ -3101,10 +3143,12 @@ function requestMove(fen, difficulty) {
       const quality = classifyQuality(evalCp, bestEvalCp, gameState.turn);
       if (seriesActive() && sideConfig.type !== 'human') seriesRecordMove(sideConfig, result.llmRetries || 0, quality, result.latencyMs || 0, result.completionTokens || 0);
       if (commitClock(gameState.turn)) return;   // freeze mover's clock (+ increment), or flag on time
+      const prevState = gameState;          // snapshot for narration (piece/side) before applyMove
       gameState = Rules.applyMove(gameState, move);
       lastMove = move;
       recordCapture(move);
       moveHistory.push({ san, evalCp, bestEvalCp, quality });
+      narrateMove(prevState, move, san, quality);
       updateEvalBar(evalCp);
       renderHistory();
       renderCapturedTray();
