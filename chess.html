@@ -562,8 +562,8 @@ Default Off = no clock.">Time control
       <input type="text" id="tts-voice" placeholder="af_heart" autocomplete="off">
     </details>
     <details class="hint-coach-config">
-      <summary>💡 Hint coach (for human players) — optional</summary>
-      <p class="hint">A human player can ask for a hint (3 per game). Needs its own OpenAI-compatible chat endpoint, independent of the opponent. The coach suggests one move — highlighted on the board, never auto-played — with a one-line reason.</p>
+      <summary>🤖 AI assistant (💡 hints + 🗣 commentary) — optional</summary>
+      <p class="hint">One OpenAI-compatible chat endpoint, independent of the opponent's controller. Powers two opt-in features: 💡 hints (in-game Hint button, 3/game, highlighted, never auto-played) and 🗣 commentary (toggle below). Configure it once; enable each feature separately.</p>
       <label>Coach API base URL</label>
       <input type="text" id="hint-api-base" placeholder="http://localhost:8080/v1" autocomplete="off">
       <label>API key <span class="hint-inline">(optional for local servers)</span></label>
@@ -651,6 +651,7 @@ Default Off = no clock.">Time control
       <label class="sound-toggle" title="Play move, capture, check and game-end sounds. Off by default; remembered across sessions."><input type="checkbox" id="sound-toggle"> Sound effects</label>
       <label class="sound-toggle" title="Play crowd reactions (applause on strong moves/captures, boo on blunders) during AI vs AI games. Off by default; separate from the move sounds."><input type="checkbox" id="reactions-toggle"> Spectator reactions (applause / boo)</label>
       <label class="sound-toggle" title="Speak each move (and the end-game verdict) aloud. Uses the TTS endpoint from the setup screen if set, otherwise your browser's built-in voice. Off by default; remembered across sessions."><input type="checkbox" id="speak-toggle"> Speak moves</label>
+      <label class="sound-toggle" title="After each move the AI assistant generates a one-line entertaining comment (shown under the board; spoken aloud if 'Speak moves' is on). Best-effort: a failed call is silently dropped. Uses the 🤖 AI assistant endpoint. Off by default; remembered across sessions."><input type="checkbox" id="commentary-toggle"> 🗣 AI commentary</label>
     </aside>
   </div>
 </section>
@@ -1966,6 +1967,7 @@ function requestMove(fen, difficulty) {
   const coordsToggleEl = document.getElementById('coords-toggle');
   const reactionsToggleEl = document.getElementById('reactions-toggle');
   const speakToggleEl = document.getElementById('speak-toggle');
+  const commentaryToggleEl = document.getElementById('commentary-toggle');
   const ttsEndpointEl = document.getElementById('tts-endpoint');
   const ttsModelEl = document.getElementById('tts-model');
   const ttsVoiceEl = document.getElementById('tts-voice');
@@ -2095,7 +2097,7 @@ function requestMove(fen, difficulty) {
   // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, speakMoves, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, speakMoves, commentary: commentaryEnabled, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
@@ -2103,6 +2105,8 @@ function requestMove(fen, difficulty) {
   let timeControlPref = 'off';   // setup-screen selection key, persisted
   let moveLimitPref = 'off';      // setup-screen selection key ('off' or a full-move count), persisted
   let speakMoves = false;          // speak each move's narration aloud (game-screen toggle), persisted
+  let commentaryEnabled = false;   // LLM one-line comment after each move (FR-9.10), uses the AI-assistant endpoint, persisted
+  let commentaryGen = 0;           // drop-stale guard: a comment resolves only if no newer move superseded it
   let ttsConfig = { endpoint: '', model: '', voice: '', key: '' };   // OpenAI-compatible /v1/audio/speech endpoint, persisted
   let hintCoach = { apiBase: '', apiKey: '', model: '' };   // hint-coach LLM endpoint (FR-9.9), independent of the opponent, persisted
   let hintsLeft = 0;        // hints remaining this game (reset to 3 on new game)
@@ -2117,6 +2121,7 @@ function requestMove(fen, difficulty) {
     timeControlPref = ['off','bullet','blitz','rapid','classical'].includes(p.timeControl) ? p.timeControl : 'off';
     moveLimitPref = ['off','40','60','80','100','150','200'].includes(p.moveLimit) ? p.moveLimit : 'off';
     speakMoves = !!p.speakMoves;
+    commentaryEnabled = !!p.commentary;
     if (p.tts && typeof p.tts === 'object') ttsConfig = { endpoint: String(p.tts.endpoint || ''), model: String(p.tts.model || ''), voice: String(p.tts.voice || ''), key: String(p.tts.key || '') };
     if (p.hint && typeof p.hint === 'object') hintCoach = { apiBase: String(p.hint.apiBase || ''), apiKey: String(p.hint.apiKey || ''), model: String(p.hint.model || '') };
     soundToggleEl.checked = soundEnabled;
@@ -2128,6 +2133,7 @@ function requestMove(fen, difficulty) {
     const mlSel = document.getElementById('movelimit-select');
     if (mlSel) mlSel.value = moveLimitPref;
     if (speakToggleEl) speakToggleEl.checked = speakMoves;
+    if (commentaryToggleEl) commentaryToggleEl.checked = commentaryEnabled;
     if (ttsEndpointEl) ttsEndpointEl.value = ttsConfig.endpoint;
     if (ttsModelEl) ttsModelEl.value = ttsConfig.model;
     if (ttsVoiceEl) ttsVoiceEl.value = ttsConfig.voice;
@@ -2158,6 +2164,10 @@ function requestMove(fen, difficulty) {
     savePrefs();
     // The opt-in toggle is the user gesture that unlocks audio for both the
     // HTMLAudioElement (TTS endpoint) and speechSynthesis (fallback) paths.
+  });
+  if (commentaryToggleEl) commentaryToggleEl.addEventListener('change', () => {
+    commentaryEnabled = commentaryToggleEl.checked;
+    savePrefs();
   });
   // TTS endpoint config (setup screen): persist on edit.
   [ [ttsEndpointEl, 'endpoint'], [ttsModelEl, 'model'], [ttsVoiceEl, 'voice'] ].forEach(([el, k]) => {
@@ -3329,7 +3339,43 @@ function requestMove(fen, difficulty) {
     if (!moveNarrationEl) return;
     moveNarrationEl.textContent = (prevState.turn === Rules.WHITE ? 'White: ' : 'Black: ') + describeMove(prevState, move, san, quality);
     moveNarrationEl.hidden = false;
-    if (speakMoves) speakText(moveNarrationEl.textContent);
+    // When commentary is on, defer the speech to the comment (one voice, not
+    // two); otherwise speak the factual narration as before.
+    if (speakMoves && !commentaryEnabled) speakText(moveNarrationEl.textContent);
+    maybeCommentate(prevState, move, san, quality);   // async, drop-stale, non-blocking
+  }
+  // LLM commentary (FR-9.10): one entertaining line per move, best-effort.
+  // Single fetch (NO retry loop — a transient failure just means no comment
+  // this move, and a retrying call per move would pile up in AI-vs-AI). A
+  // generation token drops any comment superseded by a newer move (so fast
+  // games skip stale commentary instead of queueing it). Uses the AI-assistant
+  // endpoint; shown as a 2nd toaster line, spoken if Speak moves is on.
+  async function maybeCommentate(prevState, move, san, quality) {
+    if (!commentaryEnabled || !hintCoach.apiBase || !hintCoach.model) return;
+    const myGen = ++commentaryGen;
+    try {
+      const sideName = prevState.turn === Rules.WHITE ? 'White' : 'Black';
+      const qWord = ({ best: 'an excellent', good: 'a solid', inaccuracy: 'a slightly inaccurate', mistake: 'a dubious', blunder: 'a blundering' }[quality]) || 'a';
+      const messages = [
+        { role: 'system', content: 'You are an entertaining, lively chess commentator — like a sports announcer. Reply with ONE short, vivid sentence (max ~20 words) commenting on the move just played. Praise brilliant play, gasp at blunders, build excitement. No move notation, no preamble — just the comment.' },
+        { role: 'user', content: sideName + ' just played ' + san + ' (' + qWord + ' move). Position FEN after the move: ' + Rules.toFEN(gameState) + '. Comment in one vivid sentence.' },
+      ];
+      const res = await fetch(hintCoach.apiBase + '/chat/completions', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, hintCoach.apiKey ? { Authorization: 'Bearer ' + hintCoach.apiKey } : {}),
+        body: JSON.stringify({ model: hintCoach.model, messages }),
+      });
+      if (!res.ok) return;   // best-effort: silently drop a failed comment (no retry pile-up)
+      const data = await res.json();
+      const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (myGen !== commentaryGen) return;   // a newer move superseded this — drop the stale comment
+      const comment = String(content || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+      if (!comment) return;
+      const prev = moveNarrationEl.textContent.trim();
+      moveNarrationEl.textContent = prev ? prev + '\n🗣 ' + comment : '🗣 ' + comment;
+      moveNarrationEl.hidden = false;
+      if (speakMoves) speakText(comment);
+    } catch (err) { /* best-effort: a failed comment is silently dropped */ }
   }
   function renderCapturedTray() {
     function piecesText(list, glyphColorSuffix) {

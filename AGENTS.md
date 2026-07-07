@@ -449,13 +449,6 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
 - **Per-side language (EN/IT):** scope unclear — per-side *UI* language (two
   players, one screen?) vs commentary vs announcements. No in-app strings are
   localized today.
-- **AI commentary per move** (LLM-generated, not the local narration): the
-  *spoken-narration* half of the old "commentary + TTS" item shipped (FR-5.5 —
-  move narration spoken via local Kokoro / `speechSynthesis` fallback). What
-  remains is **LLM-generated commentary** on each move (vs the local
-  describeMove sentence): needs a dedicated commentary endpoint/profile, a
-  latency/pacing plan that doesn't block the loop or AI-vs-AI pacing, and a
-  profile/language selector.
 - **NoN / MoA multi-model orchestration:** pair a smart-but-erratic reasoning
   model with a cheap non-reasoning orchestrator to fix instruction-following
   (LLM-Chess lifted R1 32%→63%, Gemini 42%→79% this way). Out of scope for our
@@ -463,8 +456,8 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
 - **Per-turn hard time cap** on top of the chess clock, if a "no single move
   may exceed N seconds" guard is ever wanted.
 
-**Lowest-friction next build:** among §9.3, the **AI commentary per move**
-is the most entertaining remaining item (the audio plumbing from FR-5.5 is
-already in place), but it needs a latency/pacing plan and a commentary
-endpoint/profile decision. Everything here carries a real product question
-— pick one and talk through the decision before building.
+**Lowest-friction next build:** §9.3 is now thin — **per-side language** has
+the most open UX questions (two players sharing one screen?), and **NoN/MoA**
+is the highest-value research angle but breaks the single-LLM-per-side
+architecture. Everything left carries a real product question — pick one and
+talk through the decision before building.
