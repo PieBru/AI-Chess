@@ -70,12 +70,16 @@ The LLM backing `pi` was a **self-hosted [llama.cpp](https://github.com/ggml-org
 
 ## Acknowledgments
 
-This project stands on the shoulders of two open-source efforts:
+This whole thing — the app, the docs, the process — was created with a fully open-source, self-hosted toolchain: Arch Linux, the pi coding agent, Feynman skills, ponytail discipline, tmux persistence, and a llama.cpp server running Qwen-3.6-27B as the reasoning engine behind it all. Building on open giants is the only way to build this much, this fast, with nothing but free software. (The full roll-call is at the bottom of the section.)
+
+On top of that, this project stands on the shoulders of two open-source efforts:
 
 - **[Stockfish](https://github.com/official-stockfish/Stockfish)** (GPL-3.0) — the strongest chess engine there is, vendored as a WebAssembly build and powering Grandmaster mode (levels 6–9).
 - **[LLM Chess](https://github.com/maxim-saplin/llm_chess)** — the public LLM-vs-engine benchmark whose maximum-likelihood Elo method and adaptive level-selection heuristic inspired the Tournament gauntlet and its diagnostics.
 
 Sound effects and crowd reactions are sampled recordings under permissive licences (CC0 / Pixabay Licence), embedded as base64 data URIs so the app stays self-contained and offline.
+
+And beyond the chess itself, the very **making** of this app rested on giants too: **[Arch Linux](https://archlinux.org/)**, the **[pi](https://pi.dev)** coding agent with its **[Feynman](https://github.com/companion-inc/feynman)** skills, the **[ponytail](https://github.com/DietrichGebert/ponytail)** discipline (YAGNI, shortest-working-diff), **[tmux](https://github.com/tmux/tmux)** for tireless remote sessions, and a self-hosted **[llama.cpp](https://github.com/ggml-org/llama.cpp)** running **Qwen-3.6-27B (UD-Q8 by Unsloth)** as the working brain behind `pi`. Every one of these is free and open — and it really *is* easier to build something when you're already standing on the shoulders of giants.
 
 ## License
 
