@@ -2861,9 +2861,7 @@ function requestMove(fen, difficulty) {
 
   function playHumanMove(move) {
     const moverColor = gameState.turn;   // captured before applyMove flips it
-    clockStop();   // freeze the human's clock, then add the per-move increment
-    if (timeControl) clocks[clockSideKey(moverColor)] += timeControl.incrementMs;
-    renderClocks();
+    if (commitClock(moverColor)) return;   // flagged on time while thinking
     const legal = Rules.genLegalMoves(gameState);
     const san = Rules.toSAN(gameState, move, legal);
     gameState = Rules.applyMove(gameState, move);
@@ -2981,6 +2979,27 @@ function requestMove(fen, difficulty) {
     if (clockTickerId != null) { clearInterval(clockTickerId); clockTickerId = null; }
     clockActiveSide = null;
   }
+  // Freezes the mover's clock, grants the increment, and ends the game on time
+  // if they ran it to <=0. Returns true if the game just ended (caller must
+  // bail and not apply the move). The 100ms ticker is the normal flagfall
+  // detector, but it only checks while a clock is ACTIVE; a move that completes
+  // in the gap after the clock crossed zero freezes a <=0 value with no active
+  // side — so the race is closed here, at freeze time, for both the human and
+  // AI move paths (a fast low-level Browser-AI finishing in <100ms hit this).
+  function commitClock(moverColor) {
+    if (!clocks) return false;
+    clockStop();
+    const key = clockSideKey(moverColor);
+    if (clocks[key] <= 0) {                 // flagged while thinking
+      clocks[key] = 0;
+      renderClocks();
+      finishGame({ result: key === 'white' ? '0-1' : '1-0', reason: 'lost on time' });
+      return true;
+    }
+    if (timeControl) clocks[key] += timeControl.incrementMs;
+    renderClocks();
+    return false;
+  }
   function readTimeControlFromSetup() {
     const sel = document.getElementById('timecontrol-select');
     const preset = TIME_CONTROLS[sel && sel.value];
@@ -3081,9 +3100,7 @@ function requestMove(fen, difficulty) {
       const san = Rules.toSAN(gameState, move, legal);
       const quality = classifyQuality(evalCp, bestEvalCp, gameState.turn);
       if (seriesActive() && sideConfig.type !== 'human') seriesRecordMove(sideConfig, result.llmRetries || 0, quality, result.latencyMs || 0, result.completionTokens || 0);
-      clockStop();   // freeze the mover's clock, then add the per-move increment
-      if (timeControl) clocks[clockSideKey(gameState.turn)] += timeControl.incrementMs;
-      renderClocks();
+      if (commitClock(gameState.turn)) return;   // freeze mover's clock (+ increment), or flag on time
       gameState = Rules.applyMove(gameState, move);
       lastMove = move;
       recordCapture(move);
