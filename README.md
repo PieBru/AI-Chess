@@ -68,6 +68,12 @@ User-facing pages (blog, player's guide, kids): see [`docs/`](docs/).
 
 The LLM backing `pi` was a **self-hosted [llama.cpp](https://github.com/ggml-org/llama.cpp)** server running **Qwen-3.6-27B_UD-Q8 by Unsloth** — no cloud APIs involved. Part of the point: this project is itself an empirical benchmark for self-hosted LLM inferencing and agentic software engineering.
 
+## Screenshots
+
+| Setup: Browser-AI levels | Setup: LLM-AI + TTS | Board mid-game |
+|---|---|---|
+| ![Browser-AI difficulty list](screenshots/03-difficulty.png) | ![LLM config and spoken narration](screenshots/04-llm-tts.png) | ![Italian opening, eval bar, move log](screenshots/05-aivsai.png) |
+
 ## Acknowledgments
 
 This whole thing — the app, the docs, the process — was created with a fully open-source, self-hosted toolchain: Arch Linux, the pi coding agent, Feynman skills, ponytail discipline, tmux persistence, and a llama.cpp server running Qwen-3.6-27B as the reasoning engine behind it all. Building on open giants is the only way to build this much, this fast, with nothing but free software. (The full roll-call is at the bottom of the section.)
