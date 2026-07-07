@@ -127,7 +127,12 @@ All Human/AI combinations must be supported without special-casing in the rules 
   during an in-progress game prompt a native `confirm()`; if the action would
   discard an in-progress game with moves, OK saves it as a PGN file first
   (FR-8.2) then proceeds, Cancel keeps playing. Resign only confirms (it
-  completes the game, which can then be saved from the summary).
+  completes the game, which can then be saved from the summary). The spectator
+  **Stop** control (ends the current game / series early with no winner) also
+  confirms before acting. Additionally, an accidental page close / refresh
+  during an active game or series triggers the browser's native "leave site?"
+  guard (a `beforeunload` handler, gated so it only fires when there is a
+  game or series in flight to lose).
 - FR-6.6 Optional chess clock (FIDE-style): a selectable time control at
   setup — Off (default) / Bullet 1+0 / Blitz 3+2 / Rapid 10+5 / Classical
   30+0 — gives each side a total time budget plus a per-move increment. The

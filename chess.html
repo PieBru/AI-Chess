@@ -559,7 +559,7 @@ Default Off = no clock.">Time control
           </select>
         </label>
         <button id="pause-btn" type="button" title="Pause the auto-play loop. Takes effect once the move currently being computed finishes; click again to resume.">Pause</button>
-        <button id="stop-btn" type="button" title="End the current game — or, in a tournament/match, the whole series — early with no winner (recorded as stopped). Partial series results are kept.">Stop</button>
+        <button id="stop-btn" type="button" title="End the current game — or, in a tournament/match, the whole series — early with no winner (recorded as stopped). Asks for confirmation. Partial series results are kept.">Stop</button>
       </div>
       <div id="captured-tray" class="captured-tray">
         <div class="captured-row">
@@ -2467,6 +2467,10 @@ function requestMove(fen, difficulty) {
   });
   stopBtn.addEventListener('click', () => {
     if (gameOver) return;
+    const msg = seriesActive()
+      ? 'Stop the series in progress? The current game ends and the series stops.'
+      : 'Stop this game? It will end as "stopped by spectator".';
+    if (!confirm(msg)) return;
     if (seriesActive()) {
       if (tournament) tournamentStopped = true; else matchStopped = true;
       finishGame({ result: '*', reason: 'series stopped' });
@@ -2475,6 +2479,17 @@ function requestMove(fen, difficulty) {
     paused = false;
     pauseBtn.textContent = 'Pause';
     finishGame({ result: '*', reason: 'stopped by spectator' });
+  });
+
+  // Guard against losing an in-flight game to an accidental page close /
+  // refresh: only when there is something to lose (an active series, or a
+  // non-replay game with moves played and not yet decided). Browsers ignore
+  // any custom text and show their own "Leave site?" prompt.
+  window.addEventListener('beforeunload', (e) => {
+    if (seriesActive() || (!gameOver && !replayMode && moveHistory.length > 0)) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
   });
 
   // ---- PGN save / load / replay (Appendix B #1) ----
