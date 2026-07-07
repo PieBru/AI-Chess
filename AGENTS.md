@@ -458,10 +458,6 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
   describeMove sentence): needs a dedicated commentary endpoint/profile, a
   latency/pacing plan that doesn't block the loop or AI-vs-AI pacing, and a
   profile/language selector.
-- **Configurable LLM reasoning level:** `reasoning_effort`/thinking-budget
-  knob. The param mapping is endpoint/model-specific (needs a capability
-  probe); note the benchmark found more thinking ≠ better chess (Claude 3.7
-  extended thinking gave only +17% and even degraded).
 - **NoN / MoA multi-model orchestration:** pair a smart-but-erratic reasoning
   model with a cheap non-reasoning orchestrator to fix instruction-following
   (LLM-Chess lifted R1 32%→63%, Gemini 42%→79% this way). Out of scope for our

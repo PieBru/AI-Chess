@@ -48,6 +48,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 | PRD feature | Spec ref | Notes |
 |---|---|---|
 | Controller picker (per side) | FR-2 | Human / Normal(+difficulty 1–11, where 6–11 = Grandmaster) / LLM-AI |
+| LLM-AI side config | FR-9.1, FR-9.4 | Per side: API base + key + model + persona + reasoning level (FR-9.8); saved profiles |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
 | Board + move input | FR-5.1, FR-5.2 | Click-to-move + drag-and-drop; toggleable coordinate labels (FR-5.1) |
