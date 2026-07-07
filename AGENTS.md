@@ -96,7 +96,7 @@ The file is one big `<script>` after the markup. Top-down:
 Pure functions, no DOM/worker dependency. Owns the 0x88 board, move
 generation, FEN/SAN, game-end detection. Key surface: `Rules.newGame`,
 `genLegalMoves`, `applyMove`, `toFEN`/`fromFEN`, `toSAN`, `gameStatus`,
-`zobristHash`, `sqName`/`nameToSq`. Reused inside the worker, so it lives in
+`sqName`/`nameToSq`. Reused inside the worker, so it lives in
 the inline `#rules-src` block concatenated into the worker blob. Detects
 checkmate, stalemate, fifty-move rule, insufficient material, and
 threefold repetition.
