@@ -4003,6 +4003,30 @@ function requestMove(fen, difficulty) {
     }
     return parts.join('  ·  ');
   }
+  // Exactly one Stockfish level with a known UCI_Elo (difficulty 6-10; level
+  // 11/full has no number) is a FIXED anchor: every game is the OTHER side vs
+  // that one Stockfish Elo, so the tournament's MLE (estimateElo) yields an
+  // ABSOLUTE rating for the non-anchor side — same Stockfish UCI_Elo pool as
+  // the tournament, so directly comparable. null when neither/both sides
+  // anchor (relative-only) or no games yet.
+  function matchAbsoluteElo() {
+    if (!match) return null;
+    const aAnc = match.cfgA.type === 'grandmaster' && match.cfgA.elo != null;
+    const bAnc = match.cfgB.type === 'grandmaster' && match.cfgB.elo != null;
+    if (aAnc === bAnc) return null;                  // exactly one anchor, else relative-only
+    const estIsA = bAnc;                               // if B anchors, A is the estimatee
+    const anchor = bAnc ? match.cfgB : match.cfgA;
+    const elo = anchor.elo;
+    const games = [];
+    const w = estIsA ? match.winsA : match.winsB;      // estimatee's wins / losses from A's aggregate
+    const l = estIsA ? match.winsB : match.winsA;
+    for (let i = 0; i < w; i++) games.push({ elo, score: 1 });
+    for (let i = 0; i < match.draws; i++) games.push({ elo, score: 0.5 });
+    for (let i = 0; i < l; i++) games.push({ elo, score: 0 });
+    const e = estimateElo(games);
+    if (!e) return null;
+    return { e, estLabel: estIsA ? match.labelA : match.labelB, anchorLabel: estIsA ? match.labelB : match.labelA, anchorElo: elo };
+  }
   function matchSummaryText() {
     const m = match;
     const fmt = d => d.toISOString().slice(0, 19).replace('T', ' ');
@@ -4015,19 +4039,34 @@ function requestMove(fen, difficulty) {
     else diffStr = (d >= 0 ? m.labelA : m.labelB) + ' ~' + Math.round(Math.abs(d)) + ' Elo stronger (relative; from ' + m.labelA + "'s " + (N ? (100 * sA / N).toFixed(0) : 0) + '% score)';
     const los = likelihoodOfSuperiority(m.winsA, m.winsB);
     const losStr = los == null ? 'inconclusive (no decisive games)' : (100 * los).toFixed(1) + '%';
-    return [
+    const abs = matchAbsoluteElo();
+    let absStr = null;
+    if (abs) {
+      const e = abs.e;
+      let body;
+      if (e.kind === 'above') body = 'above ' + abs.anchorElo + ' (won every game vs Stockfish UCI_Elo ' + abs.anchorElo + ')';
+      else if (e.kind === 'below') body = 'below ' + abs.anchorElo + ' (lost every game vs Stockfish UCI_Elo ' + abs.anchorElo + ')';
+      else body = '~' + Math.round(e.elo) + ' ± ' + Math.round(1.96 * e.se) + ' (95% CI, MLE over ' + e.n + ' games)';
+      absStr = 'Absolute Elo for ' + abs.estLabel + ' (anchored to ' + abs.anchorLabel + ' = Stockfish UCI_Elo ' + abs.anchorElo + '): ' + body + ' — same pool as the tournament, so directly comparable.';
+    }
+    const method = "Methodology: best-of-" + m.games + " head-to-head, colors alternating each game, chess clock " + (m.timeControl ? 'on' : 'off') + ", single-turn constrained choice (board + full legal-move list given each move), one corrective retry then local fallback. Elo difference is always RELATIVE (logistic from score)."
+      + (abs ? " When one side is a Stockfish Elo level (6-10) the ABSOLUTE Elo above is also shown — anchored to its UCI_Elo via the same MLE as the tournament, so directly comparable." : " No Stockfish-Elo anchor here, so the relative gap is NOT comparable to the tournament's Stockfish-anchored MLE Elo.")
+      + " LOS is the Bayesian posterior P(A stronger) from decisive games (draws ignored). Small N makes both noisy; N>=20 recommended for a stable read.";
+    const lines = [
       'Match — ' + m.labelA + '  vs  ' + m.labelB,
       'A = ' + m.labelA + ' (configured White)   B = ' + m.labelB + ' (configured Black); colors alternated each game.',
       'Result: ' + m.winsA + '-' + m.draws + '-' + m.winsB + '  (W-draw-L from A), ' + N + ' games',
       'Relative strength: ' + diffStr,
-      'Likelihood A is truly stronger (LOS): ' + losStr,
+    ];
+    if (absStr) lines.push(absStr);
+    lines.push('Likelihood A is truly stronger (LOS): ' + losStr,
       'Played: ' + fmt(m.startedAt) + '  →  ' + fmt(new Date()),
       '',
       sideDiagLine('A', m.labelA, m.stats.A, m.cfgA),
       sideDiagLine('B', m.labelB, m.stats.B, m.cfgB),
       '',
-      "Methodology: best-of-" + m.games + " head-to-head, colors alternating each game, no chess clock, single-turn constrained choice (board + full legal-move list given each move), one corrective retry then local fallback. Elo difference is RELATIVE (logistic from score) — no absolute anchor, so NOT comparable to the tournament's Stockfish-anchored MLE Elo. LOS is the Bayesian posterior P(A stronger) from decisive games (draws ignored). Small N makes both noisy; N>=20 recommended for a stable read.",
-    ].join('\n');
+      method);
+    return lines.join('\n');
   }
   function renderMatchResults() {
     const labelA = match ? match.labelA : 'A', labelB = match ? match.labelB : 'B';

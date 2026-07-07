@@ -269,6 +269,7 @@ anchor, unlike the gauntlet's Stockfish-Elo MLE), shown and auto-saved to
   — a *gap*, not a rating; not comparable to the gauntlet's anchored Elo or to
   FIDE). `scoreA` = wins + ½·draws over N. A shutout reports the gap as
   unbounded.
+- **Absolute Elo (when one side anchors):** if exactly one side is a Stockfish level with a known UCI_Elo (difficulty 6–10; level 11/full has no number and can't anchor), that side is a *fixed* anchor — every game is the other side vs that one Stockfish Elo — so the match runs the **same MLE** as the gauntlet and reports an **absolute Elo ± 95% CI** for the non-anchor side, in the **same Stockfish UCI_Elo pool** (directly comparable to the gauntlet, unlike the relative gap). All-win/all-loss → "above/below" the anchor. When neither/both sides anchor (LLM-vs-LLM, LLM-vs-Browser-AI), only the relative gap + LOS are shown.
 - **Likelihood of Superiority (LOS):** the Bayesian posterior `P(A truly
   stronger)` from decisive games only (draws carry no superiority signal),
   uniform prior → `Beta(W+1, L+1)`, `LOS = Σⱼ C(W+L+1, j)·0.5^(W+L+1)`; as a
@@ -279,8 +280,9 @@ anchor, unlike the gauntlet's Stockfish-Elo MLE), shown and auto-saved to
   get IF% / avg latency / avg completion tokens. Side labels are
   `model [persona]` for LLMs (so same-model/different-prompt matches read
   clearly), else the engine name.
-- **Methodology footnote:** relative (not absolute) Elo; LOS definition;
-  single-turn constrained-choice; small N is noisy (N≥20 recommended).
+- **Methodology footnote:** Elo model (relative gap always; absolute MLE
+  additionally when a Stockfish side anchors); LOS definition; single-turn
+  constrained-choice; small N is noisy (N≥20 recommended).
 
 **Why two modes:** the gauntlet (§4.6) answers *"how strong is this LLM?"*
 (absolute Elo via the Stockfish ladder); Match answers *"which of these two is
@@ -288,8 +290,10 @@ stronger, and by how much?"* (relative Elo + LOS). The two share the game loop
 behind a **series dispatch** layer (`seriesActive`/`seriesRecordResult`/…
 route to whichever of `tournament`/`match` is running) so spectator pacing,
 pause/stop, the 200-ply cap, and the results file are common to both.
-Non-goal: absolute per-side Elo from a match (needs an anchor — use the
-gauntlet).
+Bonus when an anchor is present: if one Match side is a Stockfish Elo level
+(6–10) the match also reports an absolute Elo for the other side (same
+MLE/pool as the gauntlet); otherwise Match is relative-only and you'd use the
+gauntlet for an absolute rating.
 
 ---
 
