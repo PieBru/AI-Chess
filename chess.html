@@ -121,6 +121,15 @@
     background: var(--panel); color: var(--text); border: 1px solid var(--line);
     font-family: var(--font-mono); font-size: .8rem;
   }
+  .tts-config { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .tts-config summary { cursor: pointer; font-weight: 600; color: var(--brass); }
+  .tts-config label { display: block; font-size: .8rem; color: var(--text-dim); margin: 8px 0 2px; }
+  .tts-config .hint-inline { font-weight: 400; opacity: .8; }
+  .tts-config input {
+    width: 100%; padding: 7px 8px; border-radius: 6px;
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    font-size: .8rem;
+  }
   .verify-llm-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .verify-llm-btn {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
@@ -522,6 +531,16 @@ Default Off = no clock.">Time control
         <p class="hint side-hint">Makes moves via the board UI.</p>
       </div>
     </div>
+    <details class="tts-config">
+      <summary>🔊 Spoken narration (text-to-speech) — optional</summary>
+      <p class="hint">Speak each move (and the end-game verdict) aloud. For a natural voice, run a local OpenAI-compatible TTS server such as <a href="https://github.com/hwdsl2/docker-kokoro" target="_blank" rel="noopener">Kokoro (docker-kokoro)</a> and enter its base URL below. Leave the endpoint blank to fall back to your browser's built-in voice (quality varies by OS).</p>
+      <label>TTS endpoint <span class="hint-inline">(base URL, e.g. <code>http://localhost:8880/v1</code>)</span></label>
+      <input type="text" id="tts-endpoint" placeholder="http://localhost:8880/v1" autocomplete="off">
+      <label>Model <span class="hint-inline">(Kokoro: <code>kokoro</code>; OpenAI: <code>tts-1</code>)</span></label>
+      <input type="text" id="tts-model" placeholder="kokoro" autocomplete="off">
+      <label>Voice <span class="hint-inline">(Kokoro e.g. <code>af_heart</code>; OpenAI e.g. <code>alloy</code>)</span></label>
+      <input type="text" id="tts-voice" placeholder="af_heart" autocomplete="off">
+    </details>
     <div class="start-row">
       <button id="start-btn">Start Game</button>
     </div>
@@ -599,6 +618,7 @@ Default Off = no clock.">Time control
       <label class="sound-toggle" title="Show file (a–h) and rank (1–8) labels around the board. Remembered across sessions."><input type="checkbox" id="coords-toggle"> Show coordinates (a–h, 1–8)</label>
       <label class="sound-toggle" title="Play move, capture, check and game-end sounds. Off by default; remembered across sessions."><input type="checkbox" id="sound-toggle"> Sound effects</label>
       <label class="sound-toggle" title="Play crowd reactions (applause on strong moves/captures, boo on blunders) during AI vs AI games. Off by default; separate from the move sounds."><input type="checkbox" id="reactions-toggle"> Spectator reactions (applause / boo)</label>
+      <label class="sound-toggle" title="Speak each move (and the end-game verdict) aloud. Uses the TTS endpoint from the setup screen if set, otherwise your browser's built-in voice. Off by default; remembered across sessions."><input type="checkbox" id="speak-toggle"> Speak moves</label>
     </aside>
   </div>
 </section>
@@ -1836,6 +1856,10 @@ function requestMove(fen, difficulty) {
   const soundToggleEl = document.getElementById('sound-toggle');
   const coordsToggleEl = document.getElementById('coords-toggle');
   const reactionsToggleEl = document.getElementById('reactions-toggle');
+  const speakToggleEl = document.getElementById('speak-toggle');
+  const ttsEndpointEl = document.getElementById('tts-endpoint');
+  const ttsModelEl = document.getElementById('tts-model');
+  const ttsVoiceEl = document.getElementById('tts-voice');
   const replayControlsEl = document.getElementById('replay-controls');
   const replayCounterEl = document.getElementById('replay-counter');
 
@@ -1958,13 +1982,15 @@ function requestMove(fen, difficulty) {
   // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, speakMoves, tts: ttsConfig })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
   }
   let timeControlPref = 'off';   // setup-screen selection key, persisted
   let moveLimitPref = 'off';      // setup-screen selection key ('off' or a full-move count), persisted
+  let speakMoves = false;          // speak each move's narration aloud (game-screen toggle), persisted
+  let ttsConfig = { endpoint: '', model: '', voice: '', key: '' };   // OpenAI-compatible /v1/audio/speech endpoint, persisted
   (function restorePrefs() {
     const p = loadPrefs();
     if (!p) return;
@@ -1974,6 +2000,8 @@ function requestMove(fen, difficulty) {
     spectatorSpeed = ['veryslow','slow','normal','fast','instant'].includes(p.speed) ? p.speed : 'normal';
     timeControlPref = ['off','bullet','blitz','rapid','classical'].includes(p.timeControl) ? p.timeControl : 'off';
     moveLimitPref = ['off','40','60','80','100','150','200'].includes(p.moveLimit) ? p.moveLimit : 'off';
+    speakMoves = !!p.speakMoves;
+    if (p.tts && typeof p.tts === 'object') ttsConfig = { endpoint: String(p.tts.endpoint || ''), model: String(p.tts.model || ''), voice: String(p.tts.voice || ''), key: String(p.tts.key || '') };
     soundToggleEl.checked = soundEnabled;
     coordsToggleEl.checked = showCoords;
     reactionsToggleEl.checked = reactionsEnabled;
@@ -1982,6 +2010,10 @@ function requestMove(fen, difficulty) {
     if (tcSel) tcSel.value = timeControlPref;
     const mlSel = document.getElementById('movelimit-select');
     if (mlSel) mlSel.value = moveLimitPref;
+    if (speakToggleEl) speakToggleEl.checked = speakMoves;
+    if (ttsEndpointEl) ttsEndpointEl.value = ttsConfig.endpoint;
+    if (ttsModelEl) ttsModelEl.value = ttsConfig.model;
+    if (ttsVoiceEl) ttsVoiceEl.value = ttsConfig.voice;
   })();
   soundToggleEl.addEventListener('change', () => {
     soundEnabled = soundToggleEl.checked;
@@ -1999,6 +2031,18 @@ function requestMove(fen, difficulty) {
     savePrefs();
     // The opt-in change is itself the user gesture that satisfies autoplay
     // policy for the HTMLAudioElement clips — no AudioContext to unlock.
+  });
+  speakToggleEl.addEventListener('change', () => {
+    speakMoves = speakToggleEl.checked;
+    if (!speakMoves) stopSpeaking();
+    savePrefs();
+    // The opt-in toggle is the user gesture that unlocks audio for both the
+    // HTMLAudioElement (TTS endpoint) and speechSynthesis (fallback) paths.
+  });
+  // TTS endpoint config (setup screen): persist on edit.
+  [ [ttsEndpointEl, 'endpoint'], [ttsModelEl, 'model'], [ttsVoiceEl, 'voice'] ].forEach(([el, k]) => {
+    if (!el) return;
+    el.addEventListener('change', () => { ttsConfig[k] = el.value.trim(); savePrefs(); });
   });
   speedSelectEl.addEventListener('change', () => {
     spectatorSpeed = speedSelectEl.value;
@@ -2401,6 +2445,7 @@ function requestMove(fen, difficulty) {
     resultBanner.hidden = true;
     resultBanner.innerHTML = '';
     moveNarrationEl.hidden = true;
+    stopSpeaking();
     spectatorControlsEl.hidden = !isSpectatorMode();
     buildBoardDOM();
     render();
@@ -2591,6 +2636,7 @@ function requestMove(fen, difficulty) {
     spectatorControlsEl.hidden = true;
     resultBanner.hidden = true;
     moveNarrationEl.hidden = true;
+    stopSpeaking();
     replayControlsEl.hidden = false;
     gotoReplayPly(replayPly);
     showToast('Loaded ' + hist.length + ' move' + (hist.length === 1 ? '' : 's')
@@ -2943,10 +2989,62 @@ function requestMove(fen, difficulty) {
     if (quality && QUALITY_WORD[quality]) desc += QUALITY_WORD[quality];
     return desc;
   }
+  // ---- Spoken narration (TTS) ----
+  // Speak the move narration aloud. Uses a configured OpenAI-compatible
+  // /v1/audio/speech endpoint (e.g. local Kokoro via docker-kokoro) for a
+  // natural voice; falls back to the browser's built-in speechSynthesis when
+  // no endpoint is set or a request fails. speakGen invalidates stale speech
+  // (a new move supersedes an in-flight fetch / queued utterance).
+  let speakGen = 0;
+  let speakAudioEl = null;
+  function speakNative(text) {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US'; u.rate = 1;
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  async function speakText(text) {
+    const spoken = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!spoken) return;
+    const gen = ++speakGen;
+    const cfg = ttsConfig;
+    if (cfg && cfg.endpoint) {
+      try {
+        const base = cfg.endpoint.replace(/\/+$/, '').replace(/\/audio\/speech$/i, '');
+        const res = await fetch(base + '/audio/speech', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, cfg.key ? { Authorization: 'Bearer ' + cfg.key } : {}),
+          body: JSON.stringify({ model: cfg.model || 'tts-1', input: spoken, voice: cfg.voice || 'alloy', response_format: 'mp3' })
+        });
+        if (gen !== speakGen) return;            // a newer move superseded this
+        if (!res.ok) throw new Error('TTS HTTP ' + res.status);
+        const url = URL.createObjectURL(await res.blob());
+        if (gen !== speakGen) { URL.revokeObjectURL(url); return; }
+        if (speakAudioEl) speakAudioEl.pause();
+        speakAudioEl = new Audio(url);
+        speakAudioEl.onended = () => { URL.revokeObjectURL(url); speakAudioEl = null; };
+        await speakAudioEl.play();
+      } catch (e) {
+        if (gen === speakGen) speakNative(spoken);   // endpoint down/misconfigured -> browser voice
+      }
+    } else {
+      speakNative(spoken);
+    }
+  }
+  function stopSpeaking() {
+    speakGen++;
+    if (speakAudioEl) { speakAudioEl.pause(); speakAudioEl = null; }
+    if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+  }
+
   function narrateMove(prevState, move, san, quality) {
     if (!moveNarrationEl) return;
     moveNarrationEl.textContent = (prevState.turn === Rules.WHITE ? 'White: ' : 'Black: ') + describeMove(prevState, move, san, quality);
     moveNarrationEl.hidden = false;
+    if (speakMoves) speakText(moveNarrationEl.textContent);
   }
   function renderCapturedTray() {
     function piecesText(list, glyphColorSuffix) {
@@ -3263,6 +3361,7 @@ function requestMove(fen, difficulty) {
       const prev = moveNarrationEl.textContent.trim();
       moveNarrationEl.textContent = prev ? prev + '\n' + verdict : verdict;
       moveNarrationEl.hidden = false;
+      if (speakMoves) speakText(moveNarrationEl.textContent);
     }
   }
 
