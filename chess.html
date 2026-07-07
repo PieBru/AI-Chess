@@ -215,6 +215,7 @@
   }
   .square.last-move { box-shadow: inset 0 0 0 999px rgba(201,162,75,.22); }
   .square.in-check { box-shadow: inset 0 0 0 999px rgba(209,73,91,.45); }
+  .square.hint { box-shadow: inset 0 0 0 4px rgba(80,200,120,.9); }   /* hint-coach suggestion (green ring), distinct from last-move/in-check */
   /* drag-and-drop: drag-target marks all legal destinations while a piece is
      held; drag-over marks the single square currently under the cursor. */
   .square.drag-target { box-shadow: inset 0 0 0 999px rgba(201,162,75,.18); }
@@ -560,6 +561,16 @@ Default Off = no clock.">Time control
       <label>Voice <span class="hint-inline">(Kokoro e.g. <code>af_heart</code>; OpenAI e.g. <code>alloy</code>)</span></label>
       <input type="text" id="tts-voice" placeholder="af_heart" autocomplete="off">
     </details>
+    <details class="hint-coach-config">
+      <summary>💡 Hint coach (for human players) — optional</summary>
+      <p class="hint">A human player can ask for a hint (3 per game). Needs its own OpenAI-compatible chat endpoint, independent of the opponent. The coach suggests one move — highlighted on the board, never auto-played — with a one-line reason.</p>
+      <label>Coach API base URL</label>
+      <input type="text" id="hint-api-base" placeholder="http://localhost:8080/v1" autocomplete="off">
+      <label>API key <span class="hint-inline">(optional for local servers)</span></label>
+      <input type="password" id="hint-api-key" placeholder="sk-...">
+      <label>Model</label>
+      <input type="text" id="hint-model" placeholder="gpt-4o-mini" autocomplete="off">
+    </details>
     <div class="start-row">
       <button id="start-btn">Start Game</button>
     </div>
@@ -628,6 +639,7 @@ Default Off = no clock.">Time control
       <div class="controls">
         <button id="flip-btn" title="Flip the board so the other colour sits at the bottom.">Flip board</button>
         <button id="takeover-btn" hidden title="Replace one side's controller mid-game (Human / Browser-AI / LLM-AI) and resume from the current position. The position, move history and clocks are unchanged. During a tournament or match, taking over ends the series (partial results are saved) and continues as a single game from here.">Take over…</button>
+        <button id="hint-btn" hidden title="Ask the hint coach for a move suggestion — highlighted on the board, never auto-played. 3 hints per game.">💡 Hint</button>
         <button id="resign-btn" title="Concede — the side to move loses. Asks for confirmation.">Resign</button>
         <button id="rematch-btn" title="Start a fresh game with the same sides and settings (skips setup). Asks for confirmation if a game is in progress.">Rematch</button>
         <button id="save-pgn-btn" title="Download this game as a PGN file (standard portable game notation).">Save PGN</button>
@@ -1957,6 +1969,10 @@ function requestMove(fen, difficulty) {
   const ttsEndpointEl = document.getElementById('tts-endpoint');
   const ttsModelEl = document.getElementById('tts-model');
   const ttsVoiceEl = document.getElementById('tts-voice');
+  const hintApiBaseEl = document.getElementById('hint-api-base');
+  const hintApiKeyEl = document.getElementById('hint-api-key');
+  const hintModelEl = document.getElementById('hint-model');
+  const hintBtn = document.getElementById('hint-btn');
   const replayControlsEl = document.getElementById('replay-controls');
   const replayCounterEl = document.getElementById('replay-counter');
 
@@ -2079,7 +2095,7 @@ function requestMove(fen, difficulty) {
   // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, speakMoves, tts: ttsConfig })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, speakMoves, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
@@ -2088,6 +2104,9 @@ function requestMove(fen, difficulty) {
   let moveLimitPref = 'off';      // setup-screen selection key ('off' or a full-move count), persisted
   let speakMoves = false;          // speak each move's narration aloud (game-screen toggle), persisted
   let ttsConfig = { endpoint: '', model: '', voice: '', key: '' };   // OpenAI-compatible /v1/audio/speech endpoint, persisted
+  let hintCoach = { apiBase: '', apiKey: '', model: '' };   // hint-coach LLM endpoint (FR-9.9), independent of the opponent, persisted
+  let hintsLeft = 0;        // hints remaining this game (reset to 3 on new game)
+  let hintMove = null;      // {from,to} suggested by the coach — rendered as a green ring, cleared on the next move/selection
   (function restorePrefs() {
     const p = loadPrefs();
     if (!p) return;
@@ -2099,6 +2118,7 @@ function requestMove(fen, difficulty) {
     moveLimitPref = ['off','40','60','80','100','150','200'].includes(p.moveLimit) ? p.moveLimit : 'off';
     speakMoves = !!p.speakMoves;
     if (p.tts && typeof p.tts === 'object') ttsConfig = { endpoint: String(p.tts.endpoint || ''), model: String(p.tts.model || ''), voice: String(p.tts.voice || ''), key: String(p.tts.key || '') };
+    if (p.hint && typeof p.hint === 'object') hintCoach = { apiBase: String(p.hint.apiBase || ''), apiKey: String(p.hint.apiKey || ''), model: String(p.hint.model || '') };
     soundToggleEl.checked = soundEnabled;
     coordsToggleEl.checked = showCoords;
     reactionsToggleEl.checked = reactionsEnabled;
@@ -2111,6 +2131,9 @@ function requestMove(fen, difficulty) {
     if (ttsEndpointEl) ttsEndpointEl.value = ttsConfig.endpoint;
     if (ttsModelEl) ttsModelEl.value = ttsConfig.model;
     if (ttsVoiceEl) ttsVoiceEl.value = ttsConfig.voice;
+    if (hintApiBaseEl) hintApiBaseEl.value = hintCoach.apiBase;
+    if (hintApiKeyEl) hintApiKeyEl.value = hintCoach.apiKey;
+    if (hintModelEl) hintModelEl.value = hintCoach.model;
   })();
   soundToggleEl.addEventListener('change', () => {
     soundEnabled = soundToggleEl.checked;
@@ -2140,6 +2163,12 @@ function requestMove(fen, difficulty) {
   [ [ttsEndpointEl, 'endpoint'], [ttsModelEl, 'model'], [ttsVoiceEl, 'voice'] ].forEach(([el, k]) => {
     if (!el) return;
     el.addEventListener('change', () => { ttsConfig[k] = el.value.trim(); savePrefs(); });
+  });
+  // Hint-coach config (setup screen): persist on edit. (apiBase normalized
+  // like a side's, so pasting the full /chat/completions URL works too.)
+  [ [hintApiBaseEl, 'apiBase'], [hintApiKeyEl, 'apiKey'], [hintModelEl, 'model'] ].forEach(([el, k]) => {
+    if (!el) return;
+    el.addEventListener('change', () => { hintCoach[k] = k === 'apiBase' ? normalizeApiBase(el.value) : el.value.trim(); savePrefs(); });
   });
   speedSelectEl.addEventListener('change', () => {
     spectatorSpeed = speedSelectEl.value;
@@ -2534,6 +2563,7 @@ function requestMove(fen, difficulty) {
     selectedSquare = null;
     legalFromSelected = [];
     lastMove = null;
+    hintMove = null; hintsLeft = 3;
     gameOver = false;
     paused = false;
     capturedByWhite = [];
@@ -2717,12 +2747,14 @@ function requestMove(fen, difficulty) {
     if (setupCfg) applyConfigToSide(setupCfg, entry);   // so Rematch / next-game defaults keep it
     try { saveSetup(Object.assign({}, readSideConfigs().config, { mode: setupSeriesMode })); } catch (e) {}
     closeTakeoverModal();
+    hintMove = null; hintsLeft = 3;   // a freshly human side gets its own hint budget
     paused = false; pauseBtn.textContent = 'Pause';
     spectatorControlsEl.hidden = !isSpectatorMode();
     playTurn();
   }
   function updateTakeoverBtn() { if (takeoverBtn) takeoverBtn.hidden = gameOver || replayMode; }
   if (takeoverBtn) takeoverBtn.addEventListener('click', openTakeoverModal);
+  if (hintBtn) hintBtn.addEventListener('click', requestHint);
   if (takeoverSideSel) takeoverSideSel.addEventListener('change', fillTakeoverFromSide);
   const takeoverCancelBtn = document.getElementById('takeover-cancel');
   const takeoverConfirmBtn = document.getElementById('takeover-confirm');
@@ -2977,7 +3009,7 @@ function requestMove(fen, difficulty) {
     const humanTurn = isHumanTurn();
     for (const div of boardEl.children) {
       const sq = parseInt(div.dataset.sq, 10);
-      div.classList.remove('selected', 'last-move', 'in-check', 'drag-target', 'drag-over');
+      div.classList.remove('selected', 'last-move', 'in-check', 'drag-target', 'drag-over', 'hint');
       // Clear only dynamic children; preserve the .coord labels appended in
       // buildBoardDOM (innerHTML='' would wipe them on every render).
       div.querySelectorAll('.piece, .dot, .ring').forEach(el => el.remove());
@@ -2992,6 +3024,7 @@ function requestMove(fen, difficulty) {
       }
       if (sq === selectedSquare) div.classList.add('selected');
       if (lastMove && (sq === lastMove.from || sq === lastMove.to)) div.classList.add('last-move');
+      if (hintMove && (sq === hintMove.from || sq === hintMove.to)) div.classList.add('hint');
       if (checkSq === sq) div.classList.add('in-check');
       const legalHere = legalFromSelected.find(m => m.to === sq);
       if (legalHere) {
@@ -3012,6 +3045,7 @@ function requestMove(fen, difficulty) {
     // Game-over status text/banner is set by finishGame(), called separately
     // once by the game loop — render() itself stays idempotent.
     updateTakeoverBtn();   // show "Take over…" only in an active single game
+    updateHintBtn();      // show "💡 Hint" only on a human's turn with a configured coach + hints left
   }
 
   function findKingSquare(color) {
@@ -3067,6 +3101,47 @@ function requestMove(fen, difficulty) {
     if (gameOver || replayMode) return false;
     const sideConfig = gameState.turn === Rules.WHITE ? matchConfig.white : matchConfig.black;
     return sideConfig.type === 'human';
+  }
+
+  // Hint coach (FR-9.9): a human may ask for up to 3 move suggestions per game.
+  // The coach is its OWN LLM endpoint (independent of the opponent — a human
+  // vs Browser-AI/Grandmaster game has none), the suggestion is HIGHLIGHTED
+  // (green ring) and never auto-played, with a one-line reason in the toaster.
+  function updateHintBtn() {
+    if (!hintBtn) return;
+    hintBtn.hidden = !(isHumanTurn() && hintsLeft > 0 && hintCoach.apiBase && hintCoach.model);
+    hintBtn.textContent = '💡 Hint (' + hintsLeft + ' left)';
+  }
+  async function requestHint() {
+    if (!isHumanTurn() || hintsLeft <= 0) return;
+    if (!hintCoach.apiBase || !hintCoach.model) { alert('No hint coach configured — open 💡 Hint coach on the setup screen.'); return; }
+    hintBtn.disabled = true; hintBtn.textContent = '💡 …';
+    try {
+      const fen = Rules.toFEN(gameState);
+      const state = Rules.fromFEN(fen);
+      const legalUci = legalMovesAsUci(state);
+      const sideName = state.turn === Rules.WHITE ? 'White' : 'Black';
+      const messages = [
+        { role: 'system', content: 'You are a helpful, encouraging chess coach for a human player. Suggest the single strongest move from the legal list and give ONE short reason (max ~15 words). Reply as exactly two lines: line 1 = the UCI move (e.g. e2e4, e7e8q), line 2 = the reason. No other text.' },
+        { role: 'user', content: 'Position (FEN): ' + fen + '\nThe human plays: ' + sideName + '\nLegal moves: ' + legalUci.join(', ') + '\nSuggest the best move and one short reason.' },
+      ];
+      const r = await callLLM(hintCoach, messages);
+      const firstLine = (r.content.split('\n')[0] || '');
+      const reason = r.content.split('\n').slice(1).join(' ').trim().slice(0, 140);
+      const uci = extractUciMove(firstLine, legalUci);   // first line only — keeps a reason that names a move from polluting the pick
+      if (!uci) throw new Error('coach reply had no legal move');
+      const mv = uciToMove(state, uci);
+      if (!mv) throw new Error('coach move not legal in this position');
+      hintMove = { from: mv.from, to: mv.to };
+      hintsLeft--;
+      if (moveNarrationEl) { moveNarrationEl.textContent = '💡 Coach suggests ' + Rules.sqName(mv.from) + Rules.sqName(mv.to) + (reason ? ' — ' + reason : ''); moveNarrationEl.hidden = false; }
+      render();
+    } catch (err) {
+      alert('Hint failed: ' + err.message + llmEndpointErrorHint(hintCoach.apiBase));
+    } finally {
+      hintBtn.disabled = false;
+      updateHintBtn();
+    }
   }
 
   function selectPieceAt(sq) {
@@ -3130,6 +3205,7 @@ function requestMove(fen, difficulty) {
     const legal = Rules.genLegalMoves(gameState);
     const san = Rules.toSAN(gameState, move, legal);
     gameState = Rules.applyMove(gameState, move);
+    hintMove = null;
     lastMove = move;
     recordCapture(move);
     moveHistory.push({ san, evalCp: null, bestEvalCp: null, quality: null });
@@ -3472,6 +3548,7 @@ function requestMove(fen, difficulty) {
       if (commitClock(gameState.turn)) return;   // freeze mover's clock (+ increment), or flag on time
       const prevState = gameState;          // snapshot for narration (piece/side) before applyMove
       gameState = Rules.applyMove(gameState, move);
+      hintMove = null;
       lastMove = move;
       recordCapture(move);
       moveHistory.push({ san, evalCp, bestEvalCp, quality });

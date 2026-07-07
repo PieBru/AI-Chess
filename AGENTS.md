@@ -446,8 +446,6 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 
 ### 9.3 Future ideas (need a product decision before building — none specced)
 Each needs a spec FR + PRD/TDD section and a resolved open question first.
-- **LLM single hint** (human-requested): needs its own LLM config (humans have
-  no endpoint today) + a definition of the hint budget.
 - **Per-side language (EN/IT):** scope unclear — per-side *UI* language (two
   players, one screen?) vs commentary vs announcements. No in-app strings are
   localized today.
@@ -465,7 +463,8 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
 - **Per-turn hard time cap** on top of the chess clock, if a "no single move
   may exceed N seconds" guard is ever wanted.
 
-**Lowest-friction next build:** among §9.3, the **LLM single hint** is the
-highest-value but needs a config decision first. Everything here
-carries a real product question — pick one and talk through the decision
-before building.
+**Lowest-friction next build:** among §9.3, the **AI commentary per move**
+is the most entertaining remaining item (the audio plumbing from FR-5.5 is
+already in place), but it needs a latency/pacing plan and a commentary
+endpoint/profile decision. Everything here carries a real product question
+— pick one and talk through the decision before building.
