@@ -422,6 +422,10 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 - **Sampled sounds + spectator reactions** (CC0 / Pixabay, off by default),
   **pause/stop/speed spectator controls (FR-6.4)**, **captured-piece tray
   (FR-5.3)**, **rich summary panel**, **rematch**.
+- **Plain-English move narration (FR-5.5)** under the board + **spoken TTS**:
+  each move's narration (and the end-game verdict) can be spoken via a local
+  OpenAI-compatible `/v1/audio/speech` endpoint (e.g. docker-kokoro / Kokoro)
+  with a `speechSynthesis` fallback; vendor-neutral per §1.
 
 ### 9.2 Deferred (specified, not built — build when the trigger fires)
 | Feature | Spec/PRD | Why deferred / re-open trigger |
@@ -439,9 +443,13 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
 - **Per-side language (EN/IT):** scope unclear — per-side *UI* language (two
   players, one screen?) vs commentary vs announcements. No in-app strings are
   localized today.
-- **AI commentary + multilingual TTS** per move: which LLM / which TTS engine
-  (browser-native `SpeechSynthesis` is the zero-dependency first option),
-  latency/pacing that must not block the loop. Audio foundation already exists.
+- **AI commentary per move** (LLM-generated, not the local narration): the
+  *spoken-narration* half of the old "commentary + TTS" item shipped (FR-5.5 —
+  move narration spoken via local Kokoro / `speechSynthesis` fallback). What
+  remains is **LLM-generated commentary** on each move (vs the local
+  describeMove sentence): needs a dedicated commentary endpoint/profile, a
+  latency/pacing plan that doesn't block the loop or AI-vs-AI pacing, and a
+  profile/language selector.
 - **Configurable LLM reasoning level:** `reasoning_effort`/thinking-budget
   knob. The param mapping is endpoint/model-specific (needs a capability
   probe); note the benchmark found more thinking ≠ better chess (Claude 3.7
@@ -454,7 +462,6 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
   may exceed N seconds" guard is ever wanted.
 
 **Lowest-friction next build:** among §9.3, the **LLM single hint** is the
-highest-value but needs a config decision first; **AI commentary + native TTS**
-is self-contained and reuses the existing LLM `fetch` path. Everything here
+highest-value but needs a config decision first. Everything here
 carries a real product question — pick one and talk through the decision
 before building.

@@ -117,6 +117,7 @@ All Human/AI combinations must be supported without special-casing in the rules 
   drop simply snaps back (no move played, selection cleared).
 - FR-5.3 Last-move highlight, check indicator, and captured-piece tray for both sides.
 - FR-5.4 Move history panel in SAN, scrollable, updated after every ply.
+- FR-5.5 Plain-English move narration, shown and optionally spoken. After every move a small toaster under the board shows a **locally generated** plain-English description (e.g. "White: Knight to f3", "Black: Pawn captures on d5", "Castles kingside", "Queen captures on f7 — checkmate!"), built from the pre-move board + the move + SAN — no LLM call; inaccuracies/mistakes/blunders append a short cue. When the game ends the same toaster appends the end-game verdict (the summary's "who played cleaner" sentence) on a second line. A **Speak moves** toggle (off by default, persisted) speaks each narration aloud: it POSTs `{model,input,voice,response_format}` to a user-configured **OpenAI-compatible `/v1/audio/speech`** endpoint (e.g. a local Kokoro server such as docker-kokoro — config: base URL, model, voice, persisted) and plays the returned audio blob, **falling back to the browser's native `speechSynthesis`** when no endpoint is set or a request fails. Speech is cancelled on toggle-off, new game, and entering replay; a newer move supersedes any in-flight fetch/utterance. The only TTS protocol referenced is "OpenAI-compatible /v1/audio/speech" (vendor-neutral, §1).
 
 ### FR-6. Game controls
 - FR-6.1 New Game (re-opens controller/difficulty selection).
