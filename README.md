@@ -38,6 +38,7 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 - **Web Workers** — the Normal engine and Stockfish run off the main thread, so the UI never blocks.
 - **Offline-first** — Human vs Human and Human vs Normal need no network. Grandmaster loads a local Stockfish runtime bundle when present (else tries a CDN); LLM-AI needs your configured endpoint.
 - **Setup persistence** — your per-side controller choices, LLM config, and game mode (Single / Tournament / Match) are saved to `localStorage` and proposed as defaults next time; the very first run opens on Human vs Browser-AI. Verified LLM endpoints are also saved as reusable profiles.
+- **🌐 English & Italian** — a language selector on the setup page localizes the interface (chess clock, move limit, an AI move-cap hang-guard, and a running session scoreboard round out the setup options).
 
 ## Play
 
