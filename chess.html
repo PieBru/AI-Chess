@@ -1726,7 +1726,7 @@ function requestMove(fen, difficulty) {
           const data = await res.json();
           const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
           if (!content) throw new Error('LLM response had no message content');
-          return { content: content.trim(), usage: data && data.usage };
+          return { content: stripThoughts(content).trim(), usage: data && data.usage };
         }
         // A 400 while reasoning_effort was sent: the endpoint doesn't support
         // it. Drop it for the rest of the game and retry this call immediately.
@@ -1779,25 +1779,36 @@ function requestMove(fen, difficulty) {
   // gate (Start handler) — one probe, no duplicate logic.
   async function probeLlm({ apiBase, apiKey, model }) {
     if (!apiBase || !model) return { ok: false, reason: 'enter API base URL and model first' };
-    try {
-      const res = await fetch(apiBase + '/chat/completions', {
-        method: 'POST',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, apiKey ? { Authorization: 'Bearer ' + apiKey } : {}),
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word: ok' }] }),
-      });
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-        return content ? { ok: true } : { ok: false, reason: '200 but no message content' };
+    // Retry transient 5xx/429: a single 500 from a flaky endpoint shouldn't
+    // block game start. Mirrors callLLM's posture so the pre-start gate matches
+    // actual move behaviour. 4xx / network / mixed-content errors still fail
+    // immediately (they won't resolve on retry).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(apiBase + '/chat/completions', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, apiKey ? { Authorization: 'Bearer ' + apiKey } : {}),
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word: ok' }] }),
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+          return content ? { ok: true } : { ok: false, reason: '200 but no message content' };
+        }
+        if ((res.status === 429 || (res.status >= 500 && res.status < 600)) && attempt < 2) {
+          await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+          continue;
+        }
+        return { ok: false, reason: 'HTTP ' + res.status };
+      } catch (err) {
+        // Mixed-content (HTTPS page → HTTP endpoint) gets a clear label; other
+        // fetch rejections (CORS/DNS/unreachable) surface as the raw message,
+        // the most informative thing the browser gives.
+        const reason = (location.protocol === 'https:' && apiBase.startsWith('http:')) ? 'mixed content' : (err.message || 'network error');
+        return { ok: false, reason };
       }
-      return { ok: false, reason: 'HTTP ' + res.status };
-    } catch (err) {
-      // Mixed-content (HTTPS page → HTTP endpoint) gets a clear label; other
-      // fetch rejections (CORS/DNS/unreachable) surface as the raw message,
-      // the most informative thing the browser gives.
-      const reason = (location.protocol === 'https:' && apiBase.startsWith('http:')) ? 'mixed content' : (err.message || 'network error');
-      return { ok: false, reason };
     }
+    return { ok: false, reason: 'HTTP 5xx (endpoint flaky — retried, still failing)' };
   }
 
   function llmStatusLabel(r) {
@@ -1850,6 +1861,17 @@ function requestMove(fen, difficulty) {
     return '';
   }
 
+  // Strip native reasoning blocks that some thinking models (Gemini/Gemma
+  // <thought>, DeepSeek-R1/o1-style <think>) inline in the message content.
+  // Without this, the private deliberation pollutes move extraction, fills the
+  // hint's reason line, and shows as raw <thought>…</thought> in commentary.
+  function stripThoughts(text) {
+    if (!text) return text;
+    return String(text)
+      .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/<\/?(?:thought|think)>/gi, '');   // stray unclosed tags
+  }
   function extractUciMove(text, legalUci) {
     const lower = text.toLowerCase();
     // Prefer the LAST legal-move token mentioned. A chain-of-thought reply
@@ -3515,7 +3537,7 @@ function requestMove(fen, difficulty) {
       const data = await res.json();
       const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       if (myGen !== commentaryGen) return;   // a newer move superseded this — drop the stale comment
-      const comment = String(content || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+      const comment = stripThoughts(String(content || '')).trim().replace(/\s+/g, ' ').slice(0, 200);
       if (!comment) return;
       const prev = moveNarrationEl.textContent.trim();
       moveNarrationEl.textContent = prev ? prev + '\n🗣 ' + comment : '🗣 ' + comment;
