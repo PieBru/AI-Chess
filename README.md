@@ -34,9 +34,15 @@ NOTE: it's almost impossible for me to manually test all features and options. E
 
 ## Play
 
-Open `chess.html` in any modern browser (or `firefox chess.html`). It works via `file://` — no server required. **`chess.html` alone is a complete game**: Human vs Human, Human vs Browser-AI, and LLM-AI all run from that one file with nothing else.
+**Quick start** — `chess.html` alone is a complete game. Open it in any modern browser (`firefox chess.html`, or just double-click): Human vs Human, Human vs Browser-AI, and LLM-AI all run from that one file via `file://`, no server needed.
 
-**Grandmaster mode is the one exception** — it needs the Stockfish engine, shipped as two optional companion files next to `chess.html` (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0). They load only when a side is set to Grandmaster; delete them and every other mode keeps working unchanged. **Grandmaster also requires serving over HTTP** (e.g. `python3 -m http.server`, then open `http://localhost:8000/chess.html`) — browsers block its background Worker from a `file://` page. Over HTTP it runs fully offline from the local bundle. Likewise, if you point LLM-AI at a local HTTP server (e.g. Ollama / LM Studio), serve the app over HTTP too — browsers block calls from an HTTPS page to an HTTP endpoint (mixed content).
+**Grandmaster mode is the one exception** — it needs the Stockfish engine, shipped as two optional companion files next to `chess.html` (`stockfish-18-lite-single.{js,wasm}`, GPL-3.0). They load only when a side is set to Grandmaster; delete them and every other mode keeps working unchanged. Grandmaster also requires serving over HTTP — browsers block its background Worker from a `file://` page. Over HTTP it runs fully offline from the local bundle:
+
+```bash
+python3 -m http.server 8000   # then open http://localhost:8000/chess.html
+```
+
+> **Local LLM needs HTTP too.** To reach a local HTTP inference server (Ollama, LM Studio, llama.cpp, …) serve the app over HTTP as above — browsers block HTTPS→HTTP calls (mixed content) outright, and `file://`→HTTP is unreliable, so HTTP serving is the safe path for local-LLM play.
 
 **Cloud is supported — never required.** LLM-AI is built around a local or self-hosted OpenAI-compatible server: that is the intended, fully-offline path and the spirit of this project. But running your own inference server takes hardware and setup that not everyone has, so the app also works with any cloud-hosted OpenAI-compatible endpoint — and as of today (July 2026), several have been verified compatible with the app's requirements; every one of them offers a **free tier** that proved **good enough to play**. Their use is **entirely optional**: the app never requires a cloud account, never collects telemetry, and keeps your key only in your own browser. If you can self-host, do; if you can't, the cloud path is there so the door stays open for you.
 
