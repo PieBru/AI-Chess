@@ -408,6 +408,8 @@
     margin-left: auto; cursor: pointer; text-decoration: underline;
     font-size: .78rem;
   }
+  .lang-pick { float: right; font-size: .85rem; color: var(--muted); }
+  .lang-pick select { margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -426,6 +428,7 @@
 <section id="setup-screen" class="screen">
   <div class="setup-card">
     <p id="file-warning" class="error-msg" hidden><strong>Opened via file://</strong> — Grandmaster (Stockfish) can't load from a local file. <a href="https://piebru.github.io/AI-Chess/chess.html" target="_blank" rel="noopener">Open the hosted version</a>, or serve this folder over HTTP (run <code>python3 -m http.server</code> here, then open <code>http://localhost:8000/chess.html</code>). Human vs Human / Normal still work here.</p>
+    <label class="lang-pick" title="Interface language / Lingua dell'interfaccia. Impostata qui, applicata a tutta l'app.">🌐 Language<select id="lang-select"><option value="en">English</option><option value="it">Italiano</option></select></label>
     <div class="series-mode-row">
       <label class="timecontrol-label">Mode
         <select id="series-mode" title="Single game: one game between the two sides. Tournament: the LLM plays an adaptive gauntlet vs every Browser-AI level (finds its level, Stockfish-Elo-anchored). Match: a best-of-N head-to-head between the two configured sides (relative strength ranking). Tournament runs without a chess clock; Match honors the time control if you set one.">
@@ -2137,7 +2140,7 @@ function requestMove(fen, difficulty) {
   // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, aiMoveTimeout: aiMoveTimeoutSec, speakMoves, commentary: commentaryEnabled, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, aiMoveTimeout: aiMoveTimeoutSec, lang: uiLang, speakMoves, commentary: commentaryEnabled, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
@@ -2145,6 +2148,7 @@ function requestMove(fen, difficulty) {
   let timeControlPref = 'off';   // setup-screen selection key, persisted
   let moveLimitPref = 'off';      // setup-screen selection key ('off' or a full-move count), persisted
   let aiMoveTimeoutSec = 0;       // per-move time guard (FR-9.12): max seconds for one AI move; 0 = off, persisted
+  let uiLang = 'en';              // interface language (FR-9.13): 'en' | 'it', set on the setup page, persisted
   let speakMoves = false;          // speak each move's narration aloud (game-screen toggle), persisted
   let commentaryEnabled = false;   // LLM one-line comment after each move (FR-9.10), uses the AI-assistant endpoint, persisted
   let commentaryGen = 0;           // drop-stale guard: a comment resolves only if no newer move superseded it
@@ -2162,6 +2166,7 @@ function requestMove(fen, difficulty) {
     timeControlPref = ['off','bullet','blitz','rapid','classical'].includes(p.timeControl) ? p.timeControl : 'off';
     moveLimitPref = ['off','40','60','80','100','150','200'].includes(p.moveLimit) ? p.moveLimit : 'off';
     aiMoveTimeoutSec = [0, 15, 30, 60, 120].includes(Number(p.aiMoveTimeout)) ? Number(p.aiMoveTimeout) : 0;
+    uiLang = p.lang === 'it' ? 'it' : 'en';
     speakMoves = !!p.speakMoves;
     commentaryEnabled = !!p.commentary;
     if (p.tts && typeof p.tts === 'object') ttsConfig = { endpoint: String(p.tts.endpoint || ''), model: String(p.tts.model || ''), voice: String(p.tts.voice || ''), key: String(p.tts.key || '') };
@@ -2176,6 +2181,8 @@ function requestMove(fen, difficulty) {
     if (mlSel) mlSel.value = moveLimitPref;
     const atSel = document.getElementById('aimovetimeout-select');
     if (atSel) atSel.value = String(aiMoveTimeoutSec);
+    const langSel = document.getElementById('lang-select');
+    if (langSel) langSel.value = uiLang;
     if (speakToggleEl) speakToggleEl.checked = speakMoves;
     if (commentaryToggleEl) commentaryToggleEl.checked = commentaryEnabled;
     if (ttsEndpointEl) ttsEndpointEl.value = ttsConfig.endpoint;
@@ -2184,6 +2191,7 @@ function requestMove(fen, difficulty) {
     if (hintApiBaseEl) hintApiBaseEl.value = hintCoach.apiBase;
     if (hintApiKeyEl) hintApiKeyEl.value = hintCoach.apiKey;
     if (hintModelEl) hintModelEl.value = hintCoach.model;
+    applyLang();   // swap static chrome to the saved language (no-op for 'en')
   })();
   soundToggleEl.addEventListener('change', () => {
     soundEnabled = soundToggleEl.checked;
@@ -2242,6 +2250,12 @@ function requestMove(fen, difficulty) {
   aiMoveTimeoutSelectEl.addEventListener('change', () => {
     aiMoveTimeoutSec = Number(aiMoveTimeoutSelectEl.value) || 0;
     savePrefs();
+  });
+  const langSelectEl = document.getElementById('lang-select');
+  langSelectEl.addEventListener('change', () => {
+    uiLang = langSelectEl.value === 'it' ? 'it' : 'en';
+    savePrefs();
+    location.reload();   // re-apply from the English HTML source (clean swap, no restore logic)
   });
 
   // ---- Setup screen wiring ----
@@ -2636,7 +2650,7 @@ function requestMove(fen, difficulty) {
     document.getElementById('clocks').hidden = !timeControl;
     renderClocks();
     exitReplayMode();
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = pauseLabel(false);
     document.getElementById('setup-screen').hidden = true;
     document.getElementById('game-screen').hidden = false;
     resultBanner.hidden = true;
@@ -2701,7 +2715,7 @@ function requestMove(fen, difficulty) {
   pauseBtn.addEventListener('click', () => {
     if (gameOver) return;
     paused = !paused;
-    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    pauseBtn.textContent = pauseLabel(paused);
     if (paused) {
       statusEl.textContent = 'Pausing — finishing the current move…';
     } else if (thinkingEl.hidden) {
@@ -2724,7 +2738,7 @@ function requestMove(fen, difficulty) {
       return;
     }
     paused = false;
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = pauseLabel(false);
     finishGame({ result: '*', reason: 'stopped by spectator' });
   });
 
@@ -2782,7 +2796,7 @@ function requestMove(fen, difficulty) {
   function openTakeoverModal() {
     if (!takeoverModal || gameOver || replayMode) return;
     takeoverWasPaused = paused;
-    paused = true; pauseBtn.textContent = 'Resume';
+    paused = true; pauseBtn.textContent = pauseLabel(true);
     takeoverSideSel.querySelector('option[value="white"]').textContent = 'White — currently ' + matchSideLabel(matchConfig.white);
     takeoverSideSel.querySelector('option[value="black"]').textContent = 'Black — currently ' + matchSideLabel(matchConfig.black);
     takeoverSideSel.value = gameState.turn === Rules.WHITE ? 'white' : 'black';
@@ -2807,7 +2821,7 @@ function requestMove(fen, difficulty) {
     try { saveSetup(Object.assign({}, readSideConfigs().config, { mode: setupSeriesMode })); } catch (e) {}
     closeTakeoverModal();
     hintMove = null; hintsLeft = 3;   // a freshly human side gets its own hint budget
-    paused = false; pauseBtn.textContent = 'Pause';
+    paused = false; pauseBtn.textContent = pauseLabel(false);
     spectatorControlsEl.hidden = !isSpectatorMode();
     playTurn();
   }
@@ -2817,7 +2831,7 @@ function requestMove(fen, difficulty) {
   if (takeoverSideSel) takeoverSideSel.addEventListener('change', fillTakeoverFromSide);
   const takeoverCancelBtn = document.getElementById('takeover-cancel');
   const takeoverConfirmBtn = document.getElementById('takeover-confirm');
-  if (takeoverCancelBtn) takeoverCancelBtn.addEventListener('click', () => { closeTakeoverModal(); paused = takeoverWasPaused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; if (!paused && !gameOver) playTurn(); });
+  if (takeoverCancelBtn) takeoverCancelBtn.addEventListener('click', () => { closeTakeoverModal(); paused = takeoverWasPaused; pauseBtn.textContent = pauseLabel(paused); if (!paused && !gameOver) playTurn(); });
   if (takeoverConfirmBtn) takeoverConfirmBtn.addEventListener('click', confirmTakeover);
 
   // ---- PGN save / load / replay (Appendix B #1) ----
@@ -3096,8 +3110,9 @@ function requestMove(fen, difficulty) {
     if (!status.over) {
       if (seriesActive()) seriesRenderProgress();
       else {
-        const sideName = gameState.turn === Rules.WHITE ? 'White' : 'Black';
-        statusEl.textContent = (status.check ? sideName + ' is in check — ' : '') + sideName + ' to move';
+        const sideName = sideWord(gameState.turn);
+        const toMove = gameState.turn === Rules.WHITE ? t('whiteToMove') : t('blackToMove');
+        statusEl.textContent = status.check ? sideName + t('inCheck') + toMove : toMove;
         statusEl.classList.toggle('check', !!status.check);
       }
     }
@@ -3295,22 +3310,102 @@ function requestMove(fen, difficulty) {
   // reliably (SAN is ambiguous for pawn captures vs piece moves).
   const PIECE_NAME = { 1: 'Pawn', 2: 'Knight', 3: 'Bishop', 4: 'Rook', 5: 'Queen', 6: 'King' };
   const QUALITY_WORD = { inaccuracy: ' — inaccurate', mistake: ' — a mistake', blunder: ' — a blunder!' };
+
+  // ---- i18n (FR-9.13): EN/IT, single global language set on the setup page ----
+  // Tier B scope. Static chrome is swapped at load by a text-node walk keyed on
+  // the exact English text already in the HTML (the English DOM is canonical;
+  // Italian overlays it when uiLang==='it' — no per-element data attrs needed,
+  // and the repeated White/Black/Human/Difficulty strings are covered once).
+  // Dynamic strings use t()/maps below. Left in English (documented boundary):
+  // tooltips (title=), long hint paragraphs, toast messages, and the generated
+  // tournament/match result tables. Language change = save pref + reload (set
+  // only on the setup page, so no in-game state is lost).
+  const IT_TEXT = {
+    "♟ Piero's AI Chess, 2026 Edition": "♟ Scacchi AI di Piero, Edizione 2026",
+    "Human, Browser-AI (6 levels, plus Stockfish), or LLM-AI — either side": "Umano, IA-Browser (6 livelli, più Stockfish) o IA-LLM — per entrambi i lati",
+    "Mode": "Modalità", "Single game": "Partita singola", "Tournament (gauntlet)": "Torneo (scala)", "Match (head-to-head)": "Match (testa a testa)",
+    "Games": "Partite", "Move limit": "Limite mosse", "Off": "No", "Time control": "Controllo tempo",
+    "Bullet (1+0)": "Bullet (1+0)", "Blitz (3+2)": "Blitz (3+2)", "Rapid (10+5)": "Rapid (10+5)", "Classical (30+0)": "Classica (30+0)",
+    "AI move cap": "Tempo max mossa IA",
+    "White": "Bianco", "Black": "Nero", "Human": "Umano", "Browser-AI": "IA-Browser", "LLM-AI": "IA-LLM", "Difficulty": "Difficoltà",
+    "1 — Random (beginner)": "1 — Casuale (principiante)", "2 — Easy (fair)": "2 — Facile (discreto)", "3 — Medium (moderate)": "3 — Medio (moderato)",
+    "4 — Hard (strong)": "4 — Difficile (forte)", "5 — Expert (very strong)": "5 — Esperto (molto forte)",
+    "6 — Grandmaster (Elo 1350)": "6 — Gran Maestro (Elo 1350)", "7 — Grandmaster (Elo 1800)": "7 — Gran Maestro (Elo 1800)",
+    "8 — Grandmaster (Elo 2200)": "8 — Gran Maestro (Elo 2200)", "9 — Grandmaster (Elo 2600)": "9 — Gran Maestro (Elo 2600)",
+    "10 — Grandmaster (Elo 3000)": "10 — Gran Maestro (Elo 3000)", "11 — Grandmaster (full)": "11 — Gran Maestro (massimo)",
+    "Saved profile": "Profilo salvato", "Custom…": "Personalizzato…", "API base URL": "URL base API", "API key": "Chiave API",
+    "Model": "Modello", "Reasoning": "Ragionamento", "Low": "Basso", "Medium": "Medio", "High": "Alto", "AI persona": "Personalità IA",
+    "Grandmaster — confident + principles": "Gran Maestro — sicuro + principi", "Tactician — anti-blunder checklist": "Tattico — checklist anti-errori",
+    "Relentless attacker": "Attaccante implacabile", "Sound positional player": "Giocatore posizionale solido",
+    "Think-then-commit (reasoning models)": "Pensa-poi-muovi (modelli con ragionamento)", "Makes moves via the board UI.": "Muove tramite l'interfaccia della scacchiera.",
+    "🔊 Spoken narration (text-to-speech) — optional": "🔊 Narrazione parlata (text-to-speech) — opzionale",
+    "🤖 AI assistant (💡 hints + 🗣 commentary) — optional": "🤖 Assistente IA (💡 suggerimenti + 🗣 commento) — opzionale",
+    "TTS endpoint": "Endpoint TTS", "Voice": "Voce", "Coach API base URL": "URL base API assistente", "Start Game": "Inizia partita",
+    "Speed": "Velocità", "Very slow": "Molto lenta", "Slow": "Lenta", "Normal": "Normale", "Fast": "Veloce", "Instant": "Istantanea",
+    "Pause": "Pausa", "Stop": "Ferma", "Captured by White": "Prese del Bianco", "Captured by Black": "Prese del Nero",
+    "⏮ Start": "⏮ Inizio", "◀ Prev": "◀ Prec", "Next ▶": "Succ ▶", "End ⏭": "Fine ⏭",
+    "Flip board": "Capovolgi scacchiera", "Take over…": "Prendi il posto…", "💡 Hint": "💡 Suggerimento", "Resign": "Arrenditi",
+    "Rematch": "Rivincita", "Save PGN": "Salva PGN", "Load PGN": "Carica PGN", "New game": "Nuova partita",
+    "Show coordinates (a–h, 1–8)": "Mostra coordinate (a–h, 1–8)", "Sound effects": "Effetti sonori",
+    "Spectator reactions (applause / boo)": "Reazioni del pubblico (applausi / fischi)", "Speak moves": "Pronuncia le mosse", "🗣 AI commentary": "🗣 Commento IA",
+    "Take over a side": "Prendi il posto di un lato", "Side to replace": "Lato da sostituire", "Cancel": "Annulla", "Take over & resume": "Prendi il posto e riprendi",
+  };
+  const IT_PLACEHOLDER = {
+    "Edit any preset above, or pick Custom and write your own. The reply must contain exactly one legal UCI move.": "Modifica un'impostazione sopra, oppure scegli Personalizzato e scrivi la tua. La risposta deve contenere esattamente una mossa UCI legale.",
+  };
+  // Dynamic-string maps.
+  const T = {
+    whiteToMove: { en: 'White to move', it: 'Tocca al Bianco' },
+    blackToMove: { en: 'Black to move', it: 'Tocca al Nero' },
+    inCheck: { en: ' is in check — ', it: ' è sotto scacco — ' },
+    paused: { en: 'Paused — click Resume to continue.', it: 'In pausa — clicca Riprendi per continuare.' },
+    gameOver: { en: 'Game over — ', it: 'Partita finita — ' },
+    thinking: { en: ' is thinking…', it: ' sta pensando…' },
+  };
+  function t(k) { return (T[k] && T[k][uiLang]) || (T[k] && T[k].en) || k; }
+  function sideWord(color) { return uiLang === 'it' ? (color === Rules.WHITE ? 'Bianco' : 'Nero') : (color === Rules.WHITE ? 'White' : 'Black'); }
+  function pauseLabel(isPaused) { return uiLang === 'it' ? (isPaused ? 'Riprendi' : 'Pausa') : (isPaused ? 'Resume' : 'Pause'); }
+  const PIECE_NAME_IT = { 1: 'Pedone', 2: 'Cavallo', 3: 'Alfiere', 4: 'Torre', 5: 'Donna', 6: 'Re' };
+  const QUALITY_WORD_IT = { inaccuracy: ' — imprecisa', mistake: ' — un errore', blunder: ' — un grave errore!' };
+  const REASON_IT = { 'checkmate': 'scacco matto', 'stalemate': 'stallo', 'draw': 'pareggio', 'insufficient material': 'materiale insufficiente', 'fifty-move rule': 'regola delle 50 mosse', 'threefold repetition': 'triplice ripetizione', 'resignation': 'abbandono', 'time': 'tempo scaduto', 'stopped by spectator': 'interrotto dal pubblico' };
+  function pieceName(pt) { return uiLang === 'it' ? (PIECE_NAME_IT[pt] || PIECE_NAME[pt]) : PIECE_NAME[pt]; }
+  function reasonText(reason) { return uiLang === 'it' ? (REASON_IT[reason] || reason) : reason; }
+  function applyLang() {
+    document.documentElement.lang = uiLang;
+    if (uiLang !== 'it') return;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(n => {
+      if (n.parentElement && n.parentElement.closest('script,style')) return;   // never swap code/style text
+      const k = n.nodeValue.replace(/\s+/g, ' ').trim();
+      if (IT_TEXT[k]) {
+        const lead = n.nodeValue.match(/^\s*/)[0], trail = n.nodeValue.match(/\s*$/)[0];
+        n.nodeValue = lead + IT_TEXT[k] + trail;
+      }
+    });
+    document.querySelectorAll('[placeholder]').forEach(el => {
+      const k = (el.getAttribute('placeholder') || '').trim();
+      if (IT_PLACEHOLDER[k]) el.placeholder = IT_PLACEHOLDER[k];
+    });
+  }
   function describeMove(prevState, move, san, quality) {
     const type = Math.abs(prevState.board[move.from]);
     const toSq = Rules.sqName(move.to);
     const cap = san.includes('x');
     let desc;
-    if (san.startsWith('O-O-O')) desc = 'Castles queenside';
-    else if (san.startsWith('O-O')) desc = 'Castles kingside';
+    if (san.startsWith('O-O-O')) desc = uiLang === 'it' ? 'Arrocco lungo' : 'Castles queenside';
+    else if (san.startsWith('O-O')) desc = uiLang === 'it' ? 'Arrocco corto' : 'Castles kingside';
     else if (type === Rules.PAWN) {
-      desc = cap ? 'Pawn captures on ' + toSq : 'Pawn to ' + toSq;
-      if (move.promotion) desc += ', promotes to ' + PIECE_NAME[Math.abs(move.promotion)];
+      desc = (cap ? (uiLang === 'it' ? 'Pedone cattura su ' : 'Pawn captures on ') : (uiLang === 'it' ? 'Pedone su ' : 'Pawn to ')) + toSq;
+      if (move.promotion) desc += (uiLang === 'it' ? ', promuove a ' : ', promotes to ') + pieceName(Math.abs(move.promotion));
     } else {
-      desc = PIECE_NAME[type] + (cap ? ' captures on ' : ' to ') + toSq;
+      desc = pieceName(type) + (cap ? (uiLang === 'it' ? ' cattura su ' : ' captures on ') : (uiLang === 'it' ? ' su ' : ' to ')) + toSq;
     }
-    if (san.endsWith('#')) desc += ' — checkmate!';
-    else if (san.endsWith('+')) desc += ' — gives check';
-    if (quality && QUALITY_WORD[quality]) desc += QUALITY_WORD[quality];
+    if (san.endsWith('#')) desc += uiLang === 'it' ? ' — scacco matto!' : ' — checkmate!';
+    else if (san.endsWith('+')) desc += uiLang === 'it' ? ' — dà scacco' : ' — gives check';
+    const qw = uiLang === 'it' ? QUALITY_WORD_IT : QUALITY_WORD;
+    if (quality && qw[quality]) desc += qw[quality];
     return desc;
   }
   // ---- Spoken narration (TTS) ----
@@ -3386,7 +3481,7 @@ function requestMove(fen, difficulty) {
 
   function narrateMove(prevState, move, san, quality) {
     if (!moveNarrationEl) return;
-    moveNarrationEl.textContent = (prevState.turn === Rules.WHITE ? 'White: ' : 'Black: ') + describeMove(prevState, move, san, quality);
+    moveNarrationEl.textContent = (sideWord(prevState.turn) + ': ') + describeMove(prevState, move, san, quality);
     moveNarrationEl.hidden = false;
     // When commentary is on, defer the speech to the comment (one voice, not
     // two); otherwise speak the factual narration as before.
@@ -3582,10 +3677,10 @@ function requestMove(fen, difficulty) {
       return;
     }
 
-    const label = sideConfig.type === 'normal' ? ('Browser-AI — Level ' + sideConfig.difficulty)
-      : sideConfig.type === 'llm' ? ('LLM-AI — ' + sideConfig.model)
-      : 'Grandmaster (Stockfish)';
-    thinkingTextEl.textContent = label + ' is thinking…';
+    const label = sideConfig.type === 'normal' ? ((uiLang === 'it' ? 'IA-Browser — Livello ' : 'Browser-AI — Level ') + sideConfig.difficulty)
+      : sideConfig.type === 'llm' ? ((uiLang === 'it' ? 'IA-LLM — ' : 'LLM-AI — ') + sideConfig.model)
+      : (uiLang === 'it' ? 'Gran Maestro (Stockfish)' : 'Grandmaster (Stockfish)');
+    thinkingTextEl.textContent = label + t('thinking');
     thinkingEl.hidden = false;
 
     let result;
@@ -3665,7 +3760,7 @@ function requestMove(fen, difficulty) {
     if (notePosition()) { finishGame({ result: '1/2-1/2', reason: 'threefold repetition' }); return; }
 
     if (paused) {
-      statusEl.textContent = 'Paused — click Resume to continue.';
+      statusEl.textContent = t('paused');
       return;
     }
 
@@ -3774,7 +3869,7 @@ function requestMove(fen, difficulty) {
     gameOver = true;
     lastResult = status.result || '*';
     paused = false;
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = pauseLabel(false);
     thinkingEl.hidden = true;
     spectatorControlsEl.hidden = true;
     selectedSquare = null; legalFromSelected = [];
@@ -3783,7 +3878,7 @@ function requestMove(fen, difficulty) {
     const reason = status.reason || 'game over';
     resultBanner.hidden = false;
     renderSummary(status, reason);
-    statusEl.textContent = 'Game over — ' + reason;
+    statusEl.textContent = t('gameOver') + reasonText(reason);
     playSound('gameover');
     if (!seriesActive()) recordSessionTally(status);   // session scoreboard (single games only; series own their tally)
     if (status.reason === 'checkmate') playReaction('cheer');   // crowd erupts on checkmate
@@ -3872,7 +3967,7 @@ function requestMove(fen, difficulty) {
     moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;
     gameOver = false; paused = false;
     capturedByWhite = []; capturedByBlack = []; lastResult = '*';
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = pauseLabel(false);
     resultBanner.hidden = true; resultBanner.innerHTML = '';
     spectatorControlsEl.hidden = false;                // always spectator-style during a tournament
     renderTournamentProgress();
@@ -4129,7 +4224,7 @@ function requestMove(fen, difficulty) {
     moveHistory = []; selectedSquare = null; legalFromSelected = []; lastMove = null;
     gameOver = false; paused = false;
     capturedByWhite = []; capturedByBlack = []; lastResult = '*';
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = pauseLabel(false);
     resultBanner.hidden = true; resultBanner.innerHTML = '';
     spectatorControlsEl.hidden = false;
     renderMatchProgress();

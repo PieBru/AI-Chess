@@ -446,16 +446,14 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 
 ### 9.3 Future ideas (need a product decision before building — none specced)
 Each needs a spec FR + PRD/TDD section and a resolved open question first.
-- **Per-side language (EN/IT):** scope unclear — per-side *UI* language (two
-  players, one screen?) vs commentary vs announcements. No in-app strings are
-  localized today.
 - **NoN / MoA multi-model orchestration:** pair a smart-but-erratic reasoning
   model with a cheap non-reasoning orchestrator to fix instruction-following
   (LLM-Chess lifted R1 32%→63%, Gemini 42%→79% this way). Out of scope for our
   single-LLM-per-side architecture today.
 
-**Lowest-friction next build:** §9.3 is now thin — **per-side language** has
-the most open UX questions (two players sharing one screen?), and **NoN/MoA**
-is the highest-value research angle but breaks the single-LLM-per-side
-architecture. Everything left carries a real product question — pick one and
-talk through the decision before building.
+**Lowest-friction next build:** §9.3 is down to **NoN/MoA** (highest-value
+research angle but breaks the single-LLM-per-side architecture). No other
+unblocked feature work remains — everything left either needs a host, needs
+playtest data, or is a research-direction decision. A good use of the next
+session is runtime smoke-testing the FR-9.8–9.13 batch (reasoning / hints /
+commentary / tally / move-cap / language) against a live endpoint.

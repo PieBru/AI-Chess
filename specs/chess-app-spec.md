@@ -236,6 +236,9 @@ All Human/AI combinations must be supported without special-casing in the rules 
 ### FR-9.12. AI move time cap
 - A setup-screen "AI move cap" selector (Off / 15s / 30s / 60s / 120s, default Off, persisted) sets a hard ceiling on any single **AI** move's think/network time. On expiry the timed-out move throws, routing through the existing per-controller failure path: an **LLM falls back to a quick local move** (FR-9.4 — so a hung endpoint can't freeze the game or stall a tournament/match gauntlet); an **engine** timeout is pathological (engines are already bounded — node budgets with a 30s cap, Stockfish `movetime 3000`) and ends the game. It applies to **AI moves only** — a human's deliberation is governed by the chess clock (FR-6.6), not a per-move ceiling (a per-move cap on a human is non-standard and harsh). Rationale: a robustness guard against hung/slow endpoints, complementing — not replacing — the total chess clock.
 
+### FR-9.13. Interface language (EN/IT)
+- A 🌐 Language selector on the setup (landing) page chooses the interface language — **English (default) or Italian** — persisted to prefs. It applies app-wide via a single global setting (not per-side — the two-players-one-screen case is out of scope). On change the page reloads, which overlays Italian onto the English DOM source. **Tier B scope:** localized are the static chrome (setup screen, game screen, takeover modal), the move narration (`describeMove`), the status line, the thinking indicator, the Pause/Resume button, and game-over reasons. **Left in English** (documented boundary): tooltips (`title=`), long hint paragraphs, toast messages, and the generated tournament/match result tables — hover-only, transient, or complex generated prose. Rationale: an Italian user gets a localized app without the cost/risk of a full per-string pass; the most-seen text is localized.
+
 ## 6. Non-functional requirements
 
 ### NFR-1. Single-file architecture
