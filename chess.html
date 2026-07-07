@@ -466,6 +466,15 @@ Default Off = no clock.">Time control
         <option value="classical">Classical (30+0)</option>
       </select>
     </label>
+      <label class="timecontrol-label" title="Hard ceiling on any single AI move's think / network time. On expiry an LLM falls back to a quick local move so a hung endpoint can't freeze the game (and the series keeps going); engines are already fast and rarely hit it. Off = no per-move ceiling (the chess clock still governs total time). Applies to AI moves only — humans deliberate and are governed by the clock.">AI move cap
+        <select id="aimovetimeout-select">
+          <option value="0" selected>Off</option>
+          <option value="15">15s</option>
+          <option value="30">30s</option>
+          <option value="60">60s</option>
+          <option value="120">120s</option>
+        </select>
+      </label>
     </div>
     <div class="side-configs">
       <div class="side-config" data-side="white">
@@ -1908,17 +1917,29 @@ function requestMove(fen, difficulty) {
   // Common interface (spec §7.1): all tiers resolve to the same shape.
   async function requestAIMove(controllerConfig) {
     const fen = Rules.toFEN(gameState);
-    if (controllerConfig.type === 'normal') {
-      const r = await requestNormalMove(fen, controllerConfig.difficulty);
-      return { move: r.move, evalCp: r.evalCp, bestEvalCp: r.bestEvalCp };
+    const doMove = async () => {
+      if (controllerConfig.type === 'normal') {
+        const r = await requestNormalMove(fen, controllerConfig.difficulty);
+        return { move: r.move, evalCp: r.evalCp, bestEvalCp: r.bestEvalCp };
+      }
+      if (controllerConfig.type === 'llm') return requestLLMMove(controllerConfig, fen);
+      const r = await requestGrandmasterMove(fen, controllerConfig.elo);
+      const move = uciToMove(gameState, r.uciMove);
+      if (!move) throw new Error('Grandmaster returned an unparseable move: ' + r.uciMove);
+      return { move, evalCp: r.evalCp, bestEvalCp: r.bestEvalCp };
+    };
+    // Per-move time guard (FR-9.12): a hard ceiling on any single AI move so a
+    // hung LLM endpoint can't freeze the game. On timeout the thrown error
+    // routes through the caller's per-controller catch — an LLM falls back to a
+    // quick local move (FR-9.4); an engine timeout (pathological — engines are
+    // fast) ends the game. Humans are clock-governed, not capped per move.
+    if (aiMoveTimeoutSec > 0) {
+      let timer;
+      const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('move timed out after ' + aiMoveTimeoutSec + 's')), aiMoveTimeoutSec * 1000); });
+      try { return await Promise.race([doMove(), timeout]); }
+      finally { clearTimeout(timer); }
     }
-    if (controllerConfig.type === 'llm') {
-      return requestLLMMove(controllerConfig, fen);
-    }
-    const r = await requestGrandmasterMove(fen, controllerConfig.elo);
-    const move = uciToMove(gameState, r.uciMove);
-    if (!move) throw new Error('Grandmaster returned an unparseable move: ' + r.uciMove);
-    return { move, evalCp: r.evalCp, bestEvalCp: r.bestEvalCp };
+    return doMove();
   }
 
   // ---------------------------------------------------------------------
@@ -2116,13 +2137,14 @@ function requestMove(fen, difficulty) {
   // ---- Preferences (sound + spectator speed + chess clock) ----
   const PREFS_KEY = 'onefile-chess-prefs-v1';
   function savePrefs() {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, speakMoves, commentary: commentaryEnabled, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sound: soundEnabled, speed: spectatorSpeed, coords: showCoords, reactions: reactionsEnabled, timeControl: timeControlPref, moveLimit: moveLimitPref, aiMoveTimeout: aiMoveTimeoutSec, speakMoves, commentary: commentaryEnabled, tts: ttsConfig, hint: hintCoach })); } catch (e) {}
   }
   function loadPrefs() {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || null; } catch (e) { return null; }
   }
   let timeControlPref = 'off';   // setup-screen selection key, persisted
   let moveLimitPref = 'off';      // setup-screen selection key ('off' or a full-move count), persisted
+  let aiMoveTimeoutSec = 0;       // per-move time guard (FR-9.12): max seconds for one AI move; 0 = off, persisted
   let speakMoves = false;          // speak each move's narration aloud (game-screen toggle), persisted
   let commentaryEnabled = false;   // LLM one-line comment after each move (FR-9.10), uses the AI-assistant endpoint, persisted
   let commentaryGen = 0;           // drop-stale guard: a comment resolves only if no newer move superseded it
@@ -2139,6 +2161,7 @@ function requestMove(fen, difficulty) {
     spectatorSpeed = ['veryslow','slow','normal','fast','instant'].includes(p.speed) ? p.speed : 'normal';
     timeControlPref = ['off','bullet','blitz','rapid','classical'].includes(p.timeControl) ? p.timeControl : 'off';
     moveLimitPref = ['off','40','60','80','100','150','200'].includes(p.moveLimit) ? p.moveLimit : 'off';
+    aiMoveTimeoutSec = [0, 15, 30, 60, 120].includes(Number(p.aiMoveTimeout)) ? Number(p.aiMoveTimeout) : 0;
     speakMoves = !!p.speakMoves;
     commentaryEnabled = !!p.commentary;
     if (p.tts && typeof p.tts === 'object') ttsConfig = { endpoint: String(p.tts.endpoint || ''), model: String(p.tts.model || ''), voice: String(p.tts.voice || ''), key: String(p.tts.key || '') };
@@ -2151,6 +2174,8 @@ function requestMove(fen, difficulty) {
     if (tcSel) tcSel.value = timeControlPref;
     const mlSel = document.getElementById('movelimit-select');
     if (mlSel) mlSel.value = moveLimitPref;
+    const atSel = document.getElementById('aimovetimeout-select');
+    if (atSel) atSel.value = String(aiMoveTimeoutSec);
     if (speakToggleEl) speakToggleEl.checked = speakMoves;
     if (commentaryToggleEl) commentaryToggleEl.checked = commentaryEnabled;
     if (ttsEndpointEl) ttsEndpointEl.value = ttsConfig.endpoint;
@@ -2211,6 +2236,11 @@ function requestMove(fen, difficulty) {
   const moveLimitSelectEl = document.getElementById('movelimit-select');
   moveLimitSelectEl.addEventListener('change', () => {
     moveLimitPref = moveLimitSelectEl.value;
+    savePrefs();
+  });
+  const aiMoveTimeoutSelectEl = document.getElementById('aimovetimeout-select');
+  aiMoveTimeoutSelectEl.addEventListener('change', () => {
+    aiMoveTimeoutSec = Number(aiMoveTimeoutSelectEl.value) || 0;
     savePrefs();
   });
 

@@ -453,8 +453,6 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
   model with a cheap non-reasoning orchestrator to fix instruction-following
   (LLM-Chess lifted R1 32%→63%, Gemini 42%→79% this way). Out of scope for our
   single-LLM-per-side architecture today.
-- **Per-turn hard time cap** on top of the chess clock, if a "no single move
-  may exceed N seconds" guard is ever wanted.
 
 **Lowest-friction next build:** §9.3 is now thin — **per-side language** has
 the most open UX questions (two players sharing one screen?), and **NoN/MoA**

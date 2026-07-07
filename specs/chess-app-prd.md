@@ -52,6 +52,7 @@ This flow exists specifically to serve the secondary goal — watching two AIs (
 | Hint coach (human 💡 Hint button) | FR-9.9 | Own endpoint, 3 hints/game, highlighted suggestion, never auto-played |
 | AI commentary (🗣 toggle) | FR-9.10 | Reuses the AI-assistant endpoint; best-effort one-line comment per move, drop-stale, spoken if Speak moves on |
 | In-session tally | FR-9.11 | Running W/D/L scoreboard across completed single games; series games excluded; in-memory, reset link |
+| AI move time cap | FR-9.12 | Setup selector Off/15/30/60/120s; LLM times out → local fallback (FR-9.4); engines already bounded; humans clock-governed |
 | Grandmaster engine asset | FR-4, spec §12.1 | Stockfish WASM (`nmrugg/stockfish.js`, single-threaded) fetched from CDN |
 | Rules engine | FR-1, spec §12.2 | Hand-rolled 0x88 in v1; `chess.js` retained as documented fallback |
 | Board + move input | FR-5.1, FR-5.2 | Click-to-move + drag-and-drop; toggleable coordinate labels (FR-5.1) |

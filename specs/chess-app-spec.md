@@ -233,6 +233,9 @@ All Human/AI combinations must be supported without special-casing in the rules 
 ### FR-9.11. In-session result tally
 - A **running scoreboard** (games played, White wins / draws / Black wins) accumulates across every completed **single** game in the page session — shown in a small panel below the board, with a reset link. It counts decisive games and draws only; an aborted or spectator-Stopped game (result `*`) is **not** counted. It **excludes tournament/match games** (those series own their own results panel — FR-9.6/FR-9.7). In-memory only (no persistence); reset on page reload or via the link. Rationale: a spectator (AI-vs-AI) or a human (Human-vs-AI) can see their record across the session without the overhead of configuring a full series.
 
+### FR-9.12. AI move time cap
+- A setup-screen "AI move cap" selector (Off / 15s / 30s / 60s / 120s, default Off, persisted) sets a hard ceiling on any single **AI** move's think/network time. On expiry the timed-out move throws, routing through the existing per-controller failure path: an **LLM falls back to a quick local move** (FR-9.4 — so a hung endpoint can't freeze the game or stall a tournament/match gauntlet); an **engine** timeout is pathological (engines are already bounded — node budgets with a 30s cap, Stockfish `movetime 3000`) and ends the game. It applies to **AI moves only** — a human's deliberation is governed by the chess clock (FR-6.6), not a per-move ceiling (a per-move cap on a human is non-standard and harsh). Rationale: a robustness guard against hung/slow endpoints, complementing — not replacing — the total chess clock.
+
 ## 6. Non-functional requirements
 
 ### NFR-1. Single-file architecture
