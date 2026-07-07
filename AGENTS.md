@@ -464,11 +464,6 @@ Each needs a spec FR + PRD/TDD section and a resolved open question first.
   single-LLM-per-side architecture today.
 - **Per-turn hard time cap** on top of the chess clock, if a "no single move
   may exceed N seconds" guard is ever wanted.
-- **Take over a side in a series:** the single-game take-over (FR-6.8) is
-  disabled in tournament/match because a series re-sets `matchConfig` every
-  game and its stats/Elo assume fixed matchups. End-and-continue would need to
-  record the swap and treat prior games as the old matchup's — a deliberate
-  change to the series result/Elo model.
 
 **Lowest-friction next build:** among §9.3, the **LLM single hint** is the
 highest-value but needs a config decision first. Everything here

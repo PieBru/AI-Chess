@@ -153,9 +153,9 @@ All Human/AI combinations must be supported without special-casing in the rules 
   `UCI_LimitStrength` + `UCI_Elo` (difficulty 7–9, levels below full
   strength at 6), making Elo-limited Stockfish play the same on fast and
   slow machines alike.
-- FR-6.8 **Take over a side mid-game** (single-game only): a "Take over…"
-  button — shown only in an active single game (hidden during a tournament/
-  match series, replay, or once the game is over) — opens a modal that reuses
+- FR-6.8 **Take over a side mid-game**: a "Take over…"
+  button — shown in an active game (hidden only during replay or once the game
+  is over) — opens a modal that reuses
   the setup screen's side-config UI under a `.takeover-config` class. The
   spectator picks which side to replace and configures its new controller
   (Human / Browser-AI at any level / LLM-AI with any endpoint+model+persona,
@@ -166,8 +166,13 @@ All Human/AI combinations must be supported without special-casing in the rules 
   reads the controller live each turn). The new config is mirrored back to the
   setup side-config so Rematch / next-game defaults keep it. The end-game
   summary mixes moves from the old and new controller for the taken-over side.
-  Series (tournament/match) re-set `matchConfig` every game, so take-over is
-  disabled there; "end-and-continue a series" is a future feature.
+  **Series end-and-continue:** during a tournament/match, confirming a take-over
+  ENDS the series — the partial results (the games completed so far, i.e. the
+  old matchup's record) are sealed and saved to the results file, the
+  in-progress game is not counted, and play continues as a single game from
+  the exact current position with the swapped side. This keeps the series
+  stats/Elo honest (they describe only the fixed original matchup) while still
+  letting a spectator step into an interesting position to play it out.
 
 ### FR-7. Game status & notation
 - FR-7.1 Persistent status line reflecting game state: whose turn, check, checkmate, stalemate, draw (with reason).

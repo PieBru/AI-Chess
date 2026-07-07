@@ -623,7 +623,7 @@ Default Off = no clock.">Time control
       </div>
       <div class="controls">
         <button id="flip-btn" title="Flip the board so the other colour sits at the bottom.">Flip board</button>
-        <button id="takeover-btn" hidden title="Replace one side's controller mid-game (Human / Browser-AI / LLM-AI) and resume from the current position. The position, move history and clocks are unchanged. Single-game only — not available during a tournament or match.">Take over…</button>
+        <button id="takeover-btn" hidden title="Replace one side's controller mid-game (Human / Browser-AI / LLM-AI) and resume from the current position. The position, move history and clocks are unchanged. During a tournament or match, taking over ends the series (partial results are saved) and continues as a single game from here.">Take over…</button>
         <button id="resign-btn" title="Concede — the side to move loses. Asks for confirmation.">Resign</button>
         <button id="rematch-btn" title="Start a fresh game with the same sides and settings (skips setup). Asks for confirmation if a game is in progress.">Rematch</button>
         <button id="save-pgn-btn" title="Download this game as a PGN file (standard portable game notation).">Save PGN</button>
@@ -2625,16 +2625,17 @@ function requestMove(fen, difficulty) {
     }
   });
 
-  // ---- "Take over a side" mid-game (single-game only) ----
+  // ---- "Take over a side" mid-game ----
   // Reuses the setup side-config UI: the modal's .takeover-config has the same
   // internals (controller-options/opt-btn/difficulty-picker/llm-config) and is
   // wired by the same init forEach ('.side-config, .takeover-config'), but it
   // is NOT a .side-config, so readSideConfigs / updateSeriesMode /
   // llmProbeInputs / startTournament (all '.side-config'-scoped) ignore it.
   // The whole mechanic is swapping matchConfig[side] + resuming playTurn() —
-  // playTurn reads the controller live each turn. Series-incompatible: a
-  // tournament/match re-sets matchConfig every game, so the button stays hidden
-  // (updateTakeoverBtn). End-and-continue-a-series is a future feature.
+  // playTurn reads the controller live each turn. During a series, taking over
+  // ends the series (sealing the partial results as the old matchup's record)
+  // and continues as a single game from the current position; the in-progress
+  // game is not counted.
   const takeoverModal = document.getElementById('takeover-modal');
   const takeoverCfgEl = document.getElementById('takeover-config');
   const takeoverSideSel = document.getElementById('takeover-side');
@@ -2664,7 +2665,7 @@ function requestMove(fen, difficulty) {
   }
   function fillTakeoverFromSide() { applyConfigToSide(takeoverCfgEl, matchConfig[takeoverSideSel.value]); }
   function openTakeoverModal() {
-    if (!takeoverModal || seriesActive() || gameOver || replayMode) return;
+    if (!takeoverModal || gameOver || replayMode) return;
     takeoverWasPaused = paused;
     paused = true; pauseBtn.textContent = 'Resume';
     takeoverSideSel.querySelector('option[value="white"]').textContent = 'White — currently ' + matchSideLabel(matchConfig.white);
@@ -2679,6 +2680,12 @@ function requestMove(fen, difficulty) {
     const side = takeoverSideSel.value;
     const { entry, error } = readTakeoverConfig(takeoverCfgEl);
     if (error) { takeoverErrorEl.textContent = error; takeoverErrorEl.hidden = false; return; }
+    if (seriesActive()) {   // end-and-continue: seal the series, resume as a single game
+      if (!confirm('Taking over ends this ' + (tournament ? 'tournament' : 'match') + ' (partial results are saved to a file) and continues as a single game from the current position.')) return;
+      seriesRenderResults();   // seal + save partial results, then nulls the series state
+      resultBanner.hidden = true; resultBanner.innerHTML = '';   // we resume, so dismiss the end banner
+      setupSeriesMode = 'single';
+    }
     matchConfig[side] = entry;          // playTurn reads matchConfig[side] live next turn
     const setupCfg = document.querySelector('.side-config[data-side="' + side + '"]');
     if (setupCfg) applyConfigToSide(setupCfg, entry);   // so Rematch / next-game defaults keep it
@@ -2688,7 +2695,7 @@ function requestMove(fen, difficulty) {
     spectatorControlsEl.hidden = !isSpectatorMode();
     playTurn();
   }
-  function updateTakeoverBtn() { if (takeoverBtn) takeoverBtn.hidden = seriesActive() || gameOver || replayMode; }
+  function updateTakeoverBtn() { if (takeoverBtn) takeoverBtn.hidden = gameOver || replayMode; }
   if (takeoverBtn) takeoverBtn.addEventListener('click', openTakeoverModal);
   if (takeoverSideSel) takeoverSideSel.addEventListener('change', fillTakeoverFromSide);
   const takeoverCancelBtn = document.getElementById('takeover-cancel');
