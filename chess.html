@@ -2191,7 +2191,8 @@ function requestMove(fen, difficulty) {
     if (hintApiBaseEl) hintApiBaseEl.value = hintCoach.apiBase;
     if (hintApiKeyEl) hintApiKeyEl.value = hintCoach.apiKey;
     if (hintModelEl) hintModelEl.value = hintCoach.model;
-    applyLang();   // swap static chrome to the saved language (no-op for 'en')
+    // applyLang() is invoked after the IT_TEXT block below is initialized
+    // (calling it here would hit a TDZ: const IT_TEXT is defined further down).
   })();
   soundToggleEl.addEventListener('change', () => {
     soundEnabled = soundToggleEl.checked;
@@ -3389,6 +3390,7 @@ function requestMove(fen, difficulty) {
       if (IT_PLACEHOLDER[k]) el.placeholder = IT_PLACEHOLDER[k];
     });
   }
+  applyLang();   // swap static chrome to the saved language (no-op for 'en') — runs after IT_TEXT is initialized
   function describeMove(prevState, move, san, quality) {
     const type = Math.abs(prevState.board[move.from]);
     const toSq = Rules.sqName(move.to);
