@@ -13,6 +13,12 @@ I made it to have fun while entertaining my grandkids on both playing and design
 
 NOTE: it's almost impossible for me to manually test all features and options. EXPECT BUGS and please open an issue if you find one, or want to suggest new features. Tested mainly with **LibreWolf** (Firefox), occasionally with **Ungoogled-Chromium** (Chromium); other modern browsers should work but aren't regularly checked.
 
+## Screenshots
+
+| Setup: Browser-AI levels | Setup: LLM-AI + TTS | Board mid-game |
+|---|---|---|
+| ![Browser-AI difficulty list](screenshots/03-difficulty.png) | ![LLM config and spoken narration](screenshots/04-llm-tts.png) | ![Italian opening, eval bar, move log](screenshots/05-aivsai.png) |
+
 ## Features
 
 - **Single-file app** — everything lives in one `chess.html`: no build step, no frameworks, no CDN for core play. (The Stockfish files are an optional companion for Grandmaster mode only — see [Play](#play).)
@@ -67,12 +73,6 @@ User-facing pages (blog, player's guide, kids): see [`docs/`](docs/).
 - **ssh + [tmux](https://github.com/tmux/tmux)** — persistent remote coding sessions.
 
 The LLM backing `pi` was a **self-hosted [llama.cpp](https://github.com/ggml-org/llama.cpp)** server running **Qwen-3.6-27B_UD-Q8 by Unsloth** — no cloud APIs involved. Part of the point: this project is itself an empirical benchmark for self-hosted LLM inferencing and agentic software engineering.
-
-## Screenshots
-
-| Setup: Browser-AI levels | Setup: LLM-AI + TTS | Board mid-game |
-|---|---|---|
-| ![Browser-AI difficulty list](screenshots/03-difficulty.png) | ![LLM config and spoken narration](screenshots/04-llm-tts.png) | ![Italian opening, eval bar, move log](screenshots/05-aivsai.png) |
 
 ## Acknowledgments
 
