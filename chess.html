@@ -1691,12 +1691,13 @@ function requestMove(fen, difficulty) {
     });
   }
 
-  async function callLLM(sideConfig, messages) {
+  async function callLLM(sideConfig, messages, signal) {
     const deadline = Date.now() + 300000;   // retry for up to 5 min total
     let delay = 1000;   // start at 1s, double each time, cap 60s
     let lastError = null;
 
     while (Date.now() < deadline) {
+      if (signal && signal.aborted) throw new Error('aborted');   // move-cap cancellation (FR-9.12)
       // Reasoning level (reasoning_effort) is model-specific: many endpoints
       // reject it with HTTP 400. Send it only when the user set one, and if the
       // first 400 arrives while it's set, mark it bad for the rest of the game
@@ -1721,6 +1722,7 @@ function requestMove(fen, difficulty) {
           // Rely on provider defaults (cf. LLM-Chess, Apr 2026). reasoning_effort
           // IS sent when set — it's the one knob reasoning models expect.
           body: JSON.stringify(body),
+          signal,   // AbortController from the per-move cap (FR-9.12); undefined when off
         });
         if (res.ok) {
           const data = await res.json();
@@ -1740,6 +1742,10 @@ function requestMove(fen, difficulty) {
           throw new Error('LLM endpoint returned HTTP ' + res.status + ' (not retried)');
         }
       } catch (err) {
+        // Move-cap cancellation: an aborted fetch (AbortError) is terminal —
+        // never retry it, or the abort would resurface as a network error and
+        // loop. Lets the per-move cap actually cancel in-flight work.
+        if (signal && signal.aborted) throw err;
         // Network errors (CORS, DNS, unreachable) — retry if under budget
         if (err.message && err.message.includes('not retried')) throw err;
         // Mixed-content block (HTTPS page → HTTP endpoint) is permanent —
@@ -1757,9 +1763,9 @@ function requestMove(fen, difficulty) {
     throw new Error('LLM call failed after exhausting retries: ' + lastError.message.replace(' — retrying', ''));
   }
 
-  // One-shot connectivity probe for an LLM endpoint: posts a trivial chat
-  // completion (NO retry loop — verify is a manual action and the user wants
-  // an instant verdict, not a 5-min wait) and reports "On line" or
+  // Connectivity probe for an LLM endpoint: posts a trivial chat completion
+  // — retries transient 5xx/429 briefly (a flaky endpoint shouldn't be falsely
+  // marked off-line) but stays quick — and reports "On line" or
   // "OFF LINE (<reason>)". Reads the field values live so it tests exactly
   // what Start will use. Sends only { model, messages } (no hyperparams) for
   // the same reason callLLM does — reasoning models 400 on unknown params.
@@ -1890,7 +1896,7 @@ function requestMove(fen, difficulty) {
     return match ? match[1] : null;
   }
 
-  async function requestLLMMove(sideConfig, fen) {
+  async function requestLLMMove(sideConfig, fen, signal) {
     const state = Rules.fromFEN(fen);
     const legalUci = legalMovesAsUci(state);
     const sideName = state.turn === Rules.WHITE ? 'White' : 'Black';
@@ -1907,7 +1913,7 @@ function requestMove(fen, difficulty) {
     let uciMove = null, lastRaw = '', llmRetries = 0;
     for (let attempt = 0; attempt < 2 && !uciMove; attempt++) {
       try {
-        const r = await callLLM(sideConfig, messages);
+        const r = await callLLM(sideConfig, messages, signal);
         lastRaw = r.content;
         if (r.usage && typeof r.usage.completion_tokens === 'number') completionTokens += r.usage.completion_tokens;
       } catch (err) {
@@ -1942,12 +1948,12 @@ function requestMove(fen, difficulty) {
   // Common interface (spec §7.1): all tiers resolve to the same shape.
   async function requestAIMove(controllerConfig) {
     const fen = Rules.toFEN(gameState);
-    const doMove = async () => {
+    const doMove = async (signal) => {
       if (controllerConfig.type === 'normal') {
         const r = await requestNormalMove(fen, controllerConfig.difficulty);
         return { move: r.move, evalCp: r.evalCp, bestEvalCp: r.bestEvalCp };
       }
-      if (controllerConfig.type === 'llm') return requestLLMMove(controllerConfig, fen);
+      if (controllerConfig.type === 'llm') return requestLLMMove(controllerConfig, fen, signal);
       const r = await requestGrandmasterMove(fen, controllerConfig.elo);
       const move = uciToMove(gameState, r.uciMove);
       if (!move) throw new Error('Grandmaster returned an unparseable move: ' + r.uciMove);
@@ -1958,13 +1964,21 @@ function requestMove(fen, difficulty) {
     // routes through the caller's per-controller catch — an LLM falls back to a
     // quick local move (FR-9.4); an engine timeout (pathological — engines are
     // fast) ends the game. Humans are clock-governed, not capped per move.
+    // The AbortController cancels callLLM's in-flight fetch + retry loop when
+    // the cap fires, so a flaky endpoint can't leave orphaned retries running
+    // for the full 5-min deadline in the background (matters for long AI-vs-AI
+    // LLM spectating). The post-abort rejection is swallowed (race already
+    // moved on) so it never surfaces as an unhandled rejection.
     if (aiMoveTimeoutSec > 0) {
+      const controller = new AbortController();
+      const p = doMove(controller.signal);
+      p.catch(() => {});   // swallow the rejection that fires when we abort below
       let timer;
-      const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('move timed out after ' + aiMoveTimeoutSec + 's')), aiMoveTimeoutSec * 1000); });
-      try { return await Promise.race([doMove(), timeout]); }
+      const timeout = new Promise((_, rej) => { timer = setTimeout(() => { controller.abort(); rej(new Error('move timed out after ' + aiMoveTimeoutSec + 's')); }, aiMoveTimeoutSec * 1000); });
+      try { return await Promise.race([p, timeout]); }
       finally { clearTimeout(timer); }
     }
-    return doMove();
+    return doMove(undefined);
   }
 
   // ---------------------------------------------------------------------

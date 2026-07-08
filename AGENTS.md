@@ -447,13 +447,38 @@ thinking indicator, AI-vs-AI spectating. Beyond the v1 baseline:
 ### 9.3 Future ideas (need a product decision before building — none specced)
 Each needs a spec FR + PRD/TDD section and a resolved open question first.
 - **NoN / MoA multi-model orchestration:** pair a smart-but-erratic reasoning
-  model with a cheap non-reasoning orchestrator to fix instruction-following
-  (LLM-Chess lifted R1 32%→63%, Gemini 42%→79% this way). Out of scope for our
-  single-LLM-per-side architecture today.
+  model with a cheap non-reasoning orchestrator that enforces the legal-move
+  contract — the documented biggest lever for LLM play (LLM-Chess lifted
+  R1 32%→63%, Gemini 42%→79% this way). Out of scope for today's
+  single-LLM-per-side architecture. **Open questions to resolve before a spec
+  FR exists:**
+  - *ControllerConfig shape:* a "side" becomes a `{reasoner, orchestrator}`
+    pair. Does the setup screen grow a second model slot per side, or add a
+    new "NoN-AI" controller type with its own two-model form? `ControllerConfig`
+    (§5) would need a `models[]` array or a nested pair — and the Verify
+    probe / saved-profile pool (FR-9.1) must cover both endpoints.
+  - *Orchestrator contract:* the orchestrator reduces the reasoner's output to
+    exactly one legal UCI move (reuse `extractUciMove` last-wins +
+    `stripThoughts`). Define the fallback when the reasoner names no legal
+    move (orchestrator's own pick? local engine? retry the reasoner?).
+  - *Cost / fairness:* a NoN side burns 2×+ tokens and latency per move. How
+    does that interact with the per-move cap (FR-9.12 — would it abort the
+    reasoner mid-thought?), the chess clock (FR-6.6), and the efficiency
+    stats (completionTokens aren't comparable single vs. paired)? Match
+    relative-Elo is fine; absolute-Elo anchoring still works (the Stockfish
+    anchor is the opponent, not the NoN side).
+  - *Evaluation lens:* NoN is a distinct technique — give it its own side-label
+    so the "evaluate AI intelligence" goal can compare single-model vs.
+    orchestrated play head-to-head.
 
-**Lowest-friction next build:** §9.3 is down to **NoN/MoA** (highest-value
-research angle but breaks the single-LLM-per-side architecture). No other
-unblocked feature work remains — everything left either needs a host, needs
-playtest data, or is a research-direction decision. A good use of the next
-session is runtime smoke-testing the FR-9.8–9.13 batch (reasoning / hints /
-commentary / tally / move-cap / language) against a live endpoint.
+**Lowest-friction next build:** none unblocked. The FR-9.8–9.13 batch is
+shipped **and** runtime-verified against a live thinking-model endpoint
+(2026-07-06 smoke test caught + fixed three integration bugs the node
+self-checks missed: an i18n load-order TDZ that silently broke every Italian
+load, thinking-model `<thought>` pollution that broke hints/commentary, and a
+one-shot pre-start probe that blocked flaky endpoints; the FR-9.12 move-cap
+was also hardened with an `AbortController` so a timed-out LLM move actually
+cancels its in-flight retries instead of orphaning them). **v1.0 tagged** at
+this milestone. The only remaining substantive item is §9.3's NoN/MoA — a
+research-direction decision with the open questions above, not a go-build.
+The §9.2 rows are all host- or data-gated.
